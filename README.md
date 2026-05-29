@@ -46,30 +46,6 @@ FLUSH PRIVILEGES;
 
 ---
 
-## Running Development Server
-
-### Ensure execution permission
-
-```bash
-chmod +x mvnw
-```
-
-### Run application
-
-```bash
-./mvnw spring-boot:run
-```
-
----
-
-## Project Compilation & Verification
-
-```bash
-./mvnw clean verify
-```
-
----
-
 ## Configuration
 
 File location:
@@ -94,6 +70,66 @@ spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
 ```
+
+---
+
+## Project Structure
+
+src/main/java/com/onecare
+```
+├── controller      # REST API endpoints
+├── service         # Business logic layer
+├── repository      # Database access layer
+├── entity          # JPA entities
+├── dto             # Request/response models
+├── config          # Application configurations
+├── security        # Security configurations
+├── exception       # Global exception 
+
+```
+---
+
+
+
+## Running Development Server
+
+### Ensure execution permission
+
+```bash
+chmod +x mvnw
+```
+
+### Run application
+
+```bash
+./mvnw spring-boot:run
+```
+
+---
+
+## Project Compilation & Verification
+
+```bash
+./mvnw clean verify
+```
+
+---
+
+## Swagger/OpenAPI Documentation
+
+After application startup:
+
+Swagger UI:
+
+```text
+http://localhost:8080/swagger-ui/index.html 
+```
+
+OpenAPI Docs:
+
+```text
+ http://localhost:8080/v3/api-docs
+ ```
 
 ---
 

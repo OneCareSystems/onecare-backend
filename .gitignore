@@ -7,6 +7,8 @@ target/
 # Log files
 *.log
 
+src/main/resources/application.properties
+
 # BlueJ files
 *.ctxt
 
