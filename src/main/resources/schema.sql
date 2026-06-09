@@ -133,7 +133,7 @@ CREATE TABLE audit_log (
     description      TEXT           NULL,
 
     CONSTRAINT pk_audit_log   PRIMARY KEY (log_id),
-    CONSTRAINT fk_audit_user  FOREIGN KEY (user_id) REFERENCES users(user_id),
+    CONSTRAINT fk_audit_user  FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 CREATE TABLE external_dispensing (
