@@ -62,7 +62,6 @@ CREATE TABLE medicines (
     generic_name   VARCHAR(150)   NULL,
     category       VARCHAR(100)   NOT NULL,
     unit           VARCHAR(50)   NOT NULL,
-    quantity_in_stock   INT      NOT NULL DEFAULT 0,
     reorder_level     INT        NOT NULL,
     unit_price      DECIMAL(10,2)    NOT NULL,
     is_quarantined   BOOLEAN        NOT NULL DEFAULT FALSE,
@@ -80,7 +79,7 @@ CREATE TABLE prescriptions (
     prescription_id BIGINT        NOT NULL AUTO_INCREMENT,
     appointment_id  BIGINT        NOT NULL,
     doctor_id       BIGINT        NOT NULL,
-    patient_id      VARCHAR(10)    NOT NULL,
+    patient_id      BIGINT    NOT NULL,
     date            DATE          NOT NULL,
     status          ENUM('PENDING','DISPENSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
     created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -89,7 +88,7 @@ CREATE TABLE prescriptions (
     CONSTRAINT pk_prescriptions      PRIMARY KEY (prescription_id),
     CONSTRAINT fk_presc_appointment  FOREIGN KEY (appointment_id) REFERENCES appointments(appointment_id),
     CONSTRAINT fk_presc_doctor       FOREIGN KEY (doctor_id)      REFERENCES users(user_id),
-    CONSTRAINT fk_presc_doctor       FOREIGN KEY (patient_id)      REFERENCES users(user_id)
+    CONSTRAINT fk_presc_patient       FOREIGN KEY (patient_id)      REFERENCES users(user_id)
 
 );
 
@@ -135,8 +134,6 @@ CREATE TABLE audit_log (
 
     CONSTRAINT pk_audit_log   PRIMARY KEY (log_id),
     CONSTRAINT fk_audit_user  FOREIGN KEY (user_id) REFERENCES users(user_id),
-    CONSTRAINT fk_entity  FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
-
 );
 
 CREATE TABLE external_dispensing (
@@ -151,6 +148,6 @@ CREATE TABLE external_dispensing (
     dispensed_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_external_dispensing    PRIMARY KEY (dispense_id),
-    CONSTRAINT fk_ext_disp_prescription  FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id),
+    CONSTRAINT fk_ext_disp_prescription  FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
 
 );
