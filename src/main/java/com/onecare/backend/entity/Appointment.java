@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.LocalDateTime;
+import com.onecare.backend.enums.Gender;
+import com.onecare.backend.enums.Status;
 
 @Data
 @NoArgsConstructor
@@ -16,13 +18,12 @@ import java.time.LocalDateTime;
 public class Appointment {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "appointmentId")
+    @Column(name = "appointment_id")
     private Long appointmentId;
 
     @ManyToOne
     @JoinColumn(name = "patient_id", nullable = false)
-    private User patient;
+    private Patient patient;
 
     @ManyToOne
     @JoinColumn(name = "doctor_id", nullable = false)
@@ -36,16 +37,18 @@ public class Appointment {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private Status status = Status.SCHEDULED;
+    private Status status ;
     
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+     
+    @Column(name = "reason", length = 500)
+    private String reason;
 
-    public enum Status {
-        SCHEDULED, COMPLETED, CANCELLED
-    }
+    @Enumerated(EnumType.STRING)
+    @Column(name="gender",length=10)
+    private Gender gender;
 }

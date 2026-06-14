@@ -4,7 +4,8 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;  // ✅ Fix 1: missing import
+import java.time.LocalDateTime;  
+import com.onecare.backend.enums.Role;
 
 @Data
 @NoArgsConstructor
@@ -26,6 +27,9 @@ public class User {              // ✅ Fix 2: class must be public
 
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
+
+    @Column(name = "last_login")
+    private LocalDateTime lastLogin;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
@@ -56,8 +60,5 @@ public class User {              // ✅ Fix 2: class must be public
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
-
-    public enum Role {
-        SUPER_ADMIN, ADMIN, DOCTOR, PHARMACIST
-    }
+    
 }

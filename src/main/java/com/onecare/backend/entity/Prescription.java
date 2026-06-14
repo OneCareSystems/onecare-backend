@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.onecare.backend.enums.Status;
+import com.onecare.backend.enums.Gender;
 
 @Data
 @NoArgsConstructor
@@ -32,7 +34,11 @@ public class Prescription {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private Status status = Status.PENDING;
+    private Status status;
+
+    @ManyToOne
+    @JoinColumn(name = "patient_id", nullable = false)
+    private Patient patient;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -40,7 +46,5 @@ public class Prescription {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public enum Status {
-        PENDING, DISPENSED, CANCELLED
-    }
-}
+} 
+

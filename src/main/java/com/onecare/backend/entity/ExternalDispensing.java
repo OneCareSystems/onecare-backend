@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.onecare.backend.enums.DeliveryMethod;
+import com.onecare.backend.enums.Status;
 import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
@@ -26,5 +28,22 @@ public class ExternalDispensing {
 
    @Column(name = "dispensed_at", nullable = false)
     private LocalDateTime dispensedAt;
+
+   @Column(name = "patient_id", nullable = false, length = 10)
+     private String patientId;
+
+   @Column(name = "dispense_date", nullable = false)
+     private LocalDateTime dispenseDate;
+
+   @Column(name = "quantity_dispensed", nullable = false)
+     private Integer quantityDispensed;
+
+   @Enumerated(EnumType.STRING)
+     @Column(name = "status", nullable = false)
+     private Status status;
+
+   @Enumerated(EnumType.STRING)
+      @Column(name = "delivery_method", nullable = false)
+      private DeliveryMethod deliveryMethod;
 
 }

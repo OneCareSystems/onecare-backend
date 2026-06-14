@@ -19,7 +19,7 @@ public class PrescriptionItem{
 
     @ManyToOne
     @JoinColumn(name = "prescription_id", nullable = false)
-    private Prescription prescriptrion;
+    private Prescription prescription;
 
     @ManyToOne
     @JoinColumn(name = "medicine_id", nullable = false)
@@ -27,6 +27,13 @@ public class PrescriptionItem{
 
     @Column(name = "dosage", nullable = false, length = 50)
     private String dosage;
+
+    @Column(name = "quantity", nullable = false)
+    private Integer quantity;
+
+    @Column(name = "frequency", nullable = false, length = 100)
+    private String frequency;
+
 
     @Column(name = "duration", nullable = false, length = 50)
     private String duration;
