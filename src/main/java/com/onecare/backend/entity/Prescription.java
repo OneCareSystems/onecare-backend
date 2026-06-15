@@ -6,6 +6,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import com.onecare.backend.enums.Status;
 import com.onecare.backend.enums.Gender;
 
@@ -40,9 +44,11 @@ public class Prescription {
     @JoinColumn(name = "patient_id", nullable = false)
     private Patient patient;
 
+    @CreationTimestamp  // auto set on INSERT automatically
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 

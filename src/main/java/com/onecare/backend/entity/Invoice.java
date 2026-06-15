@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import com.onecare.backend.enums.Status;
-import com.onecare.backend.enums.Gender;
+
+import com.onecare.backend.enums.PaymentStatus;
 
 @Data
 @NoArgsConstructor
@@ -22,9 +22,13 @@ public class Invoice {
     @Column(name = "invoice_id")
     private Long invoiceId;
 
-    @ManyToOne
-    @JoinColumn(name = "prescription_id", nullable = false)
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name = "prescription_id", nullable = true)
     private  Prescription  prescription;
+
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="dispense_id" ,nullable=true)
+    private ExternalDispensing externalDispensing;
 
     @ManyToOne
     @JoinColumn(name = "billed_by", nullable = false)
@@ -35,12 +39,33 @@ public class Invoice {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false)
-    private Status paymentStatus = Status.PENDING;
+    private PaymentStatus paymentStatus;
 
     @Column(name = "date", nullable = false)
     private LocalDate date;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Transient
+    public boolean isExternalCustomer(){
+        return this.externalDispensing!=null;
+    }
+
+    @Transient
+    public boolean isInternalPatient(){
+        return this.prescription!=null;
+    }
+
+    @PrePersist  
+    @PreUpdate 
+    private void validateSource() {
+    boolean hasPrescription = (prescription != null);
+    boolean hasDispense     = (externalDispensing != null);
+
+    if (hasPrescription == hasDispense) {
+        throw new IllegalStateException("Invoice must link to ONE source only...");
+    }
+}
   
 }

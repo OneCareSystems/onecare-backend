@@ -3,8 +3,6 @@ package com.onecare.backend.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import lombok.NoArgsConstructor;
 import com.onecare.backend.enums.Gender;
 import java.time.LocalDate;
@@ -31,13 +29,13 @@ public class Patient {
     private String address;
 
     @Column(name = "contact_no", nullable = false, length = 20)
-    private String contact_no;
+    private String contactNo;
 
     @Column(name = "email", length = 100)
     private String email;
 
     @Column(name="blood_group" , length=10)
-    private String blood_group;
+    private String bloodGroup;
 
     @Column(name="created_at",nullable=false ,updatable=false)
     private LocalDateTime createdAt;
@@ -48,6 +46,17 @@ public class Patient {
     @Enumerated(EnumType.STRING)
     @Column(name="gender",length=10)
     private Gender gender;
+
+    @PrePersist
+    protected void onCreate() {
+    createdAt = LocalDateTime.now();
+    updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+    updatedAt = LocalDateTime.now();
+    }
 
 }
 

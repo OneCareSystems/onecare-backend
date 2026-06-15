@@ -29,8 +29,8 @@ public class ExternalDispensing {
    @Column(name = "dispensed_at", nullable = false)
     private LocalDateTime dispensedAt;
 
-   @Column(name = "patient_id", nullable = false, length = 10)
-     private String patientId;
+   @Column(name = "patient_id", nullable = true, length = 10)
+     private Long patientId;
 
    @Column(name = "dispense_date", nullable = false)
      private LocalDateTime dispenseDate;
