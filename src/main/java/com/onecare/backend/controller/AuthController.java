@@ -3,6 +3,8 @@ package com.onecare.backend.controller;
 import com.onecare.backend.dto.AuthResponse;
 import com.onecare.backend.dto.LoginRequest;
 import com.onecare.backend.dto.RefreshRequest;
+import com.onecare.backend.entity.User;
+import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.security.JwtService;
 import jakarta.validation.Valid;
@@ -21,13 +23,16 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final AppUserDetailsService userDetailsService;
+    private final UserRepository userRepository;
     private final JwtService jwtService;
 
     public AuthController(AuthenticationManager authenticationManager,
             AppUserDetailsService userDetailsService,
+            UserRepository userRepository,
             JwtService jwtService) {
         this.authenticationManager = authenticationManager;
         this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
         this.jwtService = jwtService;
     }
 
@@ -36,10 +41,11 @@ public class AuthController {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password()));
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.username());
-        String role = userDetails.getAuthorities().iterator().next().getAuthority();
+        User user = userRepository.findByUsername(request.username())
+                .orElseThrow(() -> new IllegalArgumentException("User not found after authentication"));
+        String role = user.getRole().name();
 
-        String accessToken = jwtService.issueAccessToken(request.username(), role);
+        String accessToken = jwtService.issueAccessToken(user.getUserId(), request.username(), role);
         String refreshToken = jwtService.issueRefreshToken(request.username());
 
         return ResponseEntity.ok(AuthResponse.of(accessToken, refreshToken, jwtService.getAccessTokenExpiry()));
@@ -53,9 +59,11 @@ public class AuthController {
 
         String username = jwtService.extractUsername(request.refreshToken());
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        String role = userDetails.getAuthorities().iterator().next().getAuthority();
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("User not found for refresh"));
+        String role = user.getRole().name();
 
-        String newAccessToken = jwtService.issueAccessToken(username, role);
+        String newAccessToken = jwtService.issueAccessToken(user.getUserId(), username, role);
         return ResponseEntity
                 .ok(AuthResponse.of(newAccessToken, request.refreshToken(), jwtService.getAccessTokenExpiry()));
     }

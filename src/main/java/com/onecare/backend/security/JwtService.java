@@ -27,8 +27,8 @@ public class JwtService {
         this.refreshTokenExpiry = refreshTokenExpiry;
     }
 
-    public String issueAccessToken(String username, String role) {
-        return buildToken(username, Map.of("role", role, "type", "access"), accessTokenExpiry);
+    public String issueAccessToken(Long userId, String username, String role) {
+        return buildToken(username, Map.of("userId", userId, "role", role, "type", "access"), accessTokenExpiry);
     }
 
     public String issueRefreshToken(String username) {
@@ -60,6 +60,17 @@ public class JwtService {
 
     public String extractType(String token) {
         return (String) validateAndExtract(token).get("type");
+    }
+
+    public Long extractUserId(String token) {
+        Object value = validateAndExtract(token).get("userId");
+        if (value instanceof Integer intValue) {
+            return intValue.longValue();
+        }
+        if (value instanceof Long longValue) {
+            return longValue;
+        }
+        return Long.parseLong(String.valueOf(value));
     }
 
     public long getAccessTokenExpiry() {
