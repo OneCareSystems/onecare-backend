@@ -2,6 +2,7 @@ package com.onecare.backend.exception;
 
 import com.onecare.backend.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Hidden;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -12,19 +13,25 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiResponse<?>> handleNotFound(ResourceNotFoundException exception){
+    public ResponseEntity<ApiResponse<?>> handleNotFound(ResourceNotFoundException exception) {
 
         ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiResponse<?>> handleBadCredentials(BadCredentialsException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, "Invalid username or password");
+
+        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
 
         ApiResponse<?> response = new ApiResponse<>(false, "Internal Server Error");
 
-        return new ResponseEntity<>(response,HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
