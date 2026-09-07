@@ -19,7 +19,7 @@ public class Patient {
     @Column(name="patient_id")
     private Long patientId;
 
-    @Column(name = "full_name", nullable = false, length = 100)
+    @Column(name = "full_name", nullable = false, length = 500)
     private String full_name;
 
     @Column(name = "date_of_birth", nullable = false)
