@@ -32,22 +32,41 @@ jobs:
           --health-retries=5
 
     steps:
+      # ─────────────────────────────────────────────
+      # Checkout
+      # ─────────────────────────────────────────────
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # ─────────────────────────────────────────────
+      # Java
+      # ─────────────────────────────────────────────
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
-          cache: 'maven'
+          cache: maven
 
+      # ─────────────────────────────────────────────
+      # Maven Wrapper Permission
+      # ─────────────────────────────────────────────
       - name: Grant execute permission to Maven Wrapper
         run: chmod +x mvnw
 
+      # ─────────────────────────────────────────────
+      # Build & Test
+      # ─────────────────────────────────────────────
       - name: Build and Test Application
         run: ./mvnw clean verify
         env:
+          # Database
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb
           SPRING_DATASOURCE_USERNAME: test
           SPRING_DATASOURCE_PASSWORD: test
+          SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+
+          # JWT
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_ACCESS_TOKEN_EXPIRY: 900000
+          JWT_REFRESH_TOKEN_EXPIRY: 604800000
