@@ -11,7 +11,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import com.onecare.backend.enums.Gender;
 import com.onecare.backend.enums.Status;
 
 @Data
@@ -54,7 +53,4 @@ public class Appointment {
     @Column(name = "reason", length = 500)
     private String reason;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name="gender",length=10)
-    private Gender gender;
 }
