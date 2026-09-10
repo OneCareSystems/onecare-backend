@@ -122,7 +122,7 @@ CREATE TABLE prescription_items (
 CREATE TABLE external_dispensing (
     dispense_id         BIGINT       NOT NULL AUTO_INCREMENT,
     prescription_id     BIGINT       NOT NULL,
-    patient_id          VARCHAR(10)  NULL,
+    patient_id          BIGINT  NULL,
     verification_method VARCHAR(100) NOT NULL,
     dispense_date       DATETIME     NOT NULL,
     quantity_dispensed  INT          NOT NULL,
