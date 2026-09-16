@@ -4,6 +4,7 @@ import com.onecare.backend.dto.ApiResponse;
 import com.onecare.backend.dto.response.AuthResponse;
 import com.onecare.backend.dto.request.LoginRequest;
 import com.onecare.backend.dto.request.RefreshRequest;
+import com.onecare.backend.dto.response.UserResponse;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.UserRepository;
@@ -87,7 +88,7 @@ public class AuthController {
 //    }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<User>> me() {
+    public ResponseEntity<ApiResponse<UserResponse>> me() {
 
         String username = SecurityUtil.getCurrentUsername()
                 .orElseThrow(() -> new IllegalArgumentException("Authenticated user not found"));
@@ -95,8 +96,10 @@ public class AuthController {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
+        UserResponse userResponse = UserResponse.from(user);
+
         return ResponseEntity.ok(
-                new ApiResponse<>(true, "Profile retrieved successfully", user )
+                new ApiResponse<>(true, "Profile retrieved successfully", userResponse )
         );
     }
 }
