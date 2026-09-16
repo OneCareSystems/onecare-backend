@@ -26,9 +26,7 @@ public class PrescriptionController {
 
     @GetMapping("/{id}")
     @PreAuthorize(
-            "hasAuthority('" + Permission.PRESCRIPTION_READ_ALL + "')"
-                    + " or hasAuthority('" + Permission.PRESCRIPTION_READ_OWN + "')"
-    )
+            "hasAuthority('" + Permission.PRESCRIPTION_READ_ALL + "')")
     public ResponseEntity<ApiResponse<?>> findPrescriptionById( @PathVariable Long id ) {
         return null;
     }

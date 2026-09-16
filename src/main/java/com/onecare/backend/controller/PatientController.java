@@ -33,7 +33,7 @@ public class PatientController {
     @GetMapping("/{id}")
     @PreAuthorize(
             "hasAuthority('" + Permission.PATIENT_READ_ALL + "')"
-                    + " or hasAuthority('" + Permission.PATIENT_READ_ASSIGNED + "')"
+                    + " or hasAuthority('" + Permission.PATIENT_READ + "')"
     )
     public ResponseEntity<ApiResponse<?>> findPatientById(
             @PathVariable Long id

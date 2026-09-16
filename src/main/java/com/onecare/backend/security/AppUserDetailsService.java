@@ -11,7 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class AppUserDetailsService implements UserDetailsService {
@@ -24,10 +25,26 @@ public class AppUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        boolean accountNonLocked = user.getLockedUntil() == null || user.getLockedUntil().isBefore(LocalDateTime.now());
+        boolean accountNonLocked =
+                user.getLockedUntil() == null ||
+                user.getLockedUntil().isBefore(LocalDateTime.now());
+
+        Set<GrantedAuthority> authorities = new HashSet<>();
+
+        // Role authority
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+
+        // Permission authorities
+        RolePermission.getPermissions(user.getRole())
+                .forEach(permission ->
+                        authorities.add(
+                                new SimpleGrantedAuthority(permission)
+                        )
+                );
 
         return new AppUserDetails(
                 user.getUserId(),
@@ -37,7 +54,8 @@ public class AppUserDetailsService implements UserDetailsService {
                 true,
                 true,
                 accountNonLocked,
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
+                authorities
+        );
     }
 
     public static class AppUserDetails implements UserDetails {
@@ -50,10 +68,12 @@ public class AppUserDetailsService implements UserDetailsService {
         private final boolean accountNonLocked;
         private final Collection<? extends GrantedAuthority> authorities;
 
-        public AppUserDetails(Long userId, String username, String password,
-                              boolean enabled, boolean accountNonExpired,
-                              boolean credentialsNonExpired, boolean accountNonLocked,
-                              Collection<? extends GrantedAuthority> authorities) {
+        public AppUserDetails(
+                Long userId, String username,
+                String password, boolean enabled,
+                boolean accountNonExpired, boolean credentialsNonExpired,
+                boolean accountNonLocked, Collection<? extends GrantedAuthority> authorities) {
+
             this.userId = userId;
             this.username = username;
             this.password = password;
