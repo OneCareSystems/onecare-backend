@@ -43,7 +43,10 @@ public class AuthController {
 
         User user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> new IllegalArgumentException("User not found after authentication"));
-        String role = user.getRole().name();
+
+        Role role = user.getRole();
+        String accessToken = jwtService.issueAccessToken(
+                user.getUserId(), request.username(), role.name());
 
         String accessToken = jwtService.issueAccessToken(user.getUserId(), request.username(), role);
         String refreshToken = jwtService.issueRefreshToken(request.username());
