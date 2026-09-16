@@ -11,7 +11,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,7 +48,8 @@ public class AuthController {
         String accessToken = jwtService.issueAccessToken(user.getUserId(), request.username(), role);
         String refreshToken = jwtService.issueRefreshToken(request.username());
 
-        return ResponseEntity.ok(AuthResponse.of(accessToken, refreshToken, jwtService.getAccessTokenExpiry()));
+        return ResponseEntity.ok(
+                AuthResponse.of(accessToken, refreshToken, jwtService.getAccessTokenExpiry(), role));
     }
 
     @PostMapping("/refresh")
@@ -63,8 +64,33 @@ public class AuthController {
                 .orElseThrow(() -> new IllegalArgumentException("User not found for refresh"));
         String role = user.getRole().name();
 
-        String newAccessToken = jwtService.issueAccessToken(user.getUserId(), username, role);
-        return ResponseEntity
-                .ok(AuthResponse.of(newAccessToken, request.refreshToken(), jwtService.getAccessTokenExpiry()));
+        String newAccessToken = jwtService.issueAccessToken(
+                user.getUserId(),
+                username,
+                role.name()
+        );
+
+        return ResponseEntity.ok(
+                AuthResponse.of(
+                        newAccessToken,
+                        request.refreshToken(),
+                        jwtService.getAccessTokenExpiry(),
+                        role
+                )
+        );
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<User>> me() {
+
+        String username = SecurityUtil.getCurrentUsername()
+                .orElseThrow(() -> new IllegalArgumentException("Authenticated user not found"));
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Profile retrieved successfully", user )
+        );
     }
 }
