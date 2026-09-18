@@ -42,11 +42,12 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/**",
+                                "/api/auth/login",
+                                "/api/auth/refresh",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")
-                        .permitAll()
+                            .permitAll()
                         .requestMatchers("/api/users/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/patients/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
                         .requestMatchers("/api/medicines/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST")
