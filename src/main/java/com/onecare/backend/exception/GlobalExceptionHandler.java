@@ -2,6 +2,7 @@ package com.onecare.backend.exception;
 
 import com.onecare.backend.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Hidden;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,13 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = new ApiResponse<>(false, "Invalid username or password");
 
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, "Access denied: insufficient permissions");
+
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(Exception.class)
