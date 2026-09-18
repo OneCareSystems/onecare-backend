@@ -38,6 +38,9 @@ public class User {              // ✅ Fix 2: class must be public
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "account_locked", nullable = false)
+    private Boolean accountLocked = false;
+
     @Column(name = "failed_attempts", nullable = false)
     private Integer failedAttempts = 0;
 
