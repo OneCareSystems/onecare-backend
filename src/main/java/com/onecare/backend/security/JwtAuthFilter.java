@@ -38,8 +38,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String token = header.substring(7);
         try {
-            if ("refresh".equals(jwtService.extractType(token))) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Refresh token not valid here");
+            String tokenType = jwtService.extractType(token);
+            
+            if (!"access".equals(tokenType)) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid access token");
                 return;
             }
 

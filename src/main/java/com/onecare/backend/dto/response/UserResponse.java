@@ -7,7 +7,10 @@ import java.time.LocalDateTime;
 
 public record UserResponse(
         Long userId, String username, String email,
-        Role role, Boolean isActive, LocalDateTime lastLogin ) {
+        Role role, Boolean isActive, Boolean accountLocked,
+        Integer failedAttempts,
+        LocalDateTime lockedUntil, LocalDateTime createdAt, LocalDateTime updatedAt
+) {
 
     public static UserResponse from(User user) {
         return new UserResponse(
@@ -16,7 +19,11 @@ public record UserResponse(
                 user.getEmail(),
                 user.getRole(),
                 user.getIsActive(),
-                user.getLastLogin()
+                user.getAccountLocked(),
+                user.getFailedAttempts(),
+                user.getLockedUntil(),
+                user.getCreatedAt(),
+                user.getUpdatedAt()
         );
     }
 }
