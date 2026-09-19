@@ -75,17 +75,23 @@ class JwtAuthenticationIntegrationTest {
                         {"username":"doctor1","password":"Password@123"}
                         """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
-                .andExpect(jsonPath("$.expiresIn").value(1800000))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.expiresIn").value(1800000))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         JsonNode body = objectMapper.readTree(responseBody);
-        String accessToken = body.get("accessToken").asText();
+        JsonNode data = body.get("data");
+
+        assertThat(data).isNotNull();
+        assertThat(data.get("accessToken")).isNotNull();
+
+        String accessToken = data.get("accessToken").asText();
 
         var claims = jwtService.validateAndExtract(accessToken);
+
         assertThat(claims.get("userId")).isNotNull();
         assertThat(claims.get("role")).isEqualTo("DOCTOR");
         assertThat(claims.getExpiration()).isAfter(new Date());
