@@ -2,6 +2,7 @@ package com.onecare.backend.service;
 
 import com.onecare.backend.dto.response.UserResponse;
 import com.onecare.backend.entity.User;
+import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.Permission;
@@ -16,7 +17,7 @@ import java.time.LocalDateTime;
 @Transactional
 public class UserServiceImpl implements UserService {
 
-    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final int MAX_FAILED_ATTEMPTS = 10;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -31,18 +32,39 @@ public class UserServiceImpl implements UserService {
 
 
     @Override
-    public void recordFailedAttempt(User user) {
+    public boolean recordFailedAttempt(User user) {
 
-        int newAttempts = user.getFailedAttempts() + 1;
+        int currentAttempts = user.getFailedAttempts() == null
+                ? 0 : user.getFailedAttempts();
+
+        int newAttempts = currentAttempts + 1;
 
         user.setFailedAttempts(newAttempts);
 
-        if (newAttempts >= MAX_FAILED_ATTEMPTS) {
+        /*
+         * SUPER_ADMIN is not automatically locked.
+         *
+         * Otherwise, if the only SUPER_ADMIN account becomes locked,
+         * there would be no administrator available to unlock it.
+         *
+         * Failed attempts are still recorded for auditing/security monitoring.
+         */
+        if (user.getRole() != Role.SUPER_ADMIN
+                && newAttempts >= MAX_FAILED_ATTEMPTS) {
+
             user.setAccountLocked(true);
-            user.setLockedUntil(LocalDateTime.now());
+
+            // Lock is permanent until an authorized admin unlocks it.
+            user.setLockedUntil(null);
+
+            return true;
         }
+        return false;
     }
 
+    /**
+     * Resets login failure state after successful authentication.
+     */
     @Override
     public void recordSuccessfulLogin(User user) {
         user.setFailedAttempts(0);
@@ -74,9 +96,7 @@ public class UserServiceImpl implements UserService {
 
         return userRepository.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "User not found with id: " + id
-                        )
+                        new ResourceNotFoundException("User not found with id: " + id)
                 );
     }
 

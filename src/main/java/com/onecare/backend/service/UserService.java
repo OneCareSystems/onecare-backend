@@ -5,7 +5,7 @@ import com.onecare.backend.entity.User;
 
 public interface UserService {
 
-    void recordFailedAttempt(User user);
+    boolean recordFailedAttempt(User user);
 
     void recordSuccessfulLogin(User user);
 
