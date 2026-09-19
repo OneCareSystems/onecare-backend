@@ -6,6 +6,9 @@ import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.Permission;
+import com.onecare.backend.security.SecurityUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,6 +19,8 @@ import java.time.LocalDateTime;
 @Service
 @Transactional
 public class UserServiceImpl implements UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private static final int MAX_FAILED_ATTEMPTS = 10;
 
@@ -29,8 +34,6 @@ public class UserServiceImpl implements UserService {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
-
-
     @Override
     public boolean recordFailedAttempt(User user) {
 
@@ -41,13 +44,18 @@ public class UserServiceImpl implements UserService {
 
         user.setFailedAttempts(newAttempts);
 
+        log.warn(
+                "Authentication failed | username={} | role={} | failedAttempts={}",
+                user.getUsername(),
+                user.getRole(),
+                newAttempts
+        );
+
         /*
-         * SUPER_ADMIN is not automatically locked.
+         * SUPER_ADMIN is excluded from automatic account locking.
          *
-         * Otherwise, if the only SUPER_ADMIN account becomes locked,
-         * there would be no administrator available to unlock it.
-         *
-         * Failed attempts are still recorded for auditing/security monitoring.
+         * Failed attempts are still recorded so suspicious
+         * authentication activity can be monitored.
          */
         if (user.getRole() != Role.SUPER_ADMIN
                 && newAttempts >= MAX_FAILED_ATTEMPTS) {
@@ -57,20 +65,35 @@ public class UserServiceImpl implements UserService {
             // Lock is permanent until an authorized admin unlocks it.
             user.setLockedUntil(null);
 
+            log.warn(
+                    "Account locked | username={} | role={} | failedAttempts={}",
+                    user.getUsername(),
+                    user.getRole(),
+                    newAttempts
+            );
+
             return true;
         }
+
         return false;
     }
 
     /**
-     * Resets login failure state after successful authentication.
+     * Resets the failed-login state after successful authentication.
      */
     @Override
     public void recordSuccessfulLogin(User user) {
+
         user.setFailedAttempts(0);
         user.setAccountLocked(false);
         user.setLockedUntil(null);
         user.setLastLogin(LocalDateTime.now());
+
+        log.info(
+                "Successful login | username={} | role={}",
+                user.getUsername(),
+                user.getRole()
+        );
     }
 
     @Override
@@ -83,13 +106,35 @@ public class UserServiceImpl implements UserService {
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
 
+        String performedBy = SecurityUtil.getCurrentUsername()
+                .orElse("SYSTEM");
+
+        log.info(
+                "Account unlocked | targetUser={} | targetRole={} | performedBy={}",
+                user.getUsername(),
+                user.getRole(),
+                performedBy
+        );
+
         return toResponse(user);
     }
+
 
     @Override
     public boolean isAccountLocked(User user) {
 
-        return Boolean.TRUE.equals(user.getAccountLocked());
+        boolean locked = Boolean.TRUE.equals(user.getAccountLocked());
+
+        if (locked) {
+
+            log.warn(
+                    "Login blocked | username={} | role={} | reason=ACCOUNT_LOCKED",
+                    user.getUsername(),
+                    user.getRole()
+            );
+        }
+
+        return locked;
     }
 
     private User findUserById(Long id) {

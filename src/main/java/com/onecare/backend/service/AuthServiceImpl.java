@@ -11,6 +11,8 @@ import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.security.JwtService;
 import com.onecare.backend.security.SecurityUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -19,6 +21,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+
+        private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
         private final AuthenticationManager authenticationManager;
         private final AppUserDetailsService userDetailsService;
@@ -44,14 +48,28 @@ public class AuthServiceImpl implements AuthService {
         public AuthResponse login(LoginRequest request) {
 
                 User user = userRepository.findByUsername(request.username())
-                                .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
+                        .orElseThrow(() -> {
+                                log.warn(
+                                        "Login failed | username={} | reason=USER_NOT_FOUND",
+                                        request.username()
+                                );
+
+                                return new BadCredentialsException("Invalid username or password");
+                        });
 
                 if (userService.isAccountLocked(user)) {
+
+                        log.warn(
+                                "Login blocked | username={} | role={} | reason=ACCOUNT_LOCKED",
+                                user.getUsername(),
+                                user.getRole());
+
                         throw new AccountLockedException(
                                         "Account is locked due to multiple failed login attempts. Please contact administrator.");
                 }
 
                 try {
+
                         authenticationManager.authenticate(
                                         new UsernamePasswordAuthenticationToken(
                                                         request.username(),
@@ -69,6 +87,12 @@ public class AuthServiceImpl implements AuthService {
                         String refreshToken = jwtService.issueRefreshToken(
                                         user.getUsername());
 
+                        log.info(
+                                "Login successful | username={} | role={}",
+                                user.getUsername(),
+                                role
+                        );
+
                         return AuthResponse.of(
                                         accessToken,
                                         refreshToken,
@@ -76,7 +100,20 @@ public class AuthServiceImpl implements AuthService {
                                         role);
 
                 } catch (BadCredentialsException ex) {
-                        userService.recordFailedAttempt(user);
+                        boolean accountLocked = userService.recordFailedAttempt(user);
+
+                        if (accountLocked) {
+
+                                log.warn(
+                                        "Login failed and account locked | username={} | role={}",
+                                        user.getUsername(),
+                                        user.getRole()
+                                );
+
+                                throw new AccountLockedException(
+                                        "Account is locked due to multiple failed login attempts.Please contact administrator.");
+                        }
+
                         throw ex;
                 }
         }
@@ -87,6 +124,11 @@ public class AuthServiceImpl implements AuthService {
                 String refreshToken = request.refreshToken();
 
                 if (!"refresh".equals(jwtService.extractType(refreshToken))) {
+
+                        log.warn(
+                                "Refresh token rejected | reason=INVALID_TOKEN_TYPE"
+                        );
+
                         throw new BadCredentialsException("Invalid refresh token");
                 }
 
@@ -98,10 +140,22 @@ public class AuthServiceImpl implements AuthService {
                                 .orElseThrow(() -> new IllegalArgumentException("User not found for refresh"));
 
                 if (!Boolean.TRUE.equals(user.getIsActive())) {
+
+                        log.warn(
+                                "Refresh token rejected | username={} | reason=ACCOUNT_INACTIVE",
+                                username
+                        );
+
                         throw new BadCredentialsException("Account is inactive");
                 }
 
                 if (userService.isAccountLocked(user)) {
+
+                        log.warn(
+                                "Refresh token rejected | username={} | reason=ACCOUNT_LOCKED",
+                                username
+                        );
+
                         throw new AccountLockedException("Account is locked");
                 }
 
@@ -111,6 +165,12 @@ public class AuthServiceImpl implements AuthService {
                                 user.getUserId(),
                                 username,
                                 role.name());
+
+                log.info(
+                        "Access token refreshed | username={} | role={}",
+                        username,
+                        role
+                );
 
                 return AuthResponse.of(
                                 newAccessToken,
