@@ -22,7 +22,7 @@ public class UserServiceImpl implements UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
-    private static final int MAX_FAILED_ATTEMPTS = 10;
+    private static final int MAX_FAILED_ATTEMPTS = 5;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
