@@ -66,7 +66,6 @@ class AuthServiceImplTest {
         user.setUsername("doctor1");
         user.setRole(Role.DOCTOR);
         user.setIsActive(true);
-        user.setAccountLocked(false);
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
     }

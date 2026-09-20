@@ -27,7 +27,6 @@ class UserServiceImplTest {
         user.setUsername("doctor1");
         user.setRole(Role.DOCTOR);
         user.setFailedAttempts(0);
-        user.setAccountLocked(false);
         user.setLockedUntil(null);
         user.setIsActive(true);
     }
@@ -68,20 +67,17 @@ class UserServiceImplTest {
 
         assertFalse(locked);
         assertEquals(1, user.getFailedAttempts());
-        assertFalse(user.getAccountLocked());
     }
 
     @Test
     void accountShouldLockAfterFiveFailedAttempts() {
 
         user.setFailedAttempts(4);
-        user.setAccountLocked(false);
 
         boolean locked = userService.recordFailedAttempt(user);
 
         assertTrue(locked);
         assertEquals(5, user.getFailedAttempts());
-        assertTrue(user.getAccountLocked());
         assertNull(user.getLockedUntil());
     }
 
@@ -89,13 +85,11 @@ class UserServiceImplTest {
     void successfulLoginShouldResetFailedAttemptsAndUnlockAccount() {
 
         user.setFailedAttempts(7);
-        user.setAccountLocked(true);
         user.setLockedUntil(null);
 
         userService.recordSuccessfulLogin(user);
 
         assertEquals(0, user.getFailedAttempts());
-        assertFalse(user.getAccountLocked());
         assertNull(user.getLockedUntil());
         assertNotNull(user.getLastLogin());
     }

@@ -20,7 +20,6 @@ CREATE TABLE users (
     password_hash   VARCHAR(255) NOT NULL,
     role            ENUM('SUPER_ADMIN','ADMIN','DOCTOR','PHARMACIST') NOT NULL,
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-    account_locked  BOOLEAN      NOT NULL DEFAULT FALSE,
     last_login      DATETIME     NULL,
     failed_attempts INT          NOT NULL DEFAULT 0,
     locked_until    DATETIME     NULL,
