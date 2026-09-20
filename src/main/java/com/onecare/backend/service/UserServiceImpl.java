@@ -45,19 +45,20 @@ public class UserServiceImpl implements UserService {
                 newAttempts
         );
 
+        boolean accountLocked = false;
+
+
         /*
-         * SUPER_ADMIN is excluded from automatic account locking.
-         *
          * Failed attempts are still recorded so suspicious
          * authentication activity can be monitored.
          */
-        if (user.getRole() != Role.SUPER_ADMIN
-                && newAttempts >= MAX_FAILED_ATTEMPTS) {
+        if (newAttempts >= MAX_FAILED_ATTEMPTS) {
 
             LocalDateTime lockedUntil = LocalDateTime.now().plusMinutes(15);
 
-            user.setAccountLocked(true);
             user.setLockedUntil(lockedUntil);
+            
+            accountLocked = true;
 
             log.warn(
                     "Account locked | username={} | role={} | failedAttempts={} | lockedUntil={}",
@@ -66,11 +67,11 @@ public class UserServiceImpl implements UserService {
                     newAttempts,
                     lockedUntil
             );
-
-            return true;
         }
 
-        return false;
+        userRepository.save(user);
+
+        return accountLocked;
     }
 
     /**
@@ -80,7 +81,6 @@ public class UserServiceImpl implements UserService {
     public void recordSuccessfulLogin(User user) {
 
         user.setFailedAttempts(0);
-        user.setAccountLocked(false);
         user.setLockedUntil(null);
         user.setLastLogin(LocalDateTime.now());
 
@@ -97,7 +97,6 @@ public class UserServiceImpl implements UserService {
 
         User user = findUserById(id);
 
-        user.setAccountLocked(false);
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
 
@@ -118,16 +117,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public boolean isAccountLocked(User user) {
 
-        if (!Boolean.TRUE.equals(user.getAccountLocked())) {
-            return false;
-        }
-
         LocalDateTime lockedUntil = user.getLockedUntil();
 
         // Lock has expired
         if (lockedUntil != null && !lockedUntil.isAfter(LocalDateTime.now())) {
 
-            user.setAccountLocked(false);
             user.setFailedAttempts(0);
             user.setLockedUntil(null);
 
@@ -139,13 +133,6 @@ public class UserServiceImpl implements UserService {
 
             return false;
         }
-
-        log.warn(
-                "Login blocked | username={} | role={} | reason=ACCOUNT_LOCKED | lockedUntil={}",
-                user.getUsername(),
-                user.getRole(),
-                lockedUntil
-        );
 
         return true;
     }
@@ -166,7 +153,6 @@ public class UserServiceImpl implements UserService {
                 user.getEmail(),
                 user.getRole(),
                 user.getIsActive(),
-                user.getAccountLocked(),
                 user.getFailedAttempts(),
                 user.getLockedUntil(),
                 user.getCreatedAt(),
