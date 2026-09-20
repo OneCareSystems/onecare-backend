@@ -64,8 +64,7 @@ public class AuthServiceImpl implements AuthService {
                                 user.getUsername(),
                                 user.getRole());
 
-                        throw new AccountLockedException(
-                                        "Account is locked due to multiple failed login attempts. Please contact administrator.");
+                                throw new AccountLockedException("Account is temporarily locked until " + user.getLockedUntil());
                 }
 
                 try {
@@ -110,8 +109,7 @@ public class AuthServiceImpl implements AuthService {
                                         user.getRole()
                                 );
 
-                                throw new AccountLockedException(
-                                        "Account is locked due to multiple failed login attempts.Please contact administrator.");
+                                throw new AccountLockedException( "Account is temporarily locked until " + user.getLockedUntil() );
                         }
 
                         throw ex;
@@ -156,7 +154,7 @@ public class AuthServiceImpl implements AuthService {
                                 username
                         );
 
-                        throw new AccountLockedException("Account is locked");
+                        throw new AccountLockedException( "Account is temporarily locked until " + user.getLockedUntil());
                 }
 
                 Role role = user.getRole();

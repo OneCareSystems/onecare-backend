@@ -54,16 +54,17 @@ public class UserServiceImpl implements UserService {
         if (user.getRole() != Role.SUPER_ADMIN
                 && newAttempts >= MAX_FAILED_ATTEMPTS) {
 
-            user.setAccountLocked(true);
+            LocalDateTime lockedUntil = LocalDateTime.now().plusMinutes(15);
 
-            // Lock is permanent until an authorized admin unlocks it.
-            user.setLockedUntil(null);
+            user.setAccountLocked(true);
+            user.setLockedUntil(lockedUntil);
 
             log.warn(
-                    "Account locked | username={} | role={} | failedAttempts={}",
+                    "Account locked | username={} | role={} | failedAttempts={} | lockedUntil={}",
                     user.getUsername(),
                     user.getRole(),
-                    newAttempts
+                    newAttempts,
+                    lockedUntil
             );
 
             return true;
@@ -117,18 +118,36 @@ public class UserServiceImpl implements UserService {
     @Override
     public boolean isAccountLocked(User user) {
 
-        boolean locked = Boolean.TRUE.equals(user.getAccountLocked());
+        if (!Boolean.TRUE.equals(user.getAccountLocked())) {
+            return false;
+        }
 
-        if (locked) {
+        LocalDateTime lockedUntil = user.getLockedUntil();
 
-            log.warn(
-                    "Login blocked | username={} | role={} | reason=ACCOUNT_LOCKED",
+        // Lock has expired
+        if (lockedUntil != null && !lockedUntil.isAfter(LocalDateTime.now())) {
+
+            user.setAccountLocked(false);
+            user.setFailedAttempts(0);
+            user.setLockedUntil(null);
+
+            log.info(
+                    "Account lock expired | username={} | role={}",
                     user.getUsername(),
                     user.getRole()
             );
+
+            return false;
         }
 
-        return locked;
+        log.warn(
+                "Login blocked | username={} | role={} | reason=ACCOUNT_LOCKED | lockedUntil={}",
+                user.getUsername(),
+                user.getRole(),
+                lockedUntil
+        );
+
+        return true;
     }
 
     private User findUserById(Long id) {
