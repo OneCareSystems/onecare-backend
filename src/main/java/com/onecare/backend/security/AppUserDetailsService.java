@@ -32,8 +32,9 @@ public class AppUserDetailsService implements UserDetailsService {
         LocalDateTime lockedUntil = user.getLockedUntil();
 
         boolean accountNonLocked =
-                user.getLockedUntil() != null &&
-                user.getLockedUntil().isAfter(LocalDateTime.now());
+                lockedUntil == null ||
+                !lockedUntil.isAfter(LocalDateTime.now());
+
 
         Set<GrantedAuthority> authorities = new HashSet<>();
 
