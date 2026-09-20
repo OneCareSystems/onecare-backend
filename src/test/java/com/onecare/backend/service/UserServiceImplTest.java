@@ -72,15 +72,15 @@ class UserServiceImplTest {
     }
 
     @Test
-    void accountShouldLockAfterTenFailedAttempts() {
+    void accountShouldLockAfterFiveFailedAttempts() {
 
-        user.setFailedAttempts(9);
+        user.setFailedAttempts(4);
         user.setAccountLocked(false);
 
         boolean locked = userService.recordFailedAttempt(user);
 
         assertTrue(locked);
-        assertEquals(10, user.getFailedAttempts());
+        assertEquals(5, user.getFailedAttempts());
         assertTrue(user.getAccountLocked());
         assertNull(user.getLockedUntil());
     }
