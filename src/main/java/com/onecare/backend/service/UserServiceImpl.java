@@ -119,8 +119,13 @@ public class UserServiceImpl implements UserService {
 
         LocalDateTime lockedUntil = user.getLockedUntil();
 
+        // No active lock
+        if (lockedUntil == null) {
+            return false;
+        }
+
         // Lock has expired
-        if (lockedUntil != null && !lockedUntil.isAfter(LocalDateTime.now())) {
+        if (!lockedUntil.isAfter(LocalDateTime.now())) {
 
             user.setFailedAttempts(0);
             user.setLockedUntil(null);
