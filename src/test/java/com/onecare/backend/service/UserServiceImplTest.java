@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.dto.response.UserResponse;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.UserRepository;
@@ -9,18 +10,22 @@ import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class UserServiceImplTest {
 
     private UserServiceImpl userService;
+    private UserRepository userRepository;
     private User user;
 
     @BeforeEach
     void setUp() {
-        UserRepository userRepository = mock(UserRepository.class);
+
+        userRepository = mock(UserRepository.class);
 
         userService = new UserServiceImpl(userRepository);
 
@@ -31,12 +36,16 @@ class UserServiceImplTest {
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
         user.setIsActive(true);
+
+        when(userRepository.findById(3L))
+                .thenReturn(Optional.of(user));
     }
 
     @Test
     void passwordHashingShouldUseArgon2idAndVerifyCorrectPassword() {
 
-        PasswordEncoder encoder = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
+        PasswordEncoder encoder =
+                Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
 
         String rawPassword = "Password@123";
 
@@ -76,25 +85,35 @@ class UserServiceImplTest {
 
         user.setFailedAttempts(4);
 
-        LocalDateTime before = LocalDateTime.now().plusMinutes(15);
+        LocalDateTime before =
+                LocalDateTime.now().plusMinutes(15);
 
-        boolean locked = userService.recordFailedAttempt(user);
+        boolean locked =
+                userService.recordFailedAttempt(user);
 
-        LocalDateTime after = LocalDateTime.now().plusMinutes(15);
+        LocalDateTime after =
+                LocalDateTime.now().plusMinutes(15);
 
         assertTrue(locked);
         assertEquals(5, user.getFailedAttempts());
         assertNotNull(user.getLockedUntil());
 
-        assertFalse(user.getLockedUntil().isBefore(before));
-        assertFalse(user.getLockedUntil().isAfter(after));
+        assertFalse(
+                user.getLockedUntil().isBefore(before)
+        );
+
+        assertFalse(
+                user.getLockedUntil().isAfter(after)
+        );
     }
 
     @Test
     void successfulLoginShouldResetFailedAttemptsAndUnlockAccount() {
 
         user.setFailedAttempts(7);
-        user.setLockedUntil(null);
+        user.setLockedUntil(
+                LocalDateTime.now().plusMinutes(15)
+        );
 
         userService.recordSuccessfulLogin(user);
 
@@ -102,5 +121,25 @@ class UserServiceImplTest {
         assertNull(user.getLockedUntil());
         assertNotNull(user.getLastLogin());
     }
-}
 
+    @Test
+    void unlockAccountShouldResetFailedAttemptsAndLockedUntil() {
+
+        user.setFailedAttempts(5);
+        user.setLockedUntil(
+                LocalDateTime.now().plusMinutes(15)
+        );
+
+        UserResponse response =
+                userService.unlockAccount(3L);
+
+        assertEquals(0, user.getFailedAttempts());
+        assertNull(user.getLockedUntil());
+
+        assertNotNull(response);
+        assertEquals(3L, response.userId());
+        assertEquals("doctor1", response.username());
+        assertEquals(0, response.failedAttempts());
+        assertNull(response.lockedUntil());
+    }
+}
