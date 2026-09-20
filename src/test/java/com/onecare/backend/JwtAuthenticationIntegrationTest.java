@@ -68,6 +68,22 @@ class JwtAuthenticationIntegrationTest {
     }
 
     @Test
+    void passwordEncoderUsesConfiguredArgon2idParameters() {
+            String rawPassword = "Password@123";
+
+            String encodedPassword = passwordEncoder.encode(rawPassword);
+
+            assertThat(encodedPassword)
+                            .startsWith("$argon2id$v=19$m=65536,t=2,p=1$");
+
+            assertThat(passwordEncoder.matches(rawPassword, encodedPassword))
+                            .isTrue();
+
+            assertThat(passwordEncoder.matches("WrongPassword@123", encodedPassword))
+                            .isFalse();
+    }
+
+    @Test
     void validLoginReturnsJwtWithRequiredClaims() throws Exception {
         String responseBody = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
