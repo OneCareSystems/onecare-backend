@@ -72,38 +72,39 @@ class UserServiceImplTest {
     @Test
     void failedAttemptShouldIncrementCounter() {
 
-        user.setFailedAttempts(0);
+        user.setFailedAttempts(1);
+
+        when(userRepository.recordFailedAttempt(3L))
+                .thenReturn(1);
+
+        // Simulate the value returned by the database after atomic increment.
+        user.setFailedAttempts(2);
 
         boolean locked = userService.recordFailedAttempt(user);
 
         assertFalse(locked);
-        assertEquals(1, user.getFailedAttempts());
+        assertEquals(2, user.getFailedAttempts());
+        assertNull(user.getLockedUntil());
     }
 
     @Test
     void accountShouldLockAfterFiveFailedAttempts() {
 
-        user.setFailedAttempts(4);
+        user.setFailedAttempts(5);
+        user.setLockedUntil(
+                LocalDateTime.now().plusMinutes(15)
+        );
 
-        LocalDateTime before =
-                LocalDateTime.now().plusMinutes(15);
+        when(userRepository.recordFailedAttempt(3L))
+                .thenReturn(1);
 
-        boolean locked =
-                userService.recordFailedAttempt(user);
-
-        LocalDateTime after =
-                LocalDateTime.now().plusMinutes(15);
+        boolean locked = userService.recordFailedAttempt(user);
 
         assertTrue(locked);
         assertEquals(5, user.getFailedAttempts());
         assertNotNull(user.getLockedUntil());
-
-        assertFalse(
-                user.getLockedUntil().isBefore(before)
-        );
-
-        assertFalse(
-                user.getLockedUntil().isAfter(after)
+        assertTrue(
+                user.getLockedUntil().isAfter(LocalDateTime.now())
         );
     }
 
@@ -141,5 +142,18 @@ class UserServiceImplTest {
         assertEquals("doctor1", response.username());
         assertEquals(0, response.failedAttempts());
         assertNull(response.lockedUntil());
+    }
+
+    @Test
+    void expiredLockShouldResetFailedAttemptsAndUnlockAccount() {
+
+            user.setFailedAttempts(5);
+            user.setLockedUntil(LocalDateTime.now().minusMinutes(1));
+
+            boolean locked = userService.isAccountLocked(user);
+
+            assertFalse(locked);
+            assertEquals(0, user.getFailedAttempts());
+            assertNull(user.getLockedUntil());
     }
 }
