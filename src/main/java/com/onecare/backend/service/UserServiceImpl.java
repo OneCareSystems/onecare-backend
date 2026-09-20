@@ -31,45 +31,30 @@ public class UserServiceImpl implements UserService {
     @Override
     public boolean recordFailedAttempt(User user) {
 
-        int currentAttempts = user.getFailedAttempts() == null
-                ? 0 : user.getFailedAttempts();
+        userRepository.recordFailedAttempt(user.getUserId());
 
-        int newAttempts = currentAttempts + 1;
+        User updatedUser = findUserById(user.getUserId());
 
-        user.setFailedAttempts(newAttempts);
+        int failedAttempts = updatedUser.getFailedAttempts();
 
         log.warn(
                 "Authentication failed | username={} | role={} | failedAttempts={}",
-                user.getUsername(),
-                user.getRole(),
-                newAttempts
+                updatedUser.getUsername(),
+                updatedUser.getRole(),
+                failedAttempts
         );
 
-        boolean accountLocked = false;
+        boolean accountLocked = failedAttempts >= MAX_FAILED_ATTEMPTS;
 
-
-        /*
-         * Failed attempts are still recorded so suspicious
-         * authentication activity can be monitored.
-         */
-        if (newAttempts >= MAX_FAILED_ATTEMPTS) {
-
-            LocalDateTime lockedUntil = LocalDateTime.now().plusMinutes(15);
-
-            user.setLockedUntil(lockedUntil);
-            
-            accountLocked = true;
-
+        if (accountLocked) {
             log.warn(
                     "Account locked | username={} | role={} | failedAttempts={} | lockedUntil={}",
-                    user.getUsername(),
-                    user.getRole(),
-                    newAttempts,
-                    lockedUntil
+                    updatedUser.getUsername(),
+                    updatedUser.getRole(),
+                    failedAttempts,
+                    updatedUser.getLockedUntil()
             );
         }
-
-        userRepository.save(user);
 
         return accountLocked;
     }
