@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
@@ -74,11 +76,18 @@ class UserServiceImplTest {
 
         user.setFailedAttempts(4);
 
+        LocalDateTime before = LocalDateTime.now().plusMinutes(15);
+
         boolean locked = userService.recordFailedAttempt(user);
+
+        LocalDateTime after = LocalDateTime.now().plusMinutes(15);
 
         assertTrue(locked);
         assertEquals(5, user.getFailedAttempts());
-        assertNull(user.getLockedUntil());
+        assertNotNull(user.getLockedUntil());
+
+        assertFalse(user.getLockedUntil().isBefore(before));
+        assertFalse(user.getLockedUntil().isAfter(after));
     }
 
     @Test
