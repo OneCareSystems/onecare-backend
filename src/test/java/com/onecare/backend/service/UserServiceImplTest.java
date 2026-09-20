@@ -20,12 +20,7 @@ class UserServiceImplTest {
     void setUp() {
         UserRepository userRepository = mock(UserRepository.class);
 
-        PasswordEncoder passwordEncoder = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
-
-        userService = new UserServiceImpl(
-                userRepository,
-                passwordEncoder
-        );
+        userService = new UserServiceImpl(userRepository);
 
         user = new User();
         user.setUserId(3L);
