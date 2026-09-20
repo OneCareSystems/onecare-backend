@@ -62,7 +62,8 @@ public class AuthServiceImpl implements AuthService {
                         log.warn(
                                 "Login blocked | username={} | role={} | reason=ACCOUNT_LOCKED",
                                 user.getUsername(),
-                                user.getRole());
+                                user.getRole(),
+                                user.getLockedUntil());
 
                                 throw new AccountLockedException("Account is temporarily locked until " + user.getLockedUntil());
                 }
