@@ -119,9 +119,12 @@ class RbacAccessControlTest {
 
         JsonNode body = objectMapper.readTree(responseBody);
 
-        assertThat(body.get("accessToken")).isNotNull();
+        JsonNode data = body.get("data");
 
-        return body.get("accessToken").asText();
+        assertThat(data).isNotNull();
+        assertThat(data.get("accessToken")).isNotNull();
+
+        return data.get("accessToken").asText();
     }
 
     private void assertAllowed(String endpoint, String token)
@@ -248,9 +251,11 @@ class RbacAccessControlTest {
 
         JsonNode body = objectMapper.readTree(responseBody);
 
-        assertThat(body.get("accessToken")).isNotNull();
-        assertThat(body.get("refreshToken")).isNotNull();
-        assertThat(body.get("role").asText()).isEqualTo("DOCTOR");
+        JsonNode data = body.get("data");
+
+        assertThat(data.get("accessToken")).isNotNull();
+        assertThat(data.get("refreshToken")).isNotNull();
+        assertThat(data.get("role").asText()).isEqualTo("DOCTOR");
     }
 
     @Test
