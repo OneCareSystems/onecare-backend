@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
+import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,9 @@ class RbacAccessControlTest {
     private UserRepository userRepository;
 
     @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -45,6 +49,7 @@ class RbacAccessControlTest {
 
     @BeforeEach
     void setupUsers() throws Exception {
+        passwordResetTokenRepository.deleteAll();
         userRepository.deleteAll();
 
         String passwordHash = passwordEncoder.encode(TEST_PASSWORD);

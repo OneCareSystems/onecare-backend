@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
+import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.JwtService;
 import io.jsonwebtoken.Jwts;
@@ -41,6 +42,9 @@ class JwtAuthenticationIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -54,6 +58,7 @@ class JwtAuthenticationIntegrationTest {
 
     @BeforeEach
     void setupUser() {
+        passwordResetTokenRepository.deleteAll();
         userRepository.deleteAll();
 
         User user = new User();

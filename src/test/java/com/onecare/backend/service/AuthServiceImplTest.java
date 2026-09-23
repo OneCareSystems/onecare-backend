@@ -44,6 +44,9 @@ class AuthServiceImplTest {
     private UserService userService;
 
     @Mock
+    private PasswordResetService passwordResetService;
+
+    @Mock
     private Authentication authentication;
 
     private AuthServiceImpl authService;
@@ -58,7 +61,8 @@ class AuthServiceImplTest {
                 userDetailsService,
                 userRepository,
                 jwtService,
-                userService
+                userService,
+                passwordResetService
         );
 
         user = new User();
@@ -314,6 +318,28 @@ class AuthServiceImplTest {
         );
 
         verify(jwtService, never()).issueAccessToken(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    void requestPasswordResetShouldDelegateToPasswordResetService() {
+
+        var request = new com.onecare.backend.dto.request.ForgotPasswordRequest("doctor1@example.com");
+
+        authService.requestPasswordReset(request);
+
+        verify(passwordResetService).requestPasswordReset("doctor1@example.com");
+        verifyNoMoreInteractions(passwordResetService);
+    }
+
+    @Test
+    void resetPasswordShouldDelegateToPasswordResetService() {
+
+        var request = new com.onecare.backend.dto.request.ResetPasswordRequest("raw-token", "NewPassword123!");
+
+        authService.resetPassword(request);
+
+        verify(passwordResetService).resetPassword("raw-token", "NewPassword123!");
+        verifyNoMoreInteractions(passwordResetService);
     }
 
     private AppUserDetailsService.AppUserDetails userDetails() {
