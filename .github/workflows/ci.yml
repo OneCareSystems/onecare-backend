@@ -51,16 +51,12 @@ jobs:
           SPRING_DATASOURCE_USERNAME: test
           SPRING_DATASOURCE_PASSWORD: test
           SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
-
           SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
           SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-
           SPRING_SQL_INIT_MODE: always
           SPRING_SQL_INIT_SCHEMA_LOCATIONS: classpath:schema.sql
-
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_ACCESS_TOKEN_EXPIRY: 1800000
           JWT_REFRESH_TOKEN_EXPIRY: 604800000
-
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
