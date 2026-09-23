@@ -28,6 +28,9 @@ public class User {              // ✅ Fix 2: class must be public
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
+    @Column(name = "password_change_required", nullable = false)
+    private Boolean passwordChangeRequired = false;
+
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
