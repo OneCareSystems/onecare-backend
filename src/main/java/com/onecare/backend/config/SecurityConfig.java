@@ -1,5 +1,6 @@
 package com.onecare.backend.config;
 
+import com.onecare.backend.security.ApiRateLimitFilter;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.security.JwtAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,10 +26,13 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final AppUserDetailsService userDetailsService;
+    private final ApiRateLimitFilter apiRateLimitFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, AppUserDetailsService userDetailsService) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, AppUserDetailsService userDetailsService,
+            ApiRateLimitFilter apiRateLimitFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
+        this.apiRateLimitFilter = apiRateLimitFilter;
     }
 
     @Bean
@@ -44,6 +48,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/refresh",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")
@@ -57,7 +63,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/secure/**").authenticated()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(apiRateLimitFilter, JwtAuthFilter.class);
 
         return http.build();
     }
