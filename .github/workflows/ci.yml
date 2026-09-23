@@ -58,5 +58,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_ACCESS_TOKEN_EXPIRY: 1800000
           JWT_REFRESH_TOKEN_EXPIRY: 604800000
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SPRING_MAIL_HOST: smtp.gmail.com
+          SPRING_MAIL_PORT: 587
+          SPRING_MAIL_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SPRING_MAIL_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
