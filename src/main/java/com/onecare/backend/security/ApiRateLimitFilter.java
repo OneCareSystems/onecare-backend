@@ -16,9 +16,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Fixed-window per-IP rate limiter for /api/auth/* endpoints (SDS 2.5.4).
- * In-memory and per-instance: adequate for a single node, but counters are
- * not shared across instances (documented limitation).
+ * Fixed-window rate limiter for /api/auth/* endpoints (SDS 2.5.4).
+ * Buckets are scoped per client IP *and* per endpoint, so traffic on one
+ * route (e.g. /login) cannot consume another route's allowance
+ * (e.g. /forgot-password). In-memory and per-instance: adequate for a
+ * single node, but counters are not shared across instances (documented
+ * limitation).
  */
 @Component
 public class ApiRateLimitFilter extends OncePerRequestFilter {
@@ -26,7 +29,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(ApiRateLimitFilter.class);
     private static final String AUTH_PREFIX = "/api/auth/";
     private static final String FORWARDED_FOR = "X-Forwarded-For";
-    private static final int MAX_TRACKED_IPS = 10_000;
+    private static final int MAX_TRACKED_BUCKETS = 10_000;
 
     private record Window(long startedAtMillis, int count) {
     }
@@ -56,9 +59,10 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         }
 
         String clientIp = resolveClientIp(request);
+        String bucketKey = rateLimitKey(request, clientIp);
         long now = System.currentTimeMillis();
 
-        Window window = windows.compute(clientIp, (ip, current) -> {
+        Window window = windows.compute(bucketKey, (key, current) -> {
             if (current == null || now - current.startedAtMillis() >= windowMillis) {
                 purgeExpired(now);
                 return new Window(now, 1);
@@ -69,8 +73,8 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         if (window.count() > requestsPerWindow) {
             long retryAfterSeconds = Math.max(
                     1, (window.startedAtMillis() + windowMillis - now) / 1000);
-            log.warn("Rate limit exceeded | ip={} | limit={}/{}s",
-                    clientIp, requestsPerWindow, windowMillis / 1000);
+            log.warn("Rate limit exceeded | ip={} | path={} | limit={}/{}s",
+                    clientIp, request.getRequestURI(), requestsPerWindow, windowMillis / 1000);
 
             response.setStatus(429);
             response.setContentType("application/json");
@@ -83,6 +87,10 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
+    private String rateLimitKey(HttpServletRequest request, String clientIp) {
+        return clientIp + "|" + request.getRequestURI();
+    }
+
     private String resolveClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader(FORWARDED_FOR);
         if (forwarded != null && !forwarded.isBlank()) {
@@ -93,7 +101,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     }
 
     private void purgeExpired(long now) {
-        if (windows.size() <= MAX_TRACKED_IPS) {
+        if (windows.size() <= MAX_TRACKED_BUCKETS) {
             return;
         }
         Iterator<Map.Entry<String, Window>> iterator = windows.entrySet().iterator();
