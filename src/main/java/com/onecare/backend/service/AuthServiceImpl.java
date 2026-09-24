@@ -1,7 +1,9 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.dto.request.ForgotPasswordRequest;
 import com.onecare.backend.dto.request.LoginRequest;
 import com.onecare.backend.dto.request.RefreshRequest;
+import com.onecare.backend.dto.request.ResetPasswordRequest;
 import com.onecare.backend.dto.response.AuthResponse;
 import com.onecare.backend.dto.response.UserResponse;
 import com.onecare.backend.entity.User;
@@ -29,19 +31,22 @@ public class AuthServiceImpl implements AuthService {
         private final UserRepository userRepository;
         private final JwtService jwtService;
         private final UserService userService;
+        private final PasswordResetService passwordResetService;
 
         public AuthServiceImpl(
                         AuthenticationManager authenticationManager,
                         AppUserDetailsService userDetailsService,
                         UserRepository userRepository,
                         JwtService jwtService,
-                        UserService userService) {
+                        UserService userService,
+                        PasswordResetService passwordResetService) {
 
                 this.authenticationManager = authenticationManager;
                 this.userDetailsService = userDetailsService;
                 this.userRepository = userRepository;
                 this.jwtService = jwtService;
                 this.userService = userService;
+                this.passwordResetService = passwordResetService;
         }
 
         @Override
@@ -188,5 +193,15 @@ public class AuthServiceImpl implements AuthService {
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
                 return UserResponse.from(user);
+        }
+
+        @Override
+        public void requestPasswordReset(ForgotPasswordRequest request) {
+                passwordResetService.requestPasswordReset(request.email());
+        }
+
+        @Override
+        public void resetPassword(ResetPasswordRequest request) {
+                passwordResetService.resetPassword(request.token(), request.newPassword());
         }
 }

@@ -21,12 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying
     @Query(value = """
     UPDATE users
-    SET failed_attempts = COALESCE(failed_attempts, 0) + 1,
-        locked_until = CASE
-            WHEN COALESCE(failed_attempts, 0) + 1 >= 5
-            THEN DATE_ADD(NOW(), INTERVAL 15 MINUTE)
-            ELSE locked_until
-        END
+    SET failed_attempts = COALESCE(failed_attempts, 0) + 1
     WHERE user_id = :userId
     """, nativeQuery = true)
     int recordFailedAttempt(@Param("userId") Long userId);

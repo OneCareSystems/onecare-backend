@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS prescriptions;
 DROP TABLE IF EXISTS appointments;
 DROP TABLE IF EXISTS medicines;
 DROP TABLE IF EXISTS patients;
+DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS users;
 
 -- CREATE ORDER: parents first, children last
@@ -18,6 +19,7 @@ CREATE TABLE users (
     username        VARCHAR(50)  NOT NULL,
     email           VARCHAR(100) NOT NULL,
     password_hash   VARCHAR(255) NOT NULL,
+    password_change_required BOOLEAN NOT NULL DEFAULT FALSE,
     role            ENUM('SUPER_ADMIN','ADMIN','DOCTOR','PHARMACIST') NOT NULL,
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
     last_login      DATETIME     NULL,
@@ -29,6 +31,21 @@ CREATE TABLE users (
     CONSTRAINT pk_users       PRIMARY KEY (user_id),
     CONSTRAINT uq_users_email UNIQUE (email),
     CONSTRAINT uq_users_uname UNIQUE (username)
+);
+
+-- 1b. password_reset_tokens (needs: users)
+CREATE TABLE password_reset_tokens (
+    id          BIGINT      NOT NULL AUTO_INCREMENT,
+    user_id     BIGINT      NOT NULL,
+    token_hash  VARCHAR(64) NOT NULL,
+    expires_at  DATETIME    NOT NULL,
+    used        BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    used_at     DATETIME    NULL,
+
+    CONSTRAINT pk_password_reset_tokens PRIMARY KEY (id),
+    CONSTRAINT uq_prt_token_hash        UNIQUE (token_hash),
+    CONSTRAINT fk_prt_user              FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
 -- 2. patients

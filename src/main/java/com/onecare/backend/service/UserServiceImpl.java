@@ -2,7 +2,6 @@ package com.onecare.backend.service;
 
 import com.onecare.backend.dto.response.UserResponse;
 import com.onecare.backend.entity.User;
-import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.Permission;
@@ -47,6 +46,8 @@ public class UserServiceImpl implements UserService {
         boolean accountLocked = failedAttempts >= MAX_FAILED_ATTEMPTS;
 
         if (accountLocked) {
+            updatedUser.setLockedUntil(LocalDateTime.now().plusMinutes(15));
+
             log.warn(
                     "Account locked | username={} | role={} | failedAttempts={} | lockedUntil={}",
                     updatedUser.getUsername(),
