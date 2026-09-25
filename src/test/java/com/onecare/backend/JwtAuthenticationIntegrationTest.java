@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
+import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.JwtService;
 import io.jsonwebtoken.Jwts;
@@ -41,6 +42,9 @@ class JwtAuthenticationIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -54,6 +58,7 @@ class JwtAuthenticationIntegrationTest {
 
     @BeforeEach
     void setupUser() {
+        passwordResetTokenRepository.deleteAll();
         userRepository.deleteAll();
 
         User user = new User();
@@ -68,6 +73,22 @@ class JwtAuthenticationIntegrationTest {
     }
 
     @Test
+    void passwordEncoderUsesConfiguredArgon2idParameters() {
+            String rawPassword = "Password@123";
+
+            String encodedPassword = passwordEncoder.encode(rawPassword);
+
+            assertThat(encodedPassword)
+                            .startsWith("$argon2id$v=19$m=65536,t=2,p=1$");
+
+            assertThat(passwordEncoder.matches(rawPassword, encodedPassword))
+                            .isTrue();
+
+            assertThat(passwordEncoder.matches("WrongPassword@123", encodedPassword))
+                            .isFalse();
+    }
+
+    @Test
     void validLoginReturnsJwtWithRequiredClaims() throws Exception {
         String responseBody = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -75,17 +96,23 @@ class JwtAuthenticationIntegrationTest {
                         {"username":"doctor1","password":"Password@123"}
                         """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
-                .andExpect(jsonPath("$.expiresIn").value(1800000))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.expiresIn").value(1800000))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         JsonNode body = objectMapper.readTree(responseBody);
-        String accessToken = body.get("accessToken").asText();
+        JsonNode data = body.get("data");
+
+        assertThat(data).isNotNull();
+        assertThat(data.get("accessToken")).isNotNull();
+
+        String accessToken = data.get("accessToken").asText();
 
         var claims = jwtService.validateAndExtract(accessToken);
+
         assertThat(claims.get("userId")).isNotNull();
         assertThat(claims.get("role")).isEqualTo("DOCTOR");
         assertThat(claims.getExpiration()).isAfter(new Date());

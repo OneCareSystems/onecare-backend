@@ -17,6 +17,7 @@ public final class RolePermission {
                     Permission.USER_READ_ALL,
                     Permission.USER_UPDATE,
                     Permission.USER_DELETE,
+                    Permission.USER_ROLE_ASSIGN,
 
                     Permission.PATIENT_CREATE,
                     Permission.PATIENT_READ_ALL,

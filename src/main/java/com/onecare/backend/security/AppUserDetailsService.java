@@ -29,9 +29,12 @@ public class AppUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
+        LocalDateTime lockedUntil = user.getLockedUntil();
+
         boolean accountNonLocked =
-                user.getLockedUntil() == null ||
-                user.getLockedUntil().isBefore(LocalDateTime.now());
+                lockedUntil == null ||
+                !lockedUntil.isAfter(LocalDateTime.now());
+
 
         Set<GrantedAuthority> authorities = new HashSet<>();
 

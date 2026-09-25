@@ -1,105 +1,131 @@
 package com.onecare.backend.controller;
 
-import com.onecare.backend.dto.ApiResponse;
-import com.onecare.backend.dto.response.AuthResponse;
+import com.onecare.backend.dto.request.ForgotPasswordRequest;
 import com.onecare.backend.dto.request.LoginRequest;
 import com.onecare.backend.dto.request.RefreshRequest;
+import com.onecare.backend.dto.request.ResetPasswordRequest;
+import com.onecare.backend.dto.response.AuthResponse;
 import com.onecare.backend.dto.response.UserResponse;
-import com.onecare.backend.entity.User;
-import com.onecare.backend.enums.Role;
-import com.onecare.backend.repository.UserRepository;
-import com.onecare.backend.security.AppUserDetailsService;
-import com.onecare.backend.security.JwtService;
-import com.onecare.backend.security.SecurityUtil;
+import com.onecare.backend.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "Auth", description = "Authentication, token refresh, profile, and password reset")
 public class AuthController {
 
-    private final AuthenticationManager authenticationManager;
-    private final AppUserDetailsService userDetailsService;
-    private final UserRepository userRepository;
-    private final JwtService jwtService;
+        private final AuthService authService;
 
-    public AuthController(AuthenticationManager authenticationManager,
-            AppUserDetailsService userDetailsService,
-            UserRepository userRepository,
-            JwtService jwtService) {
-        this.authenticationManager = authenticationManager;
-        this.userDetailsService = userDetailsService;
-        this.userRepository = userRepository;
-        this.jwtService = jwtService;
-    }
+        public AuthController(AuthService authService) {
+                this.authService = authService;
+        }
 
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+        @Operation(summary = "Login", description = "Authenticates with username and password "
+                        + "and returns access and refresh tokens.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Login successful"),
+                        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+                        @ApiResponse(responseCode = "423", description = "Account temporarily locked"),
+                        @ApiResponse(responseCode = "429", description = "Too many requests")
+        })
+        @PostMapping("/login")
+        public ResponseEntity<com.onecare.backend.dto.ApiResponse<AuthResponse>> login(
+                        @Valid @RequestBody LoginRequest request) {
 
-        User user = userRepository.findByUsername(request.username())
-                .orElseThrow(() -> new IllegalArgumentException("User not found after authentication"));
+                AuthResponse response = authService.login(request);
 
-        Role role = user.getRole();
+                return ResponseEntity.ok(
+                                new com.onecare.backend.dto.ApiResponse<>(
+                                                true,
+                                                "Login successful",
+                                                response));
+        }
 
-        String accessToken = jwtService.issueAccessToken(
-                user.getUserId(), request.username(), role.name());
+        @Operation(summary = "Refresh tokens", description = "Exchanges a valid refresh token "
+                        + "for a new access/refresh token pair.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
+                        @ApiResponse(responseCode = "401", description = "Invalid, expired, or wrong-type token"),
+                        @ApiResponse(responseCode = "429", description = "Too many requests")
+        })
+        @PostMapping("/refresh")
+        public ResponseEntity<com.onecare.backend.dto.ApiResponse<AuthResponse>> refresh(
+                        @Valid @RequestBody RefreshRequest request) {
 
-        String refreshToken = jwtService.issueRefreshToken(request.username());
+                AuthResponse response = authService.refresh(request);
 
-        return ResponseEntity.ok(
-                AuthResponse.of(accessToken, refreshToken, jwtService.getAccessTokenExpiry(), role));
-    }
+                return ResponseEntity.ok(
+                                new com.onecare.backend.dto.ApiResponse<>(
+                                                true,
+                                                "Token refreshed successfully",
+                                                response));
+        }
 
-//    @PostMapping("/refresh")
-//    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-//        if (!"refresh".equals(jwtService.extractType(request.refreshToken()))) {
-//            return ResponseEntity.status(401).build();
-//        }
-//
-//        String username = jwtService.extractUsername(request.refreshToken());
-//        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-//        User user = userRepository.findByUsername(userDetails.getUsername())
-//                .orElseThrow(() -> new IllegalArgumentException("User not found for refresh"));
-//        String role = user.getRole().name();
-//
-//        String newAccessToken = jwtService.issueAccessToken(
-//                user.getUserId(),
-//                username,
-//                role.name()
-//        );
-//
-//        return ResponseEntity.ok(
-//                AuthResponse.of(
-//                        newAccessToken,
-//                        request.refreshToken(),
-//                        jwtService.getAccessTokenExpiry(),
-//                        role
-//                )
-//        );
-//    }
+        @Operation(summary = "Current profile", description = "Returns the authenticated user's profile.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Profile retrieved successfully"),
+                        @ApiResponse(responseCode = "401", description = "Missing or invalid access token")
+        })
+        @PreAuthorize("isAuthenticated()")
+        @GetMapping("/me")
+        public ResponseEntity<com.onecare.backend.dto.ApiResponse<UserResponse>> me() {
 
-    @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> me() {
+                UserResponse response = authService.getCurrentUser();
 
-        String username = SecurityUtil.getCurrentUsername()
-                .orElseThrow(() -> new IllegalArgumentException("Authenticated user not found"));
+                return ResponseEntity.ok(
+                                new com.onecare.backend.dto.ApiResponse<>(
+                                                true,
+                                                "Profile retrieved successfully",
+                                                response));
+        }
 
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        @Operation(summary = "Request password reset", description = "Starts the password reset flow. "
+                        + "Always returns the same success response whether or not the email is registered "
+                        + "(prevents account enumeration). If registered, a reset link containing a "
+                        + "single-use token (default TTL 30 minutes) is emailed. Rate limited per IP.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Generic success (email sent if registered)"),
+                        @ApiResponse(responseCode = "400", description = "Validation failed (invalid email format)"),
+                        @ApiResponse(responseCode = "429", description = "Too many requests"),
+                        @ApiResponse(responseCode = "503", description = "Email delivery unavailable")
+        })
+        @PostMapping("/forgot-password")
+        public ResponseEntity<com.onecare.backend.dto.ApiResponse<Void>> forgotPassword(
+                        @Valid @RequestBody ForgotPasswordRequest request) {
 
-        UserResponse userResponse = UserResponse.from(user);
+                authService.requestPasswordReset(request);
 
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Profile retrieved successfully", userResponse )
-        );
-    }
+                return ResponseEntity.ok(
+                                new com.onecare.backend.dto.ApiResponse<>(
+                                                true,
+                                                "If the email address is registered, a password reset link has been sent."));
+        }
+
+        @Operation(summary = "Reset password", description = "Sets a new password using the raw token "
+                        + "from the reset email. On success the account is unlocked "
+                        + "(failedAttempts/lock cleared) and the token is consumed (single-use). "
+                        + "Unknown, expired, and already-used tokens are rejected with the same generic message.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Password has been reset successfully"),
+                        @ApiResponse(responseCode = "400", description = "Validation failed or invalid/expired/used token"),
+                        @ApiResponse(responseCode = "429", description = "Too many requests")
+        })
+        @PostMapping("/reset-password")
+        public ResponseEntity<com.onecare.backend.dto.ApiResponse<Void>> resetPassword(
+                        @Valid @RequestBody ResetPasswordRequest request) {
+
+                authService.resetPassword(request);
+
+                return ResponseEntity.ok(
+                                new com.onecare.backend.dto.ApiResponse<>(
+                                                true,
+                                                "Password has been reset successfully"));
+        }
 }
