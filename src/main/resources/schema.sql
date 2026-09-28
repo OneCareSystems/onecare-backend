@@ -57,6 +57,7 @@ CREATE TABLE patients (
     contact_no    VARCHAR(20)  NOT NULL,
     email         VARCHAR(100) NULL,
     blood_group   VARCHAR(10)  NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     gender        ENUM('MALE','FEMALE') NOT NULL,
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

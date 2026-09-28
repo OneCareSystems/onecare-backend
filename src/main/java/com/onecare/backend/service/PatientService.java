@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface PatientService {
     PatientResponse createPatient(PatientCreateRequest request);
-    Page<PatientResponse> findAllPatients(Pageable pageable);
+    List<PatientResponse> findAllPatients(Pageable pageable);
     PatientResponse findPatientById(Long id);
     List<PatientResponse> searchPatients(String search);
 
