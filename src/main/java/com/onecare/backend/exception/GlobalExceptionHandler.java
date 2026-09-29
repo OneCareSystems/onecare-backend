@@ -1,15 +1,18 @@
 package com.onecare.backend.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.onecare.backend.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -86,4 +89,34 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
+        HttpMessageNotReadableException ex) {
+
+    String message = "Malformed or unreadable request body";
+
+    if (ex.getCause() instanceof InvalidFormatException ife
+            && ife.getTargetType() != null
+            && ife.getTargetType().isEnum()) {
+
+        String field = ife.getPath().isEmpty()
+                ? "value"
+                : ife.getPath()
+                    .get(ife.getPath().size() - 1)
+                    .getFieldName();
+
+        message = "Invalid value '" + ife.getValue()
+                + "' for field '" + field
+                + "'. Allowed values: "
+                + Arrays.toString(
+                    ife.getTargetType().getEnumConstants()
+                );
+    }
+
+    return new ResponseEntity<>(
+            new ApiResponse<>(false, message),
+            HttpStatus.BAD_REQUEST
+    );
+}
 }

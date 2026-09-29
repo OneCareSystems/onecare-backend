@@ -7,6 +7,10 @@ import com.onecare.backend.dto.request.UserUpdateRequest;
 import com.onecare.backend.dto.response.UserResponse;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.service.UserService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +19,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+@Tag(
+    name = "User Management",
+    description = "Super Admin user & access management"
+)
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -24,7 +32,14 @@ public class UserController {
     public UserController(UserService userService) {
         this.userService = userService;
     }
-
+    @Operation(summary = "Create a user")
+   @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "User created"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error or invalid role"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Missing USER_CREATE permission"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Username or email already exists")
+    })
+    
     @PostMapping
     @PreAuthorize("hasAuthority('" + Permission.USER_CREATE + "')")
     public ResponseEntity<ApiResponse<?>> createUser(@Valid @RequestBody UserCreateRequest request) {
@@ -89,4 +104,5 @@ public class UserController {
         // AC3: reserved until DDP-16 admin-triggered reset flow lands — must be 501, never 404
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
     }
+   
 }
