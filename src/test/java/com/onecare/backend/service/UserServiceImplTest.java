@@ -6,6 +6,7 @@ import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -21,13 +22,16 @@ class UserServiceImplTest {
     private UserServiceImpl userService;
     private UserRepository userRepository;
     private User user;
+    @Mock
+    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
 
         userRepository = mock(UserRepository.class);
 
-        userService = new UserServiceImpl(userRepository);
+        passwordEncoder = mock(PasswordEncoder.class);
+        userService = new UserServiceImpl(userRepository, passwordEncoder);
 
         user = new User();
         user.setUserId(3L);

@@ -79,4 +79,11 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+        @ExceptionHandler(DuplicateUserException.class)
+    public ResponseEntity<ApiResponse<?>> handleDuplicateUser(DuplicateUserException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
 }
