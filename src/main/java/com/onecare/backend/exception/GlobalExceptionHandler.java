@@ -90,6 +90,14 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(BusinessRuleException.class)
+    public ResponseEntity<ApiResponse<?>> handleBusinessRule(BusinessRuleException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
 public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
         HttpMessageNotReadableException ex) {
