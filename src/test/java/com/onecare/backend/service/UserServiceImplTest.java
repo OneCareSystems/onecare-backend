@@ -1,20 +1,26 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.dto.request.UserCreateRequest;
 import com.onecare.backend.dto.response.UserResponse;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class UserServiceImplTest {
@@ -160,4 +166,40 @@ class UserServiceImplTest {
             assertEquals(0, user.getFailedAttempts());
             assertNull(user.getLockedUntil());
     }
+
+    @Test
+void createUser_success_hashesPassword_andResponseHasNoPassword() {
+    when(userRepository.existsByUsername("bob")).thenReturn(false);
+    when(userRepository.existsByEmail("bob@x.com")).thenReturn(false);
+    when(passwordEncoder.encode("Passw0rd!")).thenReturn("HASH");
+    when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+    UserResponse res = userService.createUser(
+            new UserCreateRequest("bob", "bob@x.com", "Passw0rd!", Role.ADMIN));
+
+    ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).save(captor.capture());
+    assertEquals("HASH", captor.getValue().getPasswordHash());
+    assertTrue(captor.getValue().getIsActive());
+    assertTrue(Arrays.stream(UserResponse.class.getRecordComponents())
+            .noneMatch(c -> c.getName().toLowerCase().contains("password")));
+}
+
+@Test
+void createUser_duplicate_throws() {
+    when(userRepository.existsByUsername("bob")).thenReturn(true);
+        assertThrows(RuntimeException.class, () -> userService.createUser(
+            new UserCreateRequest("bob", "b@x.com", "Passw0rd!", Role.ADMIN)));
+    verify(userRepository, never()).save(any());
+}
+
+@Test
+void deactivateUser_setsInactive_andNeverDeletes() {
+    when(userRepository.findById(3L)).thenReturn(Optional.of(user));
+    userService.deactivateUser(3L);
+    assertFalse(user.getIsActive());
+    verify(userRepository).save(user);
+    verify(userRepository, never()).delete(any());
+    verify(userRepository, never()).deleteById(any());
+}
 }
