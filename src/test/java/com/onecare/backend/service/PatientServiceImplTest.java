@@ -9,7 +9,6 @@ import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.PatientRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,9 +16,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,17 +74,20 @@ class PatientServiceImplTest {
 
     @Test
     void createPatient_neverSetsPatientIdBeforeSave() {
-        stubSaveAssignsId(101L);
+        // Records the id the service hands to the repository, before the stub assigns one.
+        AtomicReference<Long> idSeenByRepository = new AtomicReference<>();
+        when(patientRepository.save(any(Patient.class))).thenAnswer(invocation -> {
+            Patient p = invocation.getArgument(0);
+            idSeenByRepository.set(p.getPatientId());
+            p.setPatientId(101L);
+            return p;
+        });
 
-        patientService.createPatient(validRequest());
+        PatientResponse response = patientService.createPatient(validRequest());
 
-        ArgumentCaptor<Patient> captor = ArgumentCaptor.forClass(Patient.class);
-        verify(patientRepository).save(captor.capture());
-        // The service never assigns an ID itself. Only the database does.
-        // (PatientCreateRequest has no patientId field, so a client value cannot reach here.)
-        // Note: the captured object is the same instance the stub then mutates,
-        // so we assert on what the service passed in via the request mapping instead:
-        assertEquals("Nimal", captor.getValue().getFullName());
+        assertNull(idSeenByRepository.get()); // only the database may assign the id
+        assertEquals(101L, response.patientId());
+        assertEquals("Nimal Perera", response.fullName());
     }
 
     // ---------- Duplicate detection ----------
@@ -112,7 +116,7 @@ class PatientServiceImplTest {
         List<PatientResponse> results = patientService.searchPatients("mal");
 
         assertEquals(1, results.size());
-        assertEquals("Nimal", results.get(0).fullName());
+        assertEquals("Nimal Perera", results.get(0).fullName());
     }
 
     @Test
