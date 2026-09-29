@@ -20,7 +20,7 @@ public class Patient {
     private Long patientId;
 
     @Column(name = "full_name", nullable = false, length = 500)
-    private String full_name;
+    private String fullName;
 
     @Column(name = "date_of_birth", nullable = false)
     private LocalDate dateOfBirth;
@@ -42,6 +42,9 @@ public class Patient {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "isActive", nullable = false)
+    private Boolean isActive;    
 
     @Enumerated(EnumType.STRING)
     @Column(name="gender",length=10)
