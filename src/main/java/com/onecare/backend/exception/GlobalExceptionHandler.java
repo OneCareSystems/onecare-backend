@@ -82,6 +82,21 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    @ExceptionHandler(InvalidStockException.class)
+public ResponseEntity<ApiResponse<?>> handleInvalidStock(
+        InvalidStockException exception
+) {
+
+    ApiResponse<?> response =
+            new ApiResponse<>(false, exception.getMessage());
+
+    return new ResponseEntity<>(
+            response,
+            HttpStatus.BAD_REQUEST
+    );
+}
+
         @ExceptionHandler(DuplicateUserException.class)
     public ResponseEntity<ApiResponse<?>> handleDuplicateUser(DuplicateUserException exception) {
 
@@ -119,5 +134,6 @@ public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
             HttpStatus.BAD_REQUEST
     );
 }
+
 
 }

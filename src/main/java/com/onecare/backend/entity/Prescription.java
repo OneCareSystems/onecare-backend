@@ -11,7 +11,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.onecare.backend.enums.Status;
-import com.onecare.backend.enums.Gender;
+
 
 @Data
 @NoArgsConstructor
