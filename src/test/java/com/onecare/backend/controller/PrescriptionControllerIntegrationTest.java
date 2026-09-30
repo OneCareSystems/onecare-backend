@@ -209,7 +209,7 @@ class PrescriptionControllerIntegrationTest {
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.data.appointmentId").exists());
+                .andExpect(jsonPath("$.data[?(@.field == 'appointmentId')]").isNotEmpty());
 
         assertEquals(0, prescriptionRepository.count());
     }
@@ -500,7 +500,8 @@ class PrescriptionControllerIntegrationTest {
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.data['items[0].medicineReferenceValid']").exists());
+                .andExpect(jsonPath(
+                        "$.data[?(@.field == 'items[0].medicineReferenceValid')]").isNotEmpty());
 
         assertEquals(0, prescriptionRepository.count());
     }
@@ -521,7 +522,8 @@ class PrescriptionControllerIntegrationTest {
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.data['items[0].medicineReferenceValid']").exists());
+                .andExpect(jsonPath(
+                        "$.data[?(@.field == 'items[0].medicineReferenceValid')]").isNotEmpty());
 
         assertEquals(0, prescriptionRepository.count());
     }
