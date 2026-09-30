@@ -73,13 +73,13 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                     "Patient is not active with id: " + request.patientId());
         }
 
-        // 3. Appointment is optional but must exist when supplied
-        Appointment appointment = null;
-        if (request.appointmentId() != null) {
-            appointment = appointmentRepository.findById(request.appointmentId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Appointment not found with id: " + request.appointmentId()));
+        // 3. Appointment is required and must exist
+        if (request.appointmentId() == null) {
+            throw new BusinessRuleException("appointmentId is required");
         }
+        Appointment appointment = appointmentRepository.findById(request.appointmentId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Appointment not found with id: " + request.appointmentId()));
 
         // 4. Validate EVERY in-house medicine BEFORE any prescription data is written
         //    (EXTERNAL_PURCHASE items reference no catalog medicine, so nothing to validate)

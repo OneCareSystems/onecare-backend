@@ -14,11 +14,13 @@ import java.util.List;
  * - status is always set server-side to ISSUED
  * - doctor is always the authenticated user (must have the DOCTOR role)
  * so a client can never control either value.
+ * appointmentId is required — every prescription belongs to an appointment.
  */
 public record CreatePrescriptionRequest(
         @NotNull 
         Long patientId,
 
+        @NotNull
         Long appointmentId,
         
         @Size(max = 2000) 

@@ -32,8 +32,8 @@ public class PrescriptionController {
             summary = "Create a prescription",
             description = "Creates a prescription with one or more items in a single transaction. "
                     + "The doctor is always the authenticated user (persisted role must be DOCTOR); "
-                    + "the patient must exist and be active; the appointment is optional but must exist "
-                    + "when supplied. Every item needs an itemType: IN_HOUSE items reference a medicineId "
+                    + "the patient must exist and be active; the appointment is required and must "
+                    + "exist. Every item needs an itemType: IN_HOUSE items reference a medicineId "
                     + "that must exist, be active (not quarantined) and not expired; EXTERNAL_PURCHASE "
                     + "items carry a free-text medicineName instead (medicineId must be null) and are "
                     + "never stock-checked, dispensed or invoiced. "
