@@ -77,9 +77,16 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         if (request.appointmentId() == null) {
             throw new BusinessRuleException("appointmentId is required");
         }
+
         Appointment appointment = appointmentRepository.findById(request.appointmentId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Appointment not found with id: " + request.appointmentId()));
+
+        if (prescriptionRepository.existsByAppointmentAppointmentId(request.appointmentId())) {
+            throw new BusinessRuleException(
+                    "A prescription already exists for appointment id: "
+                            + request.appointmentId());
+        }
 
         // 4. Validate EVERY in-house medicine BEFORE any prescription data is written
         //    (EXTERNAL_PURCHASE items reference no catalog medicine, so nothing to validate)

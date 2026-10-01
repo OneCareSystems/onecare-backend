@@ -21,4 +21,6 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
     @Override
     @EntityGraph(attributePaths = "items")
     Optional<Prescription> findById(Long id);
+
+    boolean existsByAppointmentAppointmentId(Long appointmentId);
 }
