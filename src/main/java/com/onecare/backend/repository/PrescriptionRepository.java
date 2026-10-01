@@ -5,6 +5,7 @@ import com.onecare.backend.enums.PrescriptionStatus;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,4 +24,11 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
     Optional<Prescription> findById(Long id);
 
     boolean existsByAppointmentAppointmentId(Long appointmentId);
+
+    Optional<Prescription> findByAppointmentAppointmentId(Long appointmentId);
+
+    @EntityGraph(attributePaths = {"items", "doctor", "patient", "appointment"})
+    List<Prescription> findByDateAndStatusNot(
+            LocalDate date,
+            PrescriptionStatus status);
 }

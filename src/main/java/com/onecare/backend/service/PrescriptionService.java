@@ -18,6 +18,9 @@ public interface PrescriptionService {
     /** All prescriptions, optionally filtered by status. Never exposes clinical notes. */
     List<PrescriptionResponse> findAllPrescriptions(String status);
 
+    /** All today prescriptions, optionally filtered by status. Never exposes clinical notes. */
+    List<PrescriptionResponse> findTodaysPrescriptions();
+
     /** Detail view; clinical notes only for callers with PRESCRIPTION_READ_CLINICAL_NOTES. */
     PrescriptionDetailResponse findPrescriptionById(Long id);
 

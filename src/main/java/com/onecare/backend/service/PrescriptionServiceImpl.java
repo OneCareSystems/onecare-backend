@@ -82,9 +82,14 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Appointment not found with id: " + request.appointmentId()));
 
-        if (prescriptionRepository.existsByAppointmentAppointmentId(request.appointmentId())) {
+        Optional<Prescription> existing =
+                prescriptionRepository.findByAppointmentAppointmentId(request.appointmentId());
+
+        if (existing.isPresent()
+                && existing.get().getStatus() != PrescriptionStatus.CANCELLED) {
+
             throw new BusinessRuleException(
-                    "A prescription already exists for appointment id: "
+                    "An active prescription already exists for appointment id: "
                             + request.appointmentId());
         }
 
@@ -143,6 +148,19 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         // PrescriptionResponse has no clinicalNotes field — nothing to strip here
         return prescriptions.stream()
+                .map(PrescriptionResponse::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PrescriptionResponse> findTodaysPrescriptions() {
+
+        LocalDate today = LocalDate.now();
+
+        return prescriptionRepository
+                .findByDateAndStatusNot(today, PrescriptionStatus.CANCELLED)
+                .stream()
                 .map(PrescriptionResponse::from)
                 .toList();
     }

@@ -69,6 +69,28 @@ public class PrescriptionController {
     }
 
     @Operation(
+            summary = "List today's prescriptions",
+            description = "Returns prescriptions created today excluding CANCELLED prescriptions. "
+                    + "ISSUED and DISPENSED prescriptions are included. "
+                    + "Returns 403 without PRESCRIPTION_READ_ALL."
+    )
+    @GetMapping("/today")
+    @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_READ_ALL + "')")
+    public ResponseEntity<ApiResponse<?>> findTodaysPrescriptions() {
+
+        List<PrescriptionResponse> prescriptions =
+                prescriptionService.findTodaysPrescriptions();
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Today's prescriptions retrieved successfully",
+                        prescriptions
+                )
+        );
+    }
+
+    @Operation(
             summary = "Get a prescription by ID",
             description = "Returns the full prescription including its items. "
                     + "clinicalNotes is included only for callers holding "
