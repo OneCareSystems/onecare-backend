@@ -2,6 +2,7 @@ package com.onecare.backend.service;
 
 import com.onecare.backend.dto.request.CreatePrescriptionRequest;
 import com.onecare.backend.dto.request.PrescriptionItemRequest;
+import com.onecare.backend.dto.request.UpdatePrescriptionRequest;
 import com.onecare.backend.dto.response.PrescriptionDetailResponse;
 import com.onecare.backend.dto.response.PrescriptionResponse;
 import com.onecare.backend.entity.Appointment;
@@ -106,22 +107,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setStatus(PrescriptionStatus.ISSUED);
         prescription.setClinicalNotes(request.clinicalNotes());
 
-        for (PrescriptionItemRequest itemRequest : request.items()) {
-            PrescriptionItem item = new PrescriptionItem();
-            item.setPrescription(prescription);
-            item.setItemType(itemRequest.itemType());
-            if (itemRequest.itemType() == PrescriptionItemType.IN_HOUSE) {
-                item.setMedicine(medicines.get(itemRequest.medicineId()));
-            } else {
-                // EXTERNAL_PURCHASE: free text only, no catalog reference
-                item.setMedicineName(itemRequest.medicineName());
-            }
-            item.setDosage(itemRequest.dosage());
-            item.setFrequency(itemRequest.frequency());
-            item.setDurationDays(itemRequest.durationDays());
-            item.setQuantity(itemRequest.quantity());
-            prescription.getItems().add(item);
-        }
+        populateItems(prescription, request.items(), medicines);
 
         // Single save cascades prescription + all items inside this transaction;
         // any later failure rolls the whole thing back (zero rows on both tables)
@@ -178,6 +164,52 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     @Override
+    public PrescriptionResponse updatePrescription(Long id, UpdatePrescriptionRequest request) {
+
+        // 1. Doctor: always the authenticated user, persisted role must be DOCTOR
+        User doctor = resolveAuthenticatedDoctor();
+
+        // 2. Prescription must exist
+        Prescription prescription = findPrescriptionByIdInternal(id);
+
+        // 3. Only an ISSUED prescription may be edited
+        if (prescription.getStatus() != PrescriptionStatus.ISSUED) {
+            throw new BusinessRuleException(
+                    "Only ISSUED prescriptions can be updated, prescription id: " + id
+                            + " has status: " + prescription.getStatus());
+        }
+
+        // 4. Only the doctor who issued it may edit it
+        if (!doctor.getUserId().equals(prescription.getDoctor().getUserId())) {
+            throw new BusinessRuleException(
+                    "Prescription with id: " + id + " was issued by another doctor");
+        }
+
+        // 5. Validate EVERY new in-house medicine BEFORE anything is mutated,
+        //    so a rejected request leaves the prescription exactly as it was
+        Map<Long, Medicine> medicines = loadAndValidateMedicines(request.items());
+
+        // 6. Replace content: notes only when provided; items are swapped as a whole
+        //    (orphanRemoval deletes the old lines on save)
+        if (request.clinicalNotes() != null) {
+            prescription.setClinicalNotes(request.clinicalNotes());
+        }
+
+        prescription.getItems().clear();
+        populateItems(prescription, request.items(), medicines);
+
+        Prescription saved = prescriptionRepository.save(prescription);
+
+        String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
+        log.info("Prescription updated | prescriptionId={} | doctorId={} | items={} | performedBy={}",
+                saved.getPrescriptionId(), doctor.getUserId(),
+                saved.getItems().size(), performedBy);
+        // TODO(DDP-26): replace with persisted audit event
+
+        return PrescriptionResponse.from(saved);
+    }
+
+    @Override
     public void cancelPrescription(Long id) {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
@@ -219,7 +251,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         if (doctor.getRole() != Role.DOCTOR) {
             throw new BusinessRuleException(
-                    "Only users with DOCTOR role can create prescriptions");
+                    "Only users with DOCTOR role can manage prescriptions");
         }
 
         return doctor;
@@ -268,6 +300,33 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
 
         return medicines;
+    }
+
+    /**
+     * Builds one PrescriptionItem per request line. IN_HOUSE items point at the
+     * already-validated catalog medicine; EXTERNAL_PURCHASE items carry free text
+     * only and are never stock-checked, dispensed or invoiced.
+     */
+    private void populateItems(Prescription prescription,
+                               List<PrescriptionItemRequest> items,
+                               Map<Long, Medicine> medicines) {
+
+        for (PrescriptionItemRequest itemRequest : items) {
+            PrescriptionItem item = new PrescriptionItem();
+            item.setPrescription(prescription);
+            item.setItemType(itemRequest.itemType());
+            if (itemRequest.itemType() == PrescriptionItemType.IN_HOUSE) {
+                item.setMedicine(medicines.get(itemRequest.medicineId()));
+            } else {
+                // EXTERNAL_PURCHASE: free text only, no catalog reference
+                item.setMedicineName(itemRequest.medicineName());
+            }
+            item.setDosage(itemRequest.dosage());
+            item.setFrequency(itemRequest.frequency());
+            item.setDurationDays(itemRequest.durationDays());
+            item.setQuantity(itemRequest.quantity());
+            prescription.getItems().add(item);
+        }
     }
 
     private PrescriptionStatus parseStatus(String status) {

@@ -2,6 +2,7 @@ package com.onecare.backend.controller;
 
 import com.onecare.backend.dto.ApiResponse;
 import com.onecare.backend.dto.request.CreatePrescriptionRequest;
+import com.onecare.backend.dto.request.UpdatePrescriptionRequest;
 import com.onecare.backend.dto.response.PrescriptionDetailResponse;
 import com.onecare.backend.dto.response.PrescriptionResponse;
 import com.onecare.backend.security.Permission;
@@ -124,13 +125,28 @@ public class PrescriptionController {
 
     @Operation(
             summary = "Update a prescription (DDP-25)",
-            description = "Not implemented yet — reserved for the prescription content/items flow. "
-                    + "Requires PRESCRIPTION_UPDATE (Doctor only); Admin, Pharmacist and Super Admin "
-                    + "receive 403.")
+            description = "Replaces the content of an ISSUED prescription: clinical notes "
+                    + "(optional — omitted/null keeps the current notes) and the full item list "
+                    + "(required; old item lines are replaced). The same medicine rules as create "
+                    + "apply, and a rejected request changes nothing. Status, doctor, patient, "
+                    + "appointment and date are never modified. Only the doctor who issued the "
+                    + "prescription may update it (400 otherwise). Returns 200; 400 for "
+                    + "validation/business-rule failures or non-ISSUED status; 404 for an unknown "
+                    + "prescription; 403 without PRESCRIPTION_UPDATE (Doctor only) — Admin, "
+                    + "Pharmacist and Super Admin receive 403.")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_UPDATE + "')")
-    public ResponseEntity<ApiResponse<?>> updatePrescription( @PathVariable Long id ) {
-        return null;
+    public ResponseEntity<ApiResponse<?>> updatePrescription(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdatePrescriptionRequest request) {
+
+        PrescriptionResponse response =  prescriptionService.updatePrescription(id, request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Prescription updated successfully",
+                        response));
     }
 
     @Operation(
