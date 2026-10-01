@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.onecare.backend.enums.PrescriptionItemType;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -21,9 +23,16 @@ public class PrescriptionItem{
     @JoinColumn(name = "prescription_id", nullable = false)
     private Prescription prescription;
 
-    @ManyToOne
-    @JoinColumn(name = "medicine_id", nullable = false)
-    private  Medicine medicine;
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "medicine_id")            // NULL for EXTERNAL_PURCHASE
+    private Medicine medicine;
+
+    @Column(name = "medicine_name", length = 150) // free text for EXTERNAL_PURCHASE
+    private String medicineName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "item_type", nullable = false, length = 20)
+    private PrescriptionItemType itemType;
 
     @Column(name = "dosage", nullable = false, length = 50)
     private String dosage;
@@ -35,8 +44,8 @@ public class PrescriptionItem{
     private String frequency;
 
 
-    @Column(name = "duration", nullable = false, length = 50)
-    private String duration;
+    @Column(name = "duration_days", nullable = false)
+    private Integer durationDays;
 
     @Column(name = "instruction", length = 255)
     private String instruction;

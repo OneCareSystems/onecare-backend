@@ -6,12 +6,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.onecare.backend.enums.Status;
-import com.onecare.backend.enums.Gender;
+import com.onecare.backend.enums.PrescriptionStatus;
 
 @Data
 @NoArgsConstructor
@@ -27,7 +28,7 @@ public class Prescription {
 
     @ManyToOne
     @JoinColumn(name = "appointment_id", nullable = false)
-    private Appointment appointment;        // ← capital A fixed
+    private Appointment appointment;
 
     @ManyToOne
     @JoinColumn(name = "doctor_id", nullable = false)
@@ -38,11 +39,17 @@ public class Prescription {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private Status status;
+    private PrescriptionStatus status;
 
     @ManyToOne
     @JoinColumn(name = "patient_id", nullable = false)
     private Patient patient;
+
+    @Column(name = "clinical_notes", length = 2000)
+    private String clinicalNotes;
+
+    @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PrescriptionItem> items = new ArrayList<>();
 
     @CreationTimestamp  // auto set on INSERT automatically
     @Column(name = "created_at", nullable = false, updatable = false)
