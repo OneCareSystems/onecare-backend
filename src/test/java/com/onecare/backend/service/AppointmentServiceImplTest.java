@@ -5,8 +5,9 @@ import com.onecare.backend.dto.request.UpdateAppointmentRequest;
 import com.onecare.backend.entity.Appointment;
 import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.User;
+import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.enums.Role;
-import com.onecare.backend.enums.Status;
+import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
@@ -69,8 +70,14 @@ class AppointmentServiceImplTest {
         when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
         when(patientRepository.findById(30L)).thenReturn(Optional.of(patient));
         when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(doctor));
         when(appointmentRepository.findByDoctor_UserIdAndAppointmentDate(7L, requested.toLocalDate()))
                 .thenReturn(List.of());
+        when(appointmentRepository.saveAndFlush(any(Appointment.class))).thenAnswer(invocation -> {
+            Appointment appointment = invocation.getArgument(0);
+            appointment.setAppointmentId(99L);
+            return appointment;
+        });
         when(appointmentRepository.save(any(Appointment.class))).thenAnswer(invocation -> {
             Appointment appointment = invocation.getArgument(0);
             appointment.setAppointmentId(99L);
@@ -84,8 +91,8 @@ class AppointmentServiceImplTest {
                 "Follow-up"));
 
         assertEquals(99L, response.appointmentId());
-        assertEquals(Status.PENDING.name(), response.status());
-        verify(appointmentRepository).save(any(Appointment.class));
+        assertEquals(AppointmentStatus.SCHEDULED.name(), response.status());
+        verify(appointmentRepository).saveAndFlush(any(Appointment.class));
     }
 
     @Test
@@ -115,13 +122,15 @@ class AppointmentServiceImplTest {
         appointment.setDoctor(doctor);
         appointment.setAppointmentDate(LocalDate.now().plusDays(1));
         appointment.setTimeSlot(LocalTime.of(9, 0));
-        appointment.setStatus(Status.PENDING);
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
 
         when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
         when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
         when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(doctor));
         when(patientRepository.findById(31L)).thenReturn(Optional.of(otherPatient));
         when(patientRepository.findAll()).thenReturn(List.of(currentPatient, otherPatient));
+        when(appointmentRepository.saveAndFlush(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var request = new UpdateAppointmentRequest(
                 7L,
@@ -131,6 +140,38 @@ class AppointmentServiceImplTest {
 
         assertThrows(AccessDeniedException.class, () -> appointmentService.updateAppointment(1L, request));
         verify(patientRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelAppointment_blocksCompletedAppointment() {
+        User currentUser = new User();
+        currentUser.setUserId(10L);
+        currentUser.setEmail("alice@example.com");
+        currentUser.setRole(Role.PHARMACIST);
+
+        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+        patient.setEmail("alice@example.com");
+
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+        when(patientRepository.findAll()).thenReturn(List.of(patient));
+
+        assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(1L));
     }
 
     private void appUserAuthentication(User user, String authority) {

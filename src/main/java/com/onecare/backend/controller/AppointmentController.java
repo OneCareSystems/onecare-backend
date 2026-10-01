@@ -40,8 +40,8 @@ public class AppointmentController {
 
     @Operation(summary = "List appointments", description = "Return authorized appointment records")
     @GetMapping
-    @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ_ALL + "') or hasAuthority('"
-            + Permission.APPOINTMENT_READ + "') or hasAuthority('" + Permission.APPOINTMENT_READ_OWN + "')")
+        @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ_ALL + "') or hasAuthority('"
+            + Permission.APPOINTMENT_READ + "')")
     public ResponseEntity<ApiResponse<List<AppointmentResponse>>> listAppointments() {
         List<AppointmentResponse> appointments = appointmentService.listAppointments();
         return ResponseEntity.ok(new ApiResponse<>(true, "Appointments retrieved successfully", appointments));

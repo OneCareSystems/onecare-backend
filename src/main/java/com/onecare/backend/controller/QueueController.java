@@ -28,8 +28,8 @@ public class QueueController {
 
     @Operation(summary = "Get today's queue", description = "Return today's queue based on appointment data")
     @GetMapping("/today")
-    @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ + "') or hasAuthority('"
-            + Permission.APPOINTMENT_READ_ALL + "') or hasAuthority('" + Permission.APPOINTMENT_READ_OWN + "')")
+        @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ + "') or hasAuthority('"
+            + Permission.APPOINTMENT_READ_ALL + "')")
     public ResponseEntity<ApiResponse<List<QueueResponse>>> getTodayQueue() {
         List<QueueResponse> queue = queueService.getQueueToday();
         return ResponseEntity.ok(new ApiResponse<>(true, "Queue retrieved successfully", queue));

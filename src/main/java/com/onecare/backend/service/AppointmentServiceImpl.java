@@ -1,15 +1,13 @@
 package com.onecare.backend.service;
 
-import com.onecare.backend.dto.request.AppointmentStatusRequest;
 import com.onecare.backend.dto.request.CreateAppointmentRequest;
 import com.onecare.backend.dto.request.UpdateAppointmentRequest;
 import com.onecare.backend.dto.response.AppointmentResponse;
-import com.onecare.backend.dto.response.QueueResponse;
 import com.onecare.backend.entity.Appointment;
 import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.User;
+import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.enums.Role;
-import com.onecare.backend.enums.Status;
 import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.exception.SlotConflictException;
@@ -17,6 +15,9 @@ import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.SecurityUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,20 +27,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @Transactional
-public class AppointmentServiceImpl implements AppointmentService, QueueService {
+public class AppointmentServiceImpl implements AppointmentService {
 
-    private static final Set<String> ALLOWED_STATUS_VALUES = Set.of(
-            "Scheduled",
-            "Completed",
-            "Cancelled",
-            "No-show");
-
+    private static final Logger log = LoggerFactory.getLogger(AppointmentServiceImpl.class);
     private static final Duration SLOT_DURATION = Duration.ofMinutes(30);
 
     private final AppointmentRepository appointmentRepository;
@@ -60,13 +54,13 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
         validateCreateRequest(request);
 
         Patient patient = resolveTrustedPatient(request.patientId());
-
         User doctor = userRepository.findById(request.doctorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + request.doctorId()));
 
+        lockDoctor(doctor.getUserId());
+
         LocalDateTime requestedStart = request.appointmentDateTime();
         LocalDateTime requestedEnd = requestedStart.plus(SLOT_DURATION);
-
         assertDoctorSlotAvailability(doctor.getUserId(), requestedStart, requestedEnd, null);
 
         Appointment appointment = new Appointment();
@@ -75,9 +69,11 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
         appointment.setAppointmentDate(requestedStart.toLocalDate());
         appointment.setTimeSlot(requestedStart.toLocalTime());
         appointment.setReason(request.reason());
-        appointment.setStatus(Status.PENDING);
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
 
-        Appointment saved = appointmentRepository.save(appointment);
+        Appointment saved = saveWithSlotProtection(appointment, doctor.getUserId(), requestedStart, null);
+        log.info("Created appointment {} for patient {} with doctor {} at {}",
+                saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), requestedStart);
         return AppointmentResponse.from(saved);
     }
 
@@ -88,9 +84,7 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
         Role currentRole = currentUser.getRole();
 
         if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
-            return appointmentRepository.findAll().stream()
-                    .map(AppointmentResponse::from)
-                    .toList();
+            return appointmentRepository.findAll().stream().map(AppointmentResponse::from).toList();
         }
 
         if (currentRole == Role.DOCTOR) {
@@ -125,10 +119,11 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
             throw new ResourceNotFoundException("Appointment is missing an assigned doctor");
         }
 
+        lockDoctor(doctorId);
+
         if (request.doctorId() != null) {
             User doctor = userRepository.findById(request.doctorId())
-                    .orElseThrow(
-                            () -> new ResourceNotFoundException("Doctor not found with id: " + request.doctorId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + request.doctorId()));
             appointment.setDoctor(doctor);
         }
 
@@ -138,8 +133,7 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
 
             if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
                 Patient patient = patientRepository.findById(request.patientId())
-                        .orElseThrow(() -> new ResourceNotFoundException(
-                                "Patient not found with id: " + request.patientId()));
+                        .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + request.patientId()));
                 appointment.setPatient(patient);
             } else if (currentRole == Role.DOCTOR) {
                 throw new AccessDeniedException("Doctors are not allowed to reassign patient ownership");
@@ -161,7 +155,12 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
             appointment.setReason(request.reason());
         }
 
-        Appointment saved = appointmentRepository.save(appointment);
+        Appointment saved = saveWithSlotProtection(appointment, doctorId, newDateTime, appointmentId);
+        log.info("Updated appointment {} to doctor {}, patient {}, slot {}",
+                saved.getAppointmentId(),
+                saved.getDoctor() != null ? saved.getDoctor().getUserId() : null,
+                saved.getPatient() != null ? saved.getPatient().getPatientId() : null,
+                newDateTime);
         return AppointmentResponse.from(saved);
     }
 
@@ -172,124 +171,62 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
 
         assertAppointmentAccess(appointment);
 
-        if (appointment.getStatus() == Status.CANCELLED) {
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
             return AppointmentResponse.from(appointment);
         }
 
-        if (appointment.getStatus() == Status.DISPENSED) {
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
             throw new InvalidAppointmentStatusException("Cannot cancel a completed appointment");
         }
 
-        appointment.setStatus(Status.CANCELLED);
+        appointment.setStatus(AppointmentStatus.CANCELLED);
         Appointment saved = appointmentRepository.save(appointment);
+        log.info("Cancelled appointment {}", saved.getAppointmentId());
         return AppointmentResponse.from(saved);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<QueueResponse> getQueueToday() {
-        User currentUser = getCurrentAuthenticatedUser();
-        Role currentRole = currentUser.getRole();
-        LocalDate today = LocalDate.now();
-
-        List<Appointment> appointments = appointmentRepository
-                .findByAppointmentDateOrderByTimeSlotAscAppointmentIdAsc(today).stream()
-                .filter(appointment -> appointment.getStatus() != null && appointment.getStatus() != Status.CANCELLED)
-                .filter(appointment -> {
-                    if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
-                        return true;
-                    }
-                    if (currentRole == Role.DOCTOR) {
-                        return appointment.getDoctor() != null
-                                && appointment.getDoctor().getUserId().equals(currentUser.getUserId());
-                    }
-                    Patient selfPatient = resolveSelfPatient(currentUser);
-                    return appointment.getPatient() != null
-                            && appointment.getPatient().getPatientId().equals(selfPatient.getPatientId());
-                })
-                .sorted(Comparator.comparing(Appointment::getTimeSlot).thenComparing(Appointment::getAppointmentId))
-                .toList();
-
-        List<QueueResponse> queue = new ArrayList<>();
-        for (int index = 0; index < appointments.size(); index++) {
-            Appointment appointment = appointments.get(index);
-            queue.add(new QueueResponse(
-                    appointment.getAppointmentId(),
-                    appointment.getPatient() != null ? appointment.getPatient().getPatientId() : null,
-                    appointment.getDoctor() != null ? appointment.getDoctor().getUserId() : null,
-                    appointment.getAppointmentDate(),
-                    appointment.getTimeSlot(),
-                    appointment.getStatus() != null ? appointment.getStatus().name() : null,
-                    index + 1));
-        }
-
-        return queue;
+    private void lockDoctor(Long doctorId) {
+        userRepository.findByIdForUpdate(doctorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + doctorId));
     }
 
-    @Override
-    public AppointmentResponse updateQueueStatus(Long appointmentId, AppointmentStatusRequest request) {
-        if (request == null || request.status() == null || request.status().isBlank()) {
-            throw new InvalidAppointmentStatusException("Status is required");
+    private Appointment saveWithSlotProtection(Appointment appointment, Long doctorId, LocalDateTime requestedStart,
+            Long excludeAppointmentId) {
+        try {
+            return appointmentRepository.saveAndFlush(appointment);
+        } catch (DataIntegrityViolationException exception) {
+            List<String> alternatives = findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart,
+                    requestedStart.plus(SLOT_DURATION), excludeAppointmentId);
+            throw new SlotConflictException(
+                    "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: " + requestedStart,
+                    requestedStart.toString(),
+                    alternatives);
         }
-
-        String rawStatus = request.status();
-        if (!ALLOWED_STATUS_VALUES.contains(rawStatus)) {
-            throw new InvalidAppointmentStatusException(
-                    "Status must be one of: Scheduled, Completed, Cancelled, No-show");
-        }
-
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + appointmentId));
-
-        if (appointment.getStatus() == Status.CANCELLED && !"Cancelled".equals(rawStatus)) {
-            throw new InvalidAppointmentStatusException("Cancelled appointments cannot be changed to another status");
-        }
-
-        if (appointment.getStatus() == Status.DISPENSED && !"Completed".equals(rawStatus)) {
-            throw new InvalidAppointmentStatusException("Completed appointments cannot be changed to another status");
-        }
-
-        switch (rawStatus) {
-            case "Scheduled" -> appointment.setStatus(Status.PENDING);
-            case "Completed" -> appointment.setStatus(Status.DISPENSED);
-            case "Cancelled" -> appointment.setStatus(Status.CANCELLED);
-            case "No-show" -> appointment.setStatus(Status.CANCELLED);
-            default -> throw new InvalidAppointmentStatusException(
-                    "Status must be one of: Scheduled, Completed, Cancelled, No-show");
-        }
-
-        Appointment saved = appointmentRepository.save(appointment);
-        return AppointmentResponse.from(saved);
     }
 
     private void assertDoctorSlotAvailability(Long doctorId, LocalDateTime requestedStart, LocalDateTime requestedEnd,
             Long excludeAppointmentId) {
-        List<Appointment> doctorAppointments = appointmentRepository.findByDoctor_UserIdAndAppointmentDate(doctorId,
-                requestedStart.toLocalDate());
-
-        List<String> alternatives = findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart,
-                requestedEnd, excludeAppointmentId);
-
-        for (Appointment existing : doctorAppointments) {
+        for (Appointment existing : appointmentRepository.findByDoctor_UserIdAndAppointmentDate(doctorId,
+                requestedStart.toLocalDate())) {
             if (excludeAppointmentId != null && existing.getAppointmentId() != null
                     && existing.getAppointmentId().equals(excludeAppointmentId)) {
                 continue;
             }
 
-            if (existing.getStatus() == Status.CANCELLED) {
+            if (existing.getStatus() == AppointmentStatus.CANCELLED) {
                 continue;
             }
 
             LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
             LocalDateTime existingEnd = existingStart.plus(SLOT_DURATION);
-
             boolean overlaps = requestedStart.isBefore(existingEnd) && existingStart.isBefore(requestedEnd);
             if (overlaps) {
                 throw new SlotConflictException(
                         "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: "
                                 + requestedStart,
                         requestedStart.toString(),
-                        alternatives);
+                        findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart, requestedEnd,
+                                excludeAppointmentId));
             }
         }
     }
@@ -297,8 +234,7 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
     private List<String> findAlternativeSlots(Long doctorId, LocalDate appointmentDate, LocalDateTime requestedStart,
             LocalDateTime requestedEnd, Long excludeAppointmentId) {
         List<String> alternatives = new ArrayList<>();
-        LocalTime cursor = LocalTime.of(9, 0);
-        LocalDateTime candidate = LocalDateTime.of(appointmentDate, cursor);
+        LocalDateTime candidate = LocalDateTime.of(appointmentDate, LocalTime.of(9, 0));
 
         while (!candidate.toLocalTime().isAfter(LocalTime.of(17, 30)) && alternatives.size() < 5) {
             LocalDateTime candidateEnd = candidate.plus(SLOT_DURATION);
@@ -309,9 +245,10 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
                         && existing.getAppointmentId().equals(excludeAppointmentId)) {
                     continue;
                 }
-                if (existing.getStatus() == Status.CANCELLED) {
+                if (existing.getStatus() == AppointmentStatus.CANCELLED) {
                     continue;
                 }
+
                 LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
                 LocalDateTime existingEnd = existingStart.plus(SLOT_DURATION);
                 if (candidate.isBefore(existingEnd) && existingStart.isBefore(candidateEnd)) {
@@ -319,7 +256,8 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
                     break;
                 }
             }
-            if (free && candidate.isAfter(requestedStart)) {
+
+            if (free && !candidate.equals(requestedStart)) {
                 alternatives.add(candidate.toString());
             }
             candidate = candidate.plus(SLOT_DURATION);
@@ -345,8 +283,7 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
         }
 
         if (currentRole == Role.DOCTOR) {
-            if (appointment.getDoctor() != null
-                    && appointment.getDoctor().getUserId().equals(currentUser.getUserId())) {
+            if (appointment.getDoctor() != null && appointment.getDoctor().getUserId().equals(currentUser.getUserId())) {
                 return;
             }
             throw new AccessDeniedException("Doctors can only manage their own appointments");
@@ -365,8 +302,7 @@ public class AppointmentServiceImpl implements AppointmentService, QueueService 
 
         if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
             return patientRepository.findById(requestedPatientId)
-                    .orElseThrow(
-                            () -> new ResourceNotFoundException("Patient not found with id: " + requestedPatientId));
+                    .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + requestedPatientId));
         }
 
         if (currentRole == Role.DOCTOR) {
