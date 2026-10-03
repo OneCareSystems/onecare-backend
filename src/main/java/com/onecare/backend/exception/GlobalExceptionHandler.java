@@ -34,8 +34,7 @@ public class GlobalExceptionHandler {
         exception.getBindingResult().getFieldErrors()
                 .forEach(error -> fieldErrors.put(error.getField(), error.getDefaultMessage()));
 
-        ApiResponse<Map<String, String>> response =
-                new ApiResponse<>(false, "Validation failed", fieldErrors);
+        ApiResponse<Map<String, String>> response = new ApiResponse<>(false, "Validation failed", fieldErrors);
 
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
@@ -49,7 +48,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmailSendException.class)
     public ResponseEntity<ApiResponse<?>> handleEmailSendFailure(EmailSendException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false, "Unable to send email at this time. Please try again later.");
+        ApiResponse<?> response = new ApiResponse<>(false,
+                "Unable to send email at this time. Please try again later.");
 
         return new ResponseEntity<>(response, HttpStatus.SERVICE_UNAVAILABLE);
     }
@@ -75,6 +75,24 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
+    @ExceptionHandler(InvalidAppointmentStatusException.class)
+    public ResponseEntity<ApiResponse<?>> handleInvalidAppointmentStatus(InvalidAppointmentStatusException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(SlotConflictException.class)
+    public ResponseEntity<ApiResponse<?>> handleSlotConflict(SlotConflictException exception) {
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
+                exception.getMessage(),
+                new com.onecare.backend.dto.response.SlotConflictResponse(
+                        exception.getMessage(),
+                        exception.getRequestedSlot(),
+                        exception.getAlternativeSlots()));
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
 
@@ -82,7 +100,8 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
-        @ExceptionHandler(DuplicateUserException.class)
+
+    @ExceptionHandler(DuplicateUserException.class)
     public ResponseEntity<ApiResponse<?>> handleDuplicateUser(DuplicateUserException exception) {
 
         ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
@@ -91,33 +110,31 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
-        HttpMessageNotReadableException ex) {
+    public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
+            HttpMessageNotReadableException ex) {
 
-    String message = "Malformed or unreadable request body";
+        String message = "Malformed or unreadable request body";
 
-    if (ex.getCause() instanceof InvalidFormatException ife
-            && ife.getTargetType() != null
-            && ife.getTargetType().isEnum()) {
+        if (ex.getCause() instanceof InvalidFormatException ife
+                && ife.getTargetType() != null
+                && ife.getTargetType().isEnum()) {
 
-        String field = ife.getPath().isEmpty()
-                ? "value"
-                : ife.getPath()
-                    .get(ife.getPath().size() - 1)
-                    .getFieldName();
+            String field = ife.getPath().isEmpty()
+                    ? "value"
+                    : ife.getPath()
+                            .get(ife.getPath().size() - 1)
+                            .getFieldName();
 
-        message = "Invalid value '" + ife.getValue()
-                + "' for field '" + field
-                + "'. Allowed values: "
-                + Arrays.toString(
-                    ife.getTargetType().getEnumConstants()
-                );
+            message = "Invalid value '" + ife.getValue()
+                    + "' for field '" + field
+                    + "'. Allowed values: "
+                    + Arrays.toString(
+                            ife.getTargetType().getEnumConstants());
+        }
+
+        return new ResponseEntity<>(
+                new ApiResponse<>(false, message),
+                HttpStatus.BAD_REQUEST);
     }
-
-    return new ResponseEntity<>(
-            new ApiResponse<>(false, message),
-            HttpStatus.BAD_REQUEST
-    );
-}
 
 }
