@@ -4,7 +4,7 @@ import com.onecare.backend.entity.*;
 import com.onecare.backend.enums.Gender;
 import com.onecare.backend.enums.PrescriptionStatus;
 import com.onecare.backend.enums.Role;
-import com.onecare.backend.enums.Status;
+import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.repository.*;
 import com.onecare.backend.security.RolePermission;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,6 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -62,9 +61,6 @@ class PrescriptionControllerIntegrationTest {
 
     @Autowired
     private AppointmentRepository appointmentRepository;
-
-    /** Appointments use an assigned (non-generated) id in this codebase. */
-    private static final AtomicLong APPOINTMENT_SEQ = new AtomicLong(900_000L);
 
     // ---------- helpers ----------
 
@@ -106,12 +102,13 @@ class PrescriptionControllerIntegrationTest {
 
     private Appointment createAppointment(Patient patient, User doctor) {
         Appointment appointment = new Appointment();
-        appointment.setAppointmentId(APPOINTMENT_SEQ.incrementAndGet());
+        // id is left unset — Appointment uses @GeneratedValue(IDENTITY); assigning one
+        // would send save() down the merge path and fail with StaleObjectStateException
         appointment.setPatient(patient);
         appointment.setDoctor(doctor);
         appointment.setAppointmentDate(LocalDate.now().plusDays(1));
         appointment.setTimeSlot(LocalTime.of(10, 0));
-        appointment.setStatus(Status.CANCELLED);
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
         appointment.setReason("Checkup");
         return appointmentRepository.save(appointment);
     }
