@@ -17,7 +17,13 @@ import com.onecare.backend.enums.AppointmentStatus;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "appointments")
+@Table(
+    name = "appointments",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uq_appointments_doctor_date_slot",
+        columnNames = {"doctor_id", "appointment_date", "time_slot"}
+    )
+)
 public class Appointment {
 
     @Id
