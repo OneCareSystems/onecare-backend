@@ -11,16 +11,23 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import com.onecare.backend.enums.Status;
+import com.onecare.backend.enums.AppointmentStatus;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "appointments")
+@Table(
+    name = "appointments",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uq_appointments_doctor_date_slot",
+        columnNames = {"doctor_id", "appointment_date", "time_slot"}
+    )
+)
 public class Appointment {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "appointment_id")
     private Long appointmentId;
 
@@ -40,7 +47,7 @@ public class Appointment {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private Status status ;
+    private AppointmentStatus status;
     
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

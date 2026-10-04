@@ -31,7 +31,7 @@ CREATE TABLE users (
     CONSTRAINT pk_users       PRIMARY KEY (user_id),
     CONSTRAINT uq_users_email UNIQUE (email),
     CONSTRAINT uq_users_uname UNIQUE (username)
-);
+) ENGINE=InnoDB;
 
 -- 1b. password_reset_tokens (needs: users)
 CREATE TABLE password_reset_tokens (
@@ -100,8 +100,9 @@ CREATE TABLE appointments (
 
     CONSTRAINT pk_appointments PRIMARY KEY (appointment_id),
     CONSTRAINT fk_appt_patient FOREIGN KEY (patient_id) REFERENCES patients(patient_id),
-    CONSTRAINT fk_appt_doctor  FOREIGN KEY (doctor_id)  REFERENCES users(user_id)
-);
+    CONSTRAINT fk_appt_doctor  FOREIGN KEY (doctor_id)  REFERENCES users(user_id),
+    CONSTRAINT uq_appointments_doctor_date_slot UNIQUE (doctor_id, appointment_date, time_slot)
+) ENGINE=InnoDB;
 
 -- 5. prescriptions (needs: appointments, users, patients)
 CREATE TABLE prescriptions (
