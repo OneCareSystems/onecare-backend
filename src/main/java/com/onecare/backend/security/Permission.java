@@ -34,7 +34,6 @@ public final class Permission {
     public static final String APPOINTMENT_CREATE = "APPOINTMENT_CREATE";
     public static final String APPOINTMENT_READ_ALL = "APPOINTMENT_READ_ALL";
     public static final String APPOINTMENT_READ = "APPOINTMENT_READ";
-    public static final String APPOINTMENT_READ_OWN = "APPOINTMENT_READ_OWN";
     public static final String APPOINTMENT_UPDATE = "APPOINTMENT_UPDATE";
 
 
