@@ -192,11 +192,12 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     private Appointment saveWithSlotProtection(Appointment appointment, Long doctorId, LocalDateTime requestedStart,
             Long excludeAppointmentId) {
+        List<String> alternatives = findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart,
+                requestedStart.plus(SLOT_DURATION), excludeAppointmentId);
+
         try {
             return appointmentRepository.saveAndFlush(appointment);
         } catch (DataIntegrityViolationException exception) {
-            List<String> alternatives = findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart,
-                    requestedStart.plus(SLOT_DURATION), excludeAppointmentId);
             throw new SlotConflictException(
                     "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: " + requestedStart,
                     requestedStart.toString(),
