@@ -40,4 +40,9 @@ public final class Permission {
     public static final String AUDIT_READ = "AUDIT_READ";
     public static final String AUDIT_READ_ALL = "AUDIT_READ_ALL";
     public static final String REPORT_GENERATE = "REPORT_GENERATE";
+
+    public static final String INVOICE_CREATE = "INVOICE_CREATE";
+    public static final String INVOICE_READ = "INVOICE_READ";
+    public static final String INVOICE_UPDATE = "INVOICE_UPDATE";
+    public static final String INVOICE_PAY = "INVOICE_PAY";
 }
