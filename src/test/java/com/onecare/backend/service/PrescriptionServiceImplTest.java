@@ -284,6 +284,44 @@ class PrescriptionServiceImplTest {
     }
 
     @Test
+    void createPrescription_appointmentBelongingToAnotherPatient_rejected_nothingSaved() {
+        authenticate("dr.test", "ROLE_DOCTOR");
+        stubAuthenticatedDoctor();
+        when(patientRepository.findById(5L)).thenReturn(Optional.of(activePatient(5L)));
+        Appointment appointment = appointment();
+        appointment.setPatient(activePatient(6L)); // appointment is for a different patient
+        when(appointmentRepository.findById(APPOINTMENT_ID)).thenReturn(Optional.of(appointment));
+
+        BusinessRuleException exception = assertThrows(BusinessRuleException.class,
+                () -> service.createPrescription(request(5L, item(1L))));
+
+        assertTrue(exception.getMessage().contains("does not belong to patient"));
+        verify(medicineRepository, never()).findAllById(anyList());
+        verify(prescriptionRepository, never()).save(any());
+    }
+
+    @Test
+    void createPrescription_appointmentBelongingToAnotherDoctor_rejected_nothingSaved() {
+        authenticate("dr.test", "ROLE_DOCTOR");
+        stubAuthenticatedDoctor();
+        when(patientRepository.findById(5L)).thenReturn(Optional.of(activePatient(5L)));
+        Appointment appointment = appointment();
+        User otherDoctor = new User();
+        otherDoctor.setUserId(99L);
+        otherDoctor.setUsername("other.doctor");
+        otherDoctor.setRole(Role.DOCTOR);
+        appointment.setDoctor(otherDoctor); // appointment belongs to a different doctor
+        when(appointmentRepository.findById(APPOINTMENT_ID)).thenReturn(Optional.of(appointment));
+
+        BusinessRuleException exception = assertThrows(BusinessRuleException.class,
+                () -> service.createPrescription(request(5L, item(1L))));
+
+        assertTrue(exception.getMessage().contains("authenticated doctor"));
+        verify(medicineRepository, never()).findAllById(anyList());
+        verify(prescriptionRepository, never()).save(any());
+    }
+
+    @Test
     void createPrescription_unknownMedicine_rejected_nothingSaved() {
         authenticate("dr.test", "ROLE_DOCTOR");
         stubAuthenticatedDoctor();

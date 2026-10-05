@@ -381,6 +381,49 @@ class PrescriptionControllerIntegrationTest {
     }
 
     @Test
+    void create_appointmentBelongingToAnotherPatient_returns400() throws Exception {
+        User doctor = createUser(Role.DOCTOR);
+        Patient appointmentPatient = createPatient(true);
+        Patient otherPatient = createPatient(true);
+        Appointment appointment = createAppointment(appointmentPatient, doctor);
+        Medicine medicine = validMedicine();
+
+        // valid patient + valid appointment, but they belong to each other's pair
+        mockMvc.perform(post("/api/prescriptions")
+                        .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(otherPatient, appointment, "Notes", medicine)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("Appointment with id: " + appointment.getAppointmentId()
+                                + " does not belong to patient id: "
+                                + otherPatient.getPatientId()));
+
+        assertEquals(0, prescriptionRepository.count());
+    }
+
+    @Test
+    void create_appointmentBelongingToAnotherDoctor_returns400() throws Exception {
+        User appointmentDoctor = createUser(Role.DOCTOR);
+        User otherDoctor = createUser(Role.DOCTOR);
+        Patient patient = createPatient(true);
+        Appointment appointment = createAppointment(patient, appointmentDoctor);
+        Medicine medicine = validMedicine();
+
+        // valid patient + valid appointment, but the appointment is for another doctor
+        mockMvc.perform(post("/api/prescriptions")
+                        .with(as(otherDoctor.getUsername(), Role.DOCTOR)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(patient, appointment, "Notes", medicine)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("Appointment with id: " + appointment.getAppointmentId()
+                                + " does not belong to the authenticated doctor"));
+
+        assertEquals(0, prescriptionRepository.count());
+    }
+
+    @Test
     void create_emptyItems_returns400() throws Exception {
         User doctor = createUser(Role.DOCTOR);
         Patient patient = createPatient(true);
