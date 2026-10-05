@@ -34,6 +34,8 @@ public class OpenApiConfig {
             "/api/medicines",
             "/api/prescriptions",
             "/api/appointments",
+            "/api/invoices",
+            "/api/queues",
             "/api/audit");
 
     @Bean
@@ -61,7 +63,7 @@ public class OpenApiConfig {
      * - 400 on every operation that accepts a request body (@Valid)
      * - 401 on every operation except permitAll paths
      * - 403 on role-protected operations (SecurityConfig hasAnyRole)
-     * - 429 on /api/auth/* (ApiRateLimitFilter scope)
+     * - 429 on /api/* (ApiRateLimitFilter: auth tier on /api/auth/*, general tier elsewhere)
      */
     @Bean
     public GlobalOpenApiCustomizer defaultResponsesCustomizer() {
@@ -89,7 +91,7 @@ public class OpenApiConfig {
                             responses.putIfAbsent("403",
                                     new ApiResponse().description("Forbidden: insufficient permissions"));
                         }
-                        if (path.startsWith("/api/auth/")) {
+                        if (path.startsWith("/api/")) {
                             responses.putIfAbsent("429",
                                     new ApiResponse().description("Too many requests"));
                         }

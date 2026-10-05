@@ -59,6 +59,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/medicines/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST")
                         .requestMatchers("/api/prescriptions/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR", "PHARMACIST")
                         .requestMatchers("/api/appointments/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
+                        .requestMatchers("/api/invoices/**").hasAnyRole("SUPER_ADMIN", "ADMIN","PHARMACIST")
                         .requestMatchers("/api/audit/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/secure/**").authenticated()
                         .anyRequest().authenticated())
