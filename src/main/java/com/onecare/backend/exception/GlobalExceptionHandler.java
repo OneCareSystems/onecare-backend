@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @ControllerAdvice
@@ -29,15 +31,29 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<?>> handleValidation(MethodArgumentNotValidException exception) {
-        Map<String, String> fieldErrors = new LinkedHashMap<>();
-        exception.getBindingResult().getFieldErrors()
-                .forEach(error -> fieldErrors.put(error.getField(), error.getDefaultMessage()));
+    public ResponseEntity<ApiResponse<?>> handleValidationException(
+            MethodArgumentNotValidException ex) {
 
-        ApiResponse<Map<String, String>> response =
-                new ApiResponse<>(false, "Validation failed", fieldErrors);
+        List<Map<String, String>> errors = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> {
+                    Map<String, String> fieldError = new HashMap<>();
+                    fieldError.put("field", error.getField());
+                    fieldError.put(
+                            "message",
+                            error.getDefaultMessage()
+                    );
+                    return fieldError;
+                }).toList();
 
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        return ResponseEntity.badRequest()
+                .body(new ApiResponse<>(
+                        false,
+                        "Request validation failed",
+                        errors
+                ));
+
     }
 
     @ExceptionHandler(InvalidResetTokenException.class)
@@ -49,7 +65,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmailSendException.class)
     public ResponseEntity<ApiResponse<?>> handleEmailSendFailure(EmailSendException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false, "Unable to send email at this time. Please try again later.");
+        ApiResponse<?> response = new ApiResponse<>(false,
+                "Unable to send email at this time. Please try again later.");
 
         return new ResponseEntity<>(response, HttpStatus.SERVICE_UNAVAILABLE);
     }
@@ -73,6 +90,24 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = new ApiResponse<>(false, "Access denied: insufficient permissions");
 
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(InvalidAppointmentStatusException.class)
+    public ResponseEntity<ApiResponse<?>> handleInvalidAppointmentStatus(InvalidAppointmentStatusException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(SlotConflictException.class)
+    public ResponseEntity<ApiResponse<?>> handleSlotConflict(SlotConflictException exception) {
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
+                exception.getMessage(),
+                new com.onecare.backend.dto.response.SlotConflictResponse(
+                        exception.getMessage(),
+                        exception.getRequestedSlot(),
+                        exception.getAlternativeSlots()));
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(Exception.class)
@@ -105,35 +140,41 @@ public ResponseEntity<ApiResponse<?>> handleInvalidStock(
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
-        HttpMessageNotReadableException ex) {
+    @ExceptionHandler(BusinessRuleException.class)
+    public ResponseEntity<ApiResponse<?>> handleBusinessRule(BusinessRuleException exception) {
 
-    String message = "Malformed or unreadable request body";
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
 
-    if (ex.getCause() instanceof InvalidFormatException ife
-            && ife.getTargetType() != null
-            && ife.getTargetType().isEnum()) {
-
-        String field = ife.getPath().isEmpty()
-                ? "value"
-                : ife.getPath()
-                    .get(ife.getPath().size() - 1)
-                    .getFieldName();
-
-        message = "Invalid value '" + ife.getValue()
-                + "' for field '" + field
-                + "'. Allowed values: "
-                + Arrays.toString(
-                    ife.getTargetType().getEnumConstants()
-                );
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
-    return new ResponseEntity<>(
-            new ApiResponse<>(false, message),
-            HttpStatus.BAD_REQUEST
-    );
-}
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
+            HttpMessageNotReadableException ex) {
+
+        String message = "Malformed or unreadable request body";
+
+        if (ex.getCause() instanceof InvalidFormatException ife
+                && ife.getTargetType() != null
+                && ife.getTargetType().isEnum()) {
+
+            String field = ife.getPath().isEmpty()
+                    ? "value"
+                    : ife.getPath()
+                            .get(ife.getPath().size() - 1)
+                            .getFieldName();
+
+            message = "Invalid value '" + ife.getValue()
+                    + "' for field '" + field
+                    + "'. Allowed values: "
+                    + Arrays.toString(
+                            ife.getTargetType().getEnumConstants());
+        }
+
+        return new ResponseEntity<>(
+                new ApiResponse<>(false, message),
+                HttpStatus.BAD_REQUEST);
+    }
 
 
 }
