@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @ControllerAdvice
@@ -29,14 +31,29 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<?>> handleValidation(MethodArgumentNotValidException exception) {
-        Map<String, String> fieldErrors = new LinkedHashMap<>();
-        exception.getBindingResult().getFieldErrors()
-                .forEach(error -> fieldErrors.put(error.getField(), error.getDefaultMessage()));
+    public ResponseEntity<ApiResponse<?>> handleValidationException(
+            MethodArgumentNotValidException ex) {
 
-        ApiResponse<Map<String, String>> response = new ApiResponse<>(false, "Validation failed", fieldErrors);
+        List<Map<String, String>> errors = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> {
+                    Map<String, String> fieldError = new HashMap<>();
+                    fieldError.put("field", error.getField());
+                    fieldError.put(
+                            "message",
+                            error.getDefaultMessage()
+                    );
+                    return fieldError;
+                }).toList();
 
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        return ResponseEntity.badRequest()
+                .body(new ApiResponse<>(
+                        false,
+                        "Request validation failed",
+                        errors
+                ));
+
     }
 
     @ExceptionHandler(InvalidResetTokenException.class)
@@ -107,6 +124,14 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(BusinessRuleException.class)
+    public ResponseEntity<ApiResponse<?>> handleBusinessRule(BusinessRuleException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
