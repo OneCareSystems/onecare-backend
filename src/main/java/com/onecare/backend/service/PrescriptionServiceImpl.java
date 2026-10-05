@@ -74,7 +74,9 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                     "Patient is not active with id: " + request.patientId());
         }
 
-        // 3. Appointment is required and must exist
+        // 3. Appointment is required, must exist, and must belong to THIS patient
+        //    and THIS authenticated doctor — a valid patient id must never be
+        //    combinable with an unrelated appointment id
         if (request.appointmentId() == null) {
             throw new BusinessRuleException("appointmentId is required");
         }
@@ -82,6 +84,18 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         Appointment appointment = appointmentRepository.findById(request.appointmentId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Appointment not found with id: " + request.appointmentId()));
+
+        if (!appointment.getPatient().getPatientId().equals(request.patientId())) {
+            throw new BusinessRuleException(
+                    "Appointment with id: " + appointment.getAppointmentId()
+                            + " does not belong to patient id: " + request.patientId());
+        }
+
+        if (!appointment.getDoctor().getUserId().equals(doctor.getUserId())) {
+            throw new BusinessRuleException(
+                    "Appointment with id: " + appointment.getAppointmentId()
+                            + " does not belong to the authenticated doctor");
+        }
 
         Optional<Prescription> existing =
                 prescriptionRepository.findByAppointmentAppointmentId(request.appointmentId());
