@@ -149,12 +149,13 @@ public class PrescriptionController {
                         response));
     }
 
-    @Operation(
-            summary = "Dispense a prescription (DDP-25)",
-            description = "Not implemented yet — reserved for the dispensing flow.")
-    @PutMapping("/{id}/dispense")
-    @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_DISPENSE + "')")
-    public ResponseEntity<ApiResponse<?>> dispensePrescription( @PathVariable Long id ) {
-        return null;
-    }
+    // Commenting this end point since it is future DDP things remove this comment when works on it
+//    @Operation(
+//            summary = "Dispense a prescription (DDP-25)",
+//            description = "Not implemented yet — reserved for the dispensing flow.")
+//    @PutMapping("/{id}/dispense")
+//    @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_DISPENSE + "')")
+//    public ResponseEntity<ApiResponse<?>> dispensePrescription( @PathVariable Long id ) {
+//
+//    }
 }
