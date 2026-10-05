@@ -39,7 +39,6 @@ public class MedicineServiceImpl implements MedicineService {
         medicine.setCategory(request.category());
         medicine.setUnit(request.unit());
         medicine.setPrice(request.price());
-        medicine.setUnitPrice(request.unitPrice());
         medicine.setExpiryDate(request.expiryDate());
         medicine.setReorderLevel(request.reorderLevel());
 
@@ -103,7 +102,6 @@ public class MedicineServiceImpl implements MedicineService {
         medicine.setCategory(request.category());
         medicine.setUnit(request.unit());
         medicine.setPrice(request.price());
-        medicine.setUnitPrice(request.unitPrice());
         medicine.setExpiryDate(request.expiryDate());
         medicine.setReorderLevel(request.reorderLevel());
 
@@ -304,7 +302,6 @@ public class MedicineServiceImpl implements MedicineService {
                 medicine.getStockQuantity(),
                 medicine.getExpiryDate(),
                 medicine.getReorderLevel(),
-                medicine.getUnitPrice(),
                 medicine.getIsQuarantined(),
                 medicine.getCreatedAt(),
                 medicine.getUpdatedAt()

@@ -23,18 +23,11 @@ public record MedicineRequest(
         @NotNull(message = "Price is required")
         @DecimalMin(
                 value = "0.0",
-                inclusive = true,
-                message = "Price must be greater than or equal to 0"
+                inclusive = false,
+                message = "Price must be greater than 0"
         )
         BigDecimal price,
 
-        @NotNull(message = "Unit price is required")
-        @DecimalMin(
-                value = "0.0",
-                inclusive = true,
-                message = "Unit price must be greater than or equal to 0"
-        )
-        BigDecimal unitPrice,
 
         @NotNull(message = "Expiry date is required")
         LocalDate expiryDate,

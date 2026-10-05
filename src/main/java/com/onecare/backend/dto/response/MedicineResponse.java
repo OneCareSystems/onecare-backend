@@ -24,8 +24,6 @@ public record MedicineResponse(
 
         Integer reorderLevel,
 
-        BigDecimal unitPrice,
-
         Boolean isQuarantined,
 
         LocalDateTime createdAt,
