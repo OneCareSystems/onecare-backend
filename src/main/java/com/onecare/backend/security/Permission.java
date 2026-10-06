@@ -19,7 +19,6 @@ public final class Permission {
 
     public static final String MEDICINE_CREATE = "MEDICINE_CREATE";
     public static final String MEDICINE_READ_ALL = "MEDICINE_READ_ALL";
-
     public  static final String MEDICINE_READ = "MEDICINE_READ";
     public static final String MEDICINE_UPDATE = "MEDICINE_UPDATE";
     public static final String MEDICINE_DELETE = "MEDICINE_DELETE";
@@ -29,11 +28,12 @@ public final class Permission {
     public static final String PRESCRIPTION_READ = "PRESCRIPTION_READ";
     public static final String PRESCRIPTION_UPDATE = "PRESCRIPTION_UPDATE";
     public static final String PRESCRIPTION_DISPENSE = "PRESCRIPTION_DISPENSE";
+    public static final String PRESCRIPTION_STATUS_UPDATE = "PRESCRIPTION_STATUS_UPDATE";
+    public static final String PRESCRIPTION_READ_CLINICAL_NOTES = "PRESCRIPTION_READ_CLINICAL_NOTES";
 
     public static final String APPOINTMENT_CREATE = "APPOINTMENT_CREATE";
     public static final String APPOINTMENT_READ_ALL = "APPOINTMENT_READ_ALL";
     public static final String APPOINTMENT_READ = "APPOINTMENT_READ";
-    public static final String APPOINTMENT_READ_OWN = "APPOINTMENT_READ_OWN";
     public static final String APPOINTMENT_UPDATE = "APPOINTMENT_UPDATE";
 
 

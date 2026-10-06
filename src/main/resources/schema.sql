@@ -31,7 +31,7 @@ CREATE TABLE users (
     CONSTRAINT pk_users       PRIMARY KEY (user_id),
     CONSTRAINT uq_users_email UNIQUE (email),
     CONSTRAINT uq_users_uname UNIQUE (username)
-);
+) ENGINE=InnoDB;
 
 -- 1b. password_reset_tokens (needs: users)
 CREATE TABLE password_reset_tokens (
@@ -57,6 +57,7 @@ CREATE TABLE patients (
     contact_no    VARCHAR(20)  NOT NULL,
     email         VARCHAR(100) NULL,
     blood_group   VARCHAR(10)  NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     gender        ENUM('MALE','FEMALE') NOT NULL,
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -99,8 +100,9 @@ CREATE TABLE appointments (
 
     CONSTRAINT pk_appointments PRIMARY KEY (appointment_id),
     CONSTRAINT fk_appt_patient FOREIGN KEY (patient_id) REFERENCES patients(patient_id),
-    CONSTRAINT fk_appt_doctor  FOREIGN KEY (doctor_id)  REFERENCES users(user_id)
-);
+    CONSTRAINT fk_appt_doctor  FOREIGN KEY (doctor_id)  REFERENCES users(user_id),
+    CONSTRAINT uq_appointments_doctor_date_slot UNIQUE (doctor_id, appointment_date, time_slot)
+) ENGINE=InnoDB;
 
 -- 5. prescriptions (needs: appointments, users, patients)
 CREATE TABLE prescriptions (
@@ -109,7 +111,8 @@ CREATE TABLE prescriptions (
     doctor_id       BIGINT   NOT NULL,
     patient_id      BIGINT   NOT NULL,
     date            DATE     NOT NULL,
-    status          ENUM('PENDING','DISPENSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
+    clinical_notes  VARCHAR(2000) NULL,
+    status          ENUM('ISSUED','DISPENSED','CANCELLED') NOT NULL DEFAULT 'ISSUED',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -123,16 +126,23 @@ CREATE TABLE prescriptions (
 CREATE TABLE prescription_items (
     item_id         BIGINT       NOT NULL AUTO_INCREMENT,
     prescription_id BIGINT       NOT NULL,
-    medicine_id     BIGINT       NOT NULL,
+    medicine_id     BIGINT       NULL,             -- NULL for EXTERNAL_PURCHASE
+    medicine_name   VARCHAR(150) NULL,             -- free text for EXTERNAL_PURCHASE
+    item_type       VARCHAR(20)  NOT NULL DEFAULT 'IN_HOUSE',
     dosage          VARCHAR(50)  NOT NULL,
-    duration        VARCHAR(50)  NOT NULL,
+    duration_days   INT          NOT NULL,
     instruction     VARCHAR(255) NULL,
     quantity        INT          NOT NULL,
     frequency       VARCHAR(100) NOT NULL,
 
     CONSTRAINT pk_prescription_items PRIMARY KEY (item_id),
     CONSTRAINT fk_item_prescription  FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id),
-    CONSTRAINT fk_item_medicine      FOREIGN KEY (medicine_id)     REFERENCES medicines(medicine_id)
+    CONSTRAINT fk_item_medicine      FOREIGN KEY (medicine_id)     REFERENCES medicines(medicine_id),
+    CONSTRAINT chk_item_type_ref CHECK (
+        (item_type = 'IN_HOUSE'         AND medicine_id IS NOT NULL AND medicine_name IS NULL)
+        OR
+        (item_type = 'EXTERNAL_PURCHASE' AND medicine_id IS NULL     AND medicine_name IS NOT NULL)
+    )
 );
 
 -- 7. external_dispensing (needs: prescriptions)

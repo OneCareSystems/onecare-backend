@@ -31,11 +31,9 @@ public final class RolePermission {
                     Permission.MEDICINE_UPDATE,
                     Permission.MEDICINE_DELETE,
 
-                    Permission.PRESCRIPTION_CREATE,
                     Permission.PRESCRIPTION_READ_ALL,
                     Permission.PRESCRIPTION_READ,
-                    Permission.PRESCRIPTION_UPDATE,
-
+                    
                     Permission.APPOINTMENT_CREATE,
                     Permission.APPOINTMENT_READ_ALL,
                     Permission.APPOINTMENT_READ,
@@ -59,10 +57,9 @@ public final class RolePermission {
                     Permission.MEDICINE_READ,
                     Permission.MEDICINE_UPDATE,
 
-                    Permission.PRESCRIPTION_CREATE,
                     Permission.PRESCRIPTION_READ_ALL,
                     Permission.PRESCRIPTION_READ,
-                    Permission.PRESCRIPTION_UPDATE,
+                    Permission.PRESCRIPTION_STATUS_UPDATE,
 
                     Permission.APPOINTMENT_CREATE,
                     Permission.APPOINTMENT_READ_ALL,
@@ -84,7 +81,8 @@ public final class RolePermission {
                     Permission.PRESCRIPTION_CREATE,
                     Permission.PRESCRIPTION_READ_ALL,
                     Permission.PRESCRIPTION_READ,
-                    Permission.PRESCRIPTION_UPDATE
+                    Permission.PRESCRIPTION_UPDATE,
+                    Permission.PRESCRIPTION_READ_CLINICAL_NOTES
             );
 
             case PHARMACIST -> Set.of(
@@ -96,7 +94,9 @@ public final class RolePermission {
 
                     Permission.PRESCRIPTION_READ_ALL,
                     Permission.PRESCRIPTION_READ,
-                    Permission.PRESCRIPTION_UPDATE
+                    Permission.PRESCRIPTION_DISPENSE,
+                    Permission.PRESCRIPTION_STATUS_UPDATE,
+                    Permission.PRESCRIPTION_READ_CLINICAL_NOTES
             );
         };
     }

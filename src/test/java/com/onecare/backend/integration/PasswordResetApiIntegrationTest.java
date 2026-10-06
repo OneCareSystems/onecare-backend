@@ -137,8 +137,8 @@ class PasswordResetApiIntegrationTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Validation failed"))
-                .andExpect(jsonPath("$.data.email").exists());
+                .andExpect(jsonPath("$.message").value("Request validation failed"))
+                .andExpect(jsonPath("$.data[?(@.field == 'email')]").isNotEmpty());
     }
 
     @Test
@@ -179,9 +179,9 @@ class PasswordResetApiIntegrationTest {
                         .content("{\"token\":\"\",\"newPassword\":\"short\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Validation failed"))
-                .andExpect(jsonPath("$.data.token").exists())
-                .andExpect(jsonPath("$.data.newPassword").exists());
+                .andExpect(jsonPath("$.message").value("Request validation failed"))
+                .andExpect(jsonPath("$.data[?(@.field == 'token')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[?(@.field == 'newPassword')]").isNotEmpty());
     }
 
     @Test
