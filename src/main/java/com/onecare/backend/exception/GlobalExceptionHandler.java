@@ -3,6 +3,7 @@ package com.onecare.backend.exception;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.onecare.backend.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Hidden;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.HttpStatus;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -122,6 +122,28 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<?>> handleDuplicateUser(DuplicateUserException exception) {
 
         ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<?>> handleConflict(ConflictException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    /**
+     * Optimistic-locking conflict (api-standards 942): another request modified
+     * the same invoice between our read and our write - for billing this is how
+     * two concurrent payments are stopped instead of overpaying the invoice.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<?>> handleOptimisticLock(OptimisticLockingFailureException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(false,
+                "The record was modified by another request. Please retry.");
 
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
