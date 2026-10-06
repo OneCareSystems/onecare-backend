@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 import com.onecare.backend.enums.DeliveryMethod;
 import com.onecare.backend.enums.Status;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,8 +23,18 @@ public class ExternalDispensing {
     private Long dispenseId;
 
     @ManyToOne
-    @JoinColumn(name="prescription_id",nullable = false)
+    @JoinColumn(name="prescription_id")                      // NULL: OTC / no prescription sheet
     private Prescription  prescription;
+
+    /** Medicines handed over in this event; empty for a whole-prescription handover. */
+    @OneToMany(mappedBy = "dispensing", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DispensingItem> items = new ArrayList<>();
+
+    /** Attaches a handed-over medicine to this event (both sides of the link). */
+    public void addItem(DispensingItem item) {
+        item.setDispensing(this);
+        items.add(item);
+    }
 
     @Column(name = "verification_method", nullable = false, length = 100)
     private String verificationMethod;
@@ -34,9 +47,6 @@ public class ExternalDispensing {
 
    @Column(name = "dispense_date", nullable = false)
      private LocalDateTime dispenseDate;
-
-   @Column(name = "quantity_dispensed", nullable = false)
-     private Integer quantityDispensed;
 
    @Enumerated(EnumType.STRING)
      @Column(name = "status", nullable = false)

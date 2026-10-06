@@ -147,20 +147,36 @@ CREATE TABLE prescription_items (
     )
 );
 
--- 7. external_dispensing (needs: prescriptions)
+-- 7. external_dispensing (needs: prescriptions, medicines, prescription_items)
 CREATE TABLE external_dispensing (
     dispense_id         BIGINT       NOT NULL AUTO_INCREMENT,
-    prescription_id     BIGINT       NOT NULL,
+    prescription_id     BIGINT  NULL,             -- NULL: OTC / no prescription sheet
     patient_id          BIGINT  NULL,
     verification_method VARCHAR(100) NOT NULL,
     dispense_date       DATETIME     NOT NULL,
-    quantity_dispensed  INT          NOT NULL,
     status              ENUM('PENDING','DISPENSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
-    delivery_method     ENUM('PICK-UP','DELIVERY')              NOT NULL,
+    delivery_method     ENUM('PICK_UP','DELIVERY')              NOT NULL,
     dispensed_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_external_dispensing   PRIMARY KEY (dispense_id),
     CONSTRAINT fk_ext_disp_prescription FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
+);
+
+-- 7b. dispensing_items — one handover event may carry many medicines
+CREATE TABLE dispensing_items (
+    dispensing_item_id   BIGINT NOT NULL AUTO_INCREMENT,
+    dispense_id          BIGINT NOT NULL,
+    prescription_item_id BIGINT NULL,   -- NULL: OTC product
+    medicine_id          BIGINT NULL,   -- NULL: EXTERNAL_PURCHASE item (no catalog medicine)
+    quantity_dispensed   INT    NOT NULL,
+
+    CONSTRAINT pk_dispensing_items    PRIMARY KEY (dispensing_item_id),
+    CONSTRAINT fk_dispitem_dispense   FOREIGN KEY (dispense_id)         REFERENCES external_dispensing(dispense_id),
+    CONSTRAINT fk_dispitem_presc_item FOREIGN KEY (prescription_item_id) REFERENCES prescription_items(item_id),
+    CONSTRAINT fk_dispitem_medicine   FOREIGN KEY (medicine_id)         REFERENCES medicines(medicine_id),
+    CONSTRAINT chk_dispitem_source CHECK (
+        (prescription_item_id IS NOT NULL) OR (medicine_id IS NOT NULL)
+    )
 );
 
 -- 8. invoices (needs: patients, appointments, external_dispensing, users) — DDP-23 / SRS D3
