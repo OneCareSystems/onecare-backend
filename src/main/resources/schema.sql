@@ -77,7 +77,6 @@ CREATE TABLE medicines (
     category       VARCHAR(100)  NOT NULL,
     unit           VARCHAR(50)   NOT NULL,
     reorder_level  INT           NOT NULL,
-    unit_price     DECIMAL(10,2) NOT NULL,
     is_quarantined BOOLEAN       NOT NULL DEFAULT FALSE,
     stock_quantity INT           NOT NULL DEFAULT 0,
     expiry_date    DATE          NOT NULL,

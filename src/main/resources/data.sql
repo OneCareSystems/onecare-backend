@@ -28,7 +28,7 @@ VALUES
 -- 3. MEDICINES  (AC4)
 -- ---------------------------------------------------------------------
 INSERT INTO medicines
-    (medicine_id, name, generic_name, category, unit, price, unit_price, stock_quantity, reorder_level, expiry_date, is_quarantined, created_at, updated_at)
+    (medicine_id, name, generic_name, category, unit, price, stock_quantity, reorder_level, expiry_date, is_quarantined, created_at, updated_at)
 VALUES
     (1, 'Paracetamol 500mg', 'Paracetamol', 'Analgesic', 'Tablet', 5.00, 5.00, 500, 50, '2027-06-30', FALSE, NOW(), NOW()),
     (2, 'Amoxicillin 250mg', 'Amoxicillin', 'Antibiotic', 'Capsule', 12.50, 12.50, 300, 40, '2027-01-15', FALSE, NOW(), NOW()),
