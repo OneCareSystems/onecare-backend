@@ -860,7 +860,6 @@ class InvoiceApiIntegrationTest {
         Medicine medicine = new Medicine();
         medicine.setName(name);
         medicine.setPrice(new BigDecimal(unitPrice));
-        medicine.setPrice(new BigDecimal(unitPrice));
         medicine.setCategory("Analgesic");
         medicine.setUnit("Tablet");
         medicine.setReorderLevel(10);

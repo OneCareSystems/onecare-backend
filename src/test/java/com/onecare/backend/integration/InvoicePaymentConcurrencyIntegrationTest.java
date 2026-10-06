@@ -75,8 +75,13 @@ class InvoicePaymentConcurrencyIntegrationTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
-        // other suites delete appointments/users; invoices would block that (FK)
+        // Not transactional: clean up everything this class creates, children
+        // first, so suites that delete users are never blocked by leftover
+        // appointments (fk_appt_doctor) - class order differs across OSes.
         invoiceRepository.deleteAll();
+        appointmentRepository.deleteAll();
+        patientRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test
@@ -132,7 +137,10 @@ class InvoicePaymentConcurrencyIntegrationTest {
         assertThat(successes).hasSize(1);
         assertThat(failures).hasSize(1);
         assertThat(failures.get(0)).isInstanceOfAny(
-                OptimisticLockingFailureException.class, BusinessRuleException.class);
+                OptimisticLockingFailureException.class, BusinessRuleException.class,
+                // MySQL may reject the loser with a row-lock deadlock instead;
+                // the transaction still rolls back, proven by the assertions below
+                org.springframework.dao.CannotAcquireLockException.class);
 
         // the losing transaction rolled back: no overpay, no phantom payment
         Invoice settled = invoiceRepository.findById(invoiceId).orElseThrow();

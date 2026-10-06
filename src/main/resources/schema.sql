@@ -190,7 +190,7 @@ CREATE TABLE invoices (
     total           DECIMAL(12,2) NOT NULL,
     amount_paid     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     created_by      BIGINT        NOT NULL,
-    created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at      DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- sub-second: newest-first ordering
     version         BIGINT        NOT NULL DEFAULT 0,
 
     CONSTRAINT pk_invoices            PRIMARY KEY (invoice_id),
