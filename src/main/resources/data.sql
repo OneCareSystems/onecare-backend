@@ -30,12 +30,11 @@ VALUES
 INSERT INTO medicines
     (medicine_id, name, generic_name, category, unit, price, stock_quantity, reorder_level, expiry_date, is_quarantined, created_at, updated_at)
 VALUES
-    (1, 'Paracetamol 500mg', 'Paracetamol', 'Analgesic', 'Tablet', 5.00, 5.00, 500, 50, '2027-06-30', FALSE, NOW(), NOW()),
-    (2, 'Amoxicillin 250mg', 'Amoxicillin', 'Antibiotic', 'Capsule', 12.50, 12.50, 300, 40, '2027-01-15', FALSE, NOW(), NOW()),
-    (3, 'Ibuprofen 400mg', 'Ibuprofen', 'NSAID', 'Tablet', 8.00, 8.00, 200, 30, '2026-12-01', FALSE, NOW(), NOW()),
-    (4, 'Metformin 1000mg', 'Metformin', 'Antidiabetic', 'Tablet', 15.00, 15.00, 150, 25, '2027-03-10', FALSE, NOW(), NOW()),
-    (5, 'Atorvastatin 20mg', 'Atorvastatin', 'Statin', 'Tablet', 20.00, 20.00, 100, 20, '2026-11-20', FALSE, NOW(), NOW());
-
+    (1, 'Paracetamol 500mg', 'Paracetamol', 'Analgesic', 'Tablet', 5.00,  500, 50, '2027-06-30', FALSE, NOW(), NOW()),
+    (2, 'Amoxicillin 250mg', 'Amoxicillin', 'Antibiotic', 'Capsule', 12.50,  300, 40, '2027-01-15', FALSE, NOW(), NOW()),
+    (3, 'Ibuprofen 400mg', 'Ibuprofen', 'NSAID', 'Tablet', 8.00,  200, 30, '2026-12-01', FALSE, NOW(), NOW()),
+    (4, 'Metformin 1000mg', 'Metformin', 'Antidiabetic', 'Tablet', 15.00,  150, 25, '2027-03-10', FALSE, NOW(), NOW()),
+    (5, 'Atorvastatin 20mg', 'Atorvastatin', 'Statin', 'Tablet', 20.00,  100, 20, '2026-11-20', FALSE, NOW(), NOW());
 -- ---------------------------------------------------------------------
 -- 4. APPOINTMENTS  (status must match the DDL enum!)
 --    DDL uses: ENUM('SCHEDULED','COMPLETED','CANCELLED')
