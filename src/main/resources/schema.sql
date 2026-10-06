@@ -1,5 +1,7 @@
 -- DROP ORDER: children first, parents last
 
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS invoice_items;
 DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS external_dispensing;
@@ -206,7 +208,20 @@ CREATE TABLE invoice_items (
     CONSTRAINT chk_ii_quantity     CHECK (quantity > 0)
 );
 
+-- 8c. payments (needs: invoices, users) — cash-only, append-only
+CREATE TABLE payments (
+    payment_id     BIGINT        NOT NULL AUTO_INCREMENT,
+    invoice_id     BIGINT        NOT NULL,
+    amount         DECIMAL(12,2) NOT NULL,
+    payment_method VARCHAR(20)   NOT NULL,
+    recorded_by    BIGINT        NOT NULL,
+    paid_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT pk_payments        PRIMARY KEY (payment_id),
+    CONSTRAINT fk_pay_invoice     FOREIGN KEY (invoice_id)    REFERENCES invoices(invoice_id),
+    CONSTRAINT fk_pay_recorded_by FOREIGN KEY (recorded_by)   REFERENCES users(user_id),
+    CONSTRAINT chk_pay_amount     CHECK (amount > 0)
+);
 
 -- 9. audit_log (needs: users) — LAST
 CREATE TABLE audit_log (
