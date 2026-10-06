@@ -117,7 +117,6 @@ class PrescriptionControllerIntegrationTest {
         Medicine medicine = new Medicine();
         medicine.setName("Medicine " + UUID.randomUUID().toString().substring(0, 8));
         medicine.setPrice(BigDecimal.TEN);
-        medicine.setUnitPrice(BigDecimal.TEN);
         medicine.setCategory("Analgesic");
         medicine.setUnit("Tablet");
         medicine.setReorderLevel(10);
