@@ -181,7 +181,7 @@ class InvoiceServiceImplTest {
         verify(invoiceRepository).saveAndFlush(saved.capture());
 
         // the catalog price changes after the invoice was generated...
-        medicine.setUnitPrice(new BigDecimal("99.99"));
+        medicine.setPrice(new BigDecimal("99.99"));
         when(invoiceRepository.findById(saved.getValue().getInvoiceId()))
                 .thenReturn(Optional.of(saved.getValue()));
 
@@ -630,7 +630,7 @@ class InvoiceServiceImplTest {
         Medicine medicine = new Medicine();
         medicine.setMedicineId(id);
         medicine.setName(name);
-        medicine.setUnitPrice(new BigDecimal(unitPrice));
+        medicine.setPrice(new BigDecimal(unitPrice));
         return medicine;
     }
 
@@ -719,7 +719,7 @@ class InvoiceServiceImplTest {
         line.setMedicine(medicine);
         line.setDescription(medicine.getName());
         line.setQuantity(quantity);
-        line.setUnitPrice(medicine.getUnitPrice());
+        line.setUnitPrice(medicine.getPrice());
         line.setLineTotal(new BigDecimal(lineTotal));
         return line;
     }

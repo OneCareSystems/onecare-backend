@@ -283,7 +283,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
 
             lines.add(newLine(invoice, medicine, medicine.getName(),
-                    quantity, medicine.getUnitPrice()));
+                    quantity, medicine.getPrice()));
         }
 
         if (lines.isEmpty()) {
@@ -572,7 +572,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
 
             lines.add(newLine(invoice, item.getMedicine(), item.getMedicine().getName(),
-                    billable, item.getMedicine().getUnitPrice()));
+                    billable, item.getMedicine().getPrice()));
         }
 
         return lines;
