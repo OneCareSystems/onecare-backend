@@ -39,6 +39,11 @@ public final class RolePermission {
                     Permission.APPOINTMENT_READ,
                     Permission.APPOINTMENT_UPDATE,
 
+                    Permission.INVOICE_CREATE,
+                    Permission.INVOICE_READ,
+                    Permission.INVOICE_UPDATE,
+                    Permission.INVOICE_PAY,
+
                     Permission.AUDIT_READ_ALL
             );
 
@@ -65,6 +70,11 @@ public final class RolePermission {
                     Permission.APPOINTMENT_READ_ALL,
                     Permission.APPOINTMENT_READ,
                     Permission.APPOINTMENT_UPDATE,
+
+                    Permission.INVOICE_CREATE,
+                    Permission.INVOICE_READ,
+                    Permission.INVOICE_UPDATE,
+                    Permission.INVOICE_PAY,
 
                     Permission.AUDIT_READ_ALL
             );
@@ -96,7 +106,12 @@ public final class RolePermission {
                     Permission.PRESCRIPTION_READ,
                     Permission.PRESCRIPTION_DISPENSE,
                     Permission.PRESCRIPTION_STATUS_UPDATE,
-                    Permission.PRESCRIPTION_READ_CLINICAL_NOTES
+                    Permission.PRESCRIPTION_READ_CLINICAL_NOTES,
+                    
+                    Permission.INVOICE_CREATE,
+                    Permission.INVOICE_READ,
+                    Permission.INVOICE_UPDATE,
+                    Permission.INVOICE_PAY
             );
         };
     }

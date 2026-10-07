@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
 import java.time.Instant;
@@ -36,7 +37,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-
+@Transactional 
 @ActiveProfiles("test")
 class JwtAuthenticationIntegrationTest {
         @MockitoBean
@@ -65,9 +66,6 @@ private JavaMailSender javaMailSender;
 
     @BeforeEach
     void setupUser() {
-        passwordResetTokenRepository.deleteAll();
-        userRepository.deleteAll();
-
         User user = new User();
         user.setUsername("doctor1");
         user.setEmail("doctor1@onecare.com");

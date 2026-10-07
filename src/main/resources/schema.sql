@@ -1,5 +1,8 @@
 -- DROP ORDER: children first, parents last
 
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS invoice_items;
+DROP TABLE IF EXISTS dispensing_items;
 DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS external_dispensing;
@@ -144,41 +147,96 @@ CREATE TABLE prescription_items (
     )
 );
 
--- 7. external_dispensing (needs: prescriptions)
+-- 7. external_dispensing (needs: prescriptions, medicines, prescription_items)
 CREATE TABLE external_dispensing (
     dispense_id         BIGINT       NOT NULL AUTO_INCREMENT,
-    prescription_id     BIGINT       NOT NULL,
+    prescription_id     BIGINT  NULL,             -- NULL: OTC / no prescription sheet
     patient_id          BIGINT  NULL,
     verification_method VARCHAR(100) NOT NULL,
     dispense_date       DATETIME     NOT NULL,
-    quantity_dispensed  INT          NOT NULL,
     status              ENUM('PENDING','DISPENSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
-    delivery_method     ENUM('PICK-UP','DELIVERY')              NOT NULL,
+    delivery_method     ENUM('PICK_UP','DELIVERY')              NOT NULL,
     dispensed_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT pk_external_dispensing   PRIMARY KEY (dispense_id),
     CONSTRAINT fk_ext_disp_prescription FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
 );
 
--- 8. invoices (needs: prescriptions, external_dispensing, users)
+-- 7b. dispensing_items — one handover event may carry many medicines
+CREATE TABLE dispensing_items (
+    dispensing_item_id   BIGINT NOT NULL AUTO_INCREMENT,
+    dispense_id          BIGINT NOT NULL,
+    prescription_item_id BIGINT NULL,   -- NULL: OTC product
+    medicine_id          BIGINT NULL,   -- NULL: EXTERNAL_PURCHASE item (no catalog medicine)
+    quantity_dispensed   INT    NOT NULL,
+
+    CONSTRAINT pk_dispensing_items    PRIMARY KEY (dispensing_item_id),
+    CONSTRAINT fk_dispitem_dispense   FOREIGN KEY (dispense_id)         REFERENCES external_dispensing(dispense_id),
+    CONSTRAINT fk_dispitem_presc_item FOREIGN KEY (prescription_item_id) REFERENCES prescription_items(item_id),
+    CONSTRAINT fk_dispitem_medicine   FOREIGN KEY (medicine_id)         REFERENCES medicines(medicine_id),
+    CONSTRAINT chk_dispitem_source CHECK (
+        (prescription_item_id IS NOT NULL) OR (medicine_id IS NOT NULL)
+    )
+);
+
+-- 8. invoices (needs: patients, appointments, external_dispensing, users) — DDP-23 / SRS D3
 CREATE TABLE invoices (
     invoice_id      BIGINT        NOT NULL AUTO_INCREMENT,
-    prescription_id BIGINT        NULL,
-    dispense_id     BIGINT        NULL,
-    billed_by       BIGINT        NOT NULL,
-    total_amount    DECIMAL(10,2) NOT NULL,
-    payment_status  ENUM('PENDING','PAID','CANCELLED') NOT NULL DEFAULT 'PENDING',
-    date            DATE          NOT NULL,
+    invoice_number  VARCHAR(50)   NOT NULL,
+    patient_id      BIGINT        NULL,             -- NULL: unknown walk-in (OTC)
+    appointment_id  BIGINT        NULL,             -- XOR with dispense_id
+    dispense_id     BIGINT        NULL,             -- XOR with appointment_id
+    status          ENUM('UNPAID','PAID') NOT NULL DEFAULT 'UNPAID',
+    total           DECIMAL(12,2) NOT NULL,
+    amount_paid     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    created_by      BIGINT        NOT NULL,
     created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    version         BIGINT        NOT NULL DEFAULT 0,
 
-    CONSTRAINT pk_invoices         PRIMARY KEY (invoice_id),
-    CONSTRAINT fk_inv_prescription FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id),
-    CONSTRAINT fk_inv_dispense     FOREIGN KEY (dispense_id)     REFERENCES external_dispensing(dispense_id),
-    CONSTRAINT fk_inv_billed_by    FOREIGN KEY (billed_by)       REFERENCES users(user_id),
-    CONSTRAINT chk_invoice_source  CHECK (
-        (prescription_id IS NOT NULL AND dispense_id IS NULL) OR
-        (prescription_id IS NULL     AND dispense_id IS NOT NULL)
-    )
+    CONSTRAINT pk_invoices            PRIMARY KEY (invoice_id),
+    CONSTRAINT uq_invoices_number     UNIQUE (invoice_number),
+    CONSTRAINT uq_invoices_appointment UNIQUE (appointment_id),   -- no double billing (AC7)
+    CONSTRAINT uq_invoices_dispense    UNIQUE (dispense_id),      -- no double billing per dispense event
+    CONSTRAINT chk_inv_source CHECK (
+        (appointment_id IS NOT NULL AND dispense_id IS NULL) OR
+        (appointment_id IS NULL AND dispense_id IS NOT NULL)
+    ),
+    CONSTRAINT fk_inv_patient         FOREIGN KEY (patient_id)     REFERENCES patients(patient_id),
+    CONSTRAINT fk_inv_appointment     FOREIGN KEY (appointment_id) REFERENCES appointments(appointment_id),
+    CONSTRAINT fk_inv_dispense        FOREIGN KEY (dispense_id)    REFERENCES external_dispensing(dispense_id),
+    CONSTRAINT fk_inv_created_by      FOREIGN KEY (created_by)     REFERENCES users(user_id),
+    CONSTRAINT chk_inv_amount_paid    CHECK (amount_paid >= 0)
+);
+
+-- 8b. invoice_items (needs: invoices, medicines) — quantity x unit_price per line
+CREATE TABLE invoice_items (
+    invoice_item_id BIGINT        NOT NULL AUTO_INCREMENT,
+    invoice_id      BIGINT        NOT NULL,
+    medicine_id     BIGINT        NULL,             -- NULL for the consultation charge line
+    description     VARCHAR(255)  NOT NULL,
+    quantity        INT           NOT NULL,
+    unit_price      DECIMAL(10,2) NOT NULL,         -- price snapshot, never re-read on view
+    line_total      DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT pk_invoice_items    PRIMARY KEY (invoice_item_id),
+    CONSTRAINT fk_ii_invoice       FOREIGN KEY (invoice_id)  REFERENCES invoices(invoice_id),
+    CONSTRAINT fk_ii_medicine      FOREIGN KEY (medicine_id) REFERENCES medicines(medicine_id),
+    CONSTRAINT chk_ii_quantity     CHECK (quantity > 0)
+);
+
+-- 8c. payments (needs: invoices, users) — cash-only, append-only
+CREATE TABLE payments (
+    payment_id     BIGINT        NOT NULL AUTO_INCREMENT,
+    invoice_id     BIGINT        NOT NULL,
+    amount         DECIMAL(12,2) NOT NULL,
+    payment_method VARCHAR(20)   NOT NULL,
+    recorded_by    BIGINT        NOT NULL,
+    paid_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT pk_payments        PRIMARY KEY (payment_id),
+    CONSTRAINT fk_pay_invoice     FOREIGN KEY (invoice_id)    REFERENCES invoices(invoice_id),
+    CONSTRAINT fk_pay_recorded_by FOREIGN KEY (recorded_by)   REFERENCES users(user_id),
+    CONSTRAINT chk_pay_amount     CHECK (amount > 0)
 );
 
 -- 9. audit_log (needs: users) — LAST
