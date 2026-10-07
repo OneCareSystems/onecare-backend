@@ -69,6 +69,12 @@ class InvoicePaymentConcurrencyIntegrationTest {
 
     private User admin;
 
+    // Only rows THIS class created — wholesale deleteAll(users) would hit
+    // password_reset_tokens left behind by PasswordReset/UserController suites.
+    private final List<User> createdUsers = new ArrayList<>();
+    private final List<Patient> createdPatients = new ArrayList<>();
+    private final List<Appointment> createdAppointments = new ArrayList<>();
+
     @BeforeEach
     void setUp() {
         // not transactional: start from a clean billing log
@@ -80,13 +86,16 @@ class InvoicePaymentConcurrencyIntegrationTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
-        // clean up everything this class creates, children first, so suites
-        // that delete users are never blocked by leftover appointments
-        // (fk_appt_doctor) - class order differs across OSes.
+        // children first, and only our own rows: invoices -> appointments ->
+        // patients -> users, so no other suite's leftovers can block us and
+        // no later suite is blocked by ours.
         invoiceRepository.deleteAll();
-        appointmentRepository.deleteAll();
-        patientRepository.deleteAll();
-        userRepository.deleteAll();
+        appointmentRepository.deleteAll(createdAppointments);
+        patientRepository.deleteAll(createdPatients);
+        userRepository.deleteAll(createdUsers);
+        createdUsers.clear();
+        createdPatients.clear();
+        createdAppointments.clear();
     }
 
     @Test
@@ -165,7 +174,9 @@ class InvoicePaymentConcurrencyIntegrationTest {
         user.setRole(role);
         user.setIsActive(true);
         user.setFailedAttempts(0);
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        createdUsers.add(saved);
+        return saved;
     }
 
     private Patient createPatient() {
@@ -175,7 +186,9 @@ class InvoicePaymentConcurrencyIntegrationTest {
         patient.setContactNo("0771234000");
         patient.setGender(Gender.MALE);
         patient.setIsActive(true);
-        return patientRepository.save(patient);
+        Patient saved = patientRepository.save(patient);
+        createdPatients.add(saved);
+        return saved;
     }
 
     private Appointment createAppointment(Patient patient, User doctor) {
@@ -186,7 +199,9 @@ class InvoicePaymentConcurrencyIntegrationTest {
         appointment.setTimeSlot(LocalTime.of(9, 30));
         appointment.setStatus(AppointmentStatus.COMPLETED);
         appointment.setReason("Billing concurrency checkup");
-        return appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
+        createdAppointments.add(saved);
+        return saved;
     }
 
     private void authenticate(User user) {
