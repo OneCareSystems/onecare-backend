@@ -18,6 +18,9 @@ import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.service.InvoiceService;
+
+import org.springframework.transaction.annotation.Transactional;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +52,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * invoice records exactly one payment (AC4/AC5).
  */
 @SpringBootTest
+@Transactional
 class InvoicePaymentConcurrencyIntegrationTest {
 
     @Autowired
@@ -66,8 +70,6 @@ class InvoicePaymentConcurrencyIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // this class is not transactional, so start from a clean billing log
-        invoiceRepository.deleteAll();
         admin = createUser(Role.ADMIN);
         SecurityContextHolder.clearContext();
     }
@@ -75,8 +77,6 @@ class InvoicePaymentConcurrencyIntegrationTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
-        // other suites delete appointments/users; invoices would block that (FK)
-        invoiceRepository.deleteAll();
     }
 
     @Test

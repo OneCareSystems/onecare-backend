@@ -325,8 +325,14 @@ public class InvoiceServiceImpl implements InvoiceService {
                 : Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
 
         // Newest first, always - clients cannot re-sort the financial log.
-        Pageable pageable = PageRequest.of(pageNumber, pageSize,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageRequest.of(
+                pageNumber,
+                pageSize,
+                Sort.by(
+                        Sort.Order.desc("createdAt"),
+                        Sort.Order.desc("invoiceId")
+                )
+        );
 
         Specification<Invoice> specification = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
