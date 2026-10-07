@@ -19,8 +19,6 @@ import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.service.InvoiceService;
 
-import org.springframework.transaction.annotation.Transactional;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,9 +48,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The loser either fails the optimistic lock (HTTP 409) or sees the invoice
  * already settled (HTTP 400) - either way its transaction rolls back and the
  * invoice records exactly one payment (AC4/AC5).
+ *
+ * Deliberately NOT @Transactional: the worker threads commit in their own
+ * transactions and must see a committed invoice row — a test-managed
+ * transaction would hide it and both payments would fail.
  */
 @SpringBootTest
-@Transactional
 class InvoicePaymentConcurrencyIntegrationTest {
 
     @Autowired
@@ -70,6 +71,8 @@ class InvoicePaymentConcurrencyIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        // not transactional: start from a clean billing log
+        invoiceRepository.deleteAll();
         admin = createUser(Role.ADMIN);
         SecurityContextHolder.clearContext();
     }
@@ -77,6 +80,13 @@ class InvoicePaymentConcurrencyIntegrationTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
+        // clean up everything this class creates, children first, so suites
+        // that delete users are never blocked by leftover appointments
+        // (fk_appt_doctor) - class order differs across OSes.
+        invoiceRepository.deleteAll();
+        appointmentRepository.deleteAll();
+        patientRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test
@@ -132,7 +142,10 @@ class InvoicePaymentConcurrencyIntegrationTest {
         assertThat(successes).hasSize(1);
         assertThat(failures).hasSize(1);
         assertThat(failures.get(0)).isInstanceOfAny(
-                OptimisticLockingFailureException.class, BusinessRuleException.class);
+                OptimisticLockingFailureException.class, BusinessRuleException.class,
+                // MySQL may reject the loser with a row-lock deadlock instead;
+                // the transaction still rolls back, proven by the assertions below
+                org.springframework.dao.CannotAcquireLockException.class);
 
         // the losing transaction rolled back: no overpay, no phantom payment
         Invoice settled = invoiceRepository.findById(invoiceId).orElseThrow();
