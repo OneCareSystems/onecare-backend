@@ -4,8 +4,7 @@ public record ExternalDispensingItemRequest(
         Long medicineId,
         Long prescriptionItemId,
         Integer quantity,
-        String medicineName
-) {
+        String medicineName) {
 
     public ExternalDispensingItemRequest(Long medicineId, Integer quantity) {
         this(medicineId, null, quantity, null);

@@ -21,8 +21,7 @@ public record ExternalDispensingResponse(
         LocalDateTime verifiedAt,
         Integer retryCount,
         Long auditLogId,
-        List<ExternalDispensingItemResponse> items
-) {
+        List<ExternalDispensingItemResponse> items) {
 
     public static ExternalDispensingResponse from(ExternalDispensing entity) {
         if (entity == null) {
@@ -42,10 +41,10 @@ public record ExternalDispensingResponse(
                 entity.getVerifiedAt(),
                 entity.getRetryCount(),
                 entity.getAuditLogId(),
-                entity.getItems() == null ? List.of() : entity.getItems().stream()
-                        .map(ExternalDispensingItemResponse::from)
-                        .toList()
-        );
+                entity.getItems() == null ? List.of()
+                        : entity.getItems().stream()
+                                .map(ExternalDispensingItemResponse::from)
+                                .toList());
     }
 }
 
@@ -53,8 +52,7 @@ record ExternalDispensingItemResponse(
         Long dispensingItemId,
         Long medicineId,
         Long prescriptionItemId,
-        Integer quantityDispensed
-) {
+        Integer quantityDispensed) {
     static ExternalDispensingItemResponse from(DispensingItem item) {
         if (item == null) {
             return null;
@@ -64,7 +62,6 @@ record ExternalDispensingItemResponse(
                 item.getDispensingItemId(),
                 item.getMedicine() != null ? item.getMedicine().getMedicineId() : null,
                 item.getPrescriptionItem() != null ? item.getPrescriptionItem().getItemId() : null,
-                item.getQuantityDispensed()
-        );
+                item.getQuantityDispensed());
     }
 }

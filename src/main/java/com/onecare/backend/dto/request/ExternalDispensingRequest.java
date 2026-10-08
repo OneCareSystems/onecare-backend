@@ -7,11 +7,10 @@ public record ExternalDispensingRequest(
         Long patientId,
         String verificationMethod,
         String deliveryMethod,
-        List<ExternalDispensingItemRequest> items
-) {
+        List<ExternalDispensingItemRequest> items) {
 
     public ExternalDispensingRequest(Long prescriptionId, String verificationMethod, String deliveryMethod,
-                                    List<ExternalDispensingItemRequest> items) {
+            List<ExternalDispensingItemRequest> items) {
         this(prescriptionId, null, verificationMethod, deliveryMethod, items);
     }
 }

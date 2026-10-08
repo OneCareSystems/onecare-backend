@@ -124,9 +124,9 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
             if (itemRequest.prescriptionItemId() != null) {
                 PrescriptionItem prescriptionItem = prescriptionForItems != null
                         ? prescriptionForItems.getItems().stream()
-                        .filter(pi -> Objects.equals(pi.getItemId(), itemRequest.prescriptionItemId()))
-                        .findFirst().orElseThrow(() -> new ResourceNotFoundException(
-                                "Prescription item not found with id: " + itemRequest.prescriptionItemId()))
+                                .filter(pi -> Objects.equals(pi.getItemId(), itemRequest.prescriptionItemId()))
+                                .findFirst().orElseThrow(() -> new ResourceNotFoundException(
+                                        "Prescription item not found with id: " + itemRequest.prescriptionItemId()))
                         : null;
 
                 if (prescriptionItem != null) {
@@ -171,7 +171,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
     }
 
     @Override
-    public ExternalDispensingResponse verifyExternalDispensing(Long dispenseId, VerifyExternalDispensingRequest request) {
+    public ExternalDispensingResponse verifyExternalDispensing(Long dispenseId,
+            VerifyExternalDispensingRequest request) {
         ExternalDispensing event = findByIdInternal(dispenseId);
         if (event.getStatus() == Status.CANCELLED || event.getStatus() == Status.DISPENSED) {
             throw new BusinessRuleException("Only pending external dispensing events can be verified");
@@ -220,7 +221,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
             }
 
             Medicine medicine = item.getMedicine();
-            if (medicine == null && item.getPrescriptionItem() != null && item.getPrescriptionItem().getMedicine() != null) {
+            if (medicine == null && item.getPrescriptionItem() != null
+                    && item.getPrescriptionItem().getMedicine() != null) {
                 medicine = item.getPrescriptionItem().getMedicine();
             }
 
@@ -253,7 +255,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
         }
 
         log.info("External dispensing completed | dispenseId={} | prescriptionId={} | stockUpdated={}",
-                event.getDispenseId(), event.getPrescription() != null ? event.getPrescription().getPrescriptionId() : null,
+                event.getDispenseId(),
+                event.getPrescription() != null ? event.getPrescription().getPrescriptionId() : null,
                 event.getItems().size());
 
         return ExternalDispensingResponse.from(event);
@@ -271,7 +274,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
                         .filter(event -> event.getStatus() == filter)
                         .toList();
             } catch (IllegalArgumentException ex) {
-                throw new BusinessRuleException("Invalid status filter: " + status + ". Allowed values: PENDING, DISPENSED, CANCELLED");
+                throw new BusinessRuleException(
+                        "Invalid status filter: " + status + ". Allowed values: PENDING, DISPENSED, CANCELLED");
             }
         }
         return items.stream().map(ExternalDispensingResponse::from).toList();
@@ -284,7 +288,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
 
     private ExternalDispensing findByIdInternal(Long dispenseId) {
         return externalDispensingRepository.findById(dispenseId)
-                .orElseThrow(() -> new ResourceNotFoundException("External dispensing not found with id: " + dispenseId));
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("External dispensing not found with id: " + dispenseId));
     }
 
     private Optional<User> resolveCurrentUser() {
@@ -338,7 +343,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
         try {
             return DeliveryMethod.valueOf(deliveryMethod.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new BusinessRuleException("Invalid deliveryMethod: " + deliveryMethod + ". Allowed values: PICK_UP, DELIVERY");
+            throw new BusinessRuleException(
+                    "Invalid deliveryMethod: " + deliveryMethod + ". Allowed values: PICK_UP, DELIVERY");
         }
     }
 }

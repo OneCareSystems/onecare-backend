@@ -18,7 +18,7 @@ import java.util.List;
 
 @Tag(name = "External Dispensing", description = "External dispensing / OTC handover workflow")
 @RestController
-@RequestMapping({"/api/external-dispensing", "/api/external-dispense"})
+@RequestMapping({ "/api/external-dispensing", "/api/external-dispense" })
 public class ExternalDispensingController {
 
     private final ExternalDispensingService externalDispensingService;
