@@ -153,6 +153,10 @@ CREATE TABLE external_dispensing (
     prescription_id     BIGINT  NULL,             -- NULL: OTC / no prescription sheet
     patient_id          BIGINT  NULL,
     verification_method VARCHAR(100) NOT NULL,
+    verification_status VARCHAR(30)  NOT NULL DEFAULT 'PENDING',
+    verified_at         DATETIME     NULL,
+    retry_count        INT          NOT NULL DEFAULT 0,
+    audit_log_id        BIGINT       NULL,
     dispense_date       DATETIME     NOT NULL,
     status              ENUM('PENDING','DISPENSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
     delivery_method     ENUM('PICK_UP','DELIVERY')              NOT NULL,
