@@ -80,10 +80,6 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setAppointmentDate(requestedStart.toLocalDate());
         appointment.setTimeSlot(requestedStart.toLocalTime());
         appointment.setReason(request.reason());
-        if (request.clinicalNotes() != null) {
-            assertCanWriteClinicalNotes();
-            appointment.setClinicalNotes(request.clinicalNotes());
-        }
         appointment.setStatus(AppointmentStatus.SCHEDULED);
 
         Appointment saved = saveWithSlotProtection(appointment, doctor.getUserId(), requestedStart, null);
