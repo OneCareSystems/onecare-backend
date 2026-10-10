@@ -2,18 +2,25 @@ package com.onecare.backend.service;
 
 import com.onecare.backend.dto.request.CreateAppointmentRequest;
 import com.onecare.backend.dto.request.UpdateAppointmentRequest;
+import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
 import com.onecare.backend.dto.response.AppointmentResponse;
+import com.onecare.backend.dto.response.PatientHistoryResponse;
+import com.onecare.backend.dto.response.PrescriptionResponse;
 import com.onecare.backend.entity.Appointment;
 import com.onecare.backend.entity.Patient;
+import com.onecare.backend.entity.Prescription;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.AppointmentStatus;
+import com.onecare.backend.enums.PrescriptionStatus;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.exception.SlotConflictException;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PatientRepository;
+import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -39,14 +47,17 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
+    private final PrescriptionRepository prescriptionRepository;
 
     public AppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            PrescriptionRepository prescriptionRepository) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
         this.userRepository = userRepository;
+        this.prescriptionRepository = prescriptionRepository;
     }
 
     @Override
@@ -74,24 +85,62 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment saved = saveWithSlotProtection(appointment, doctor.getUserId(), requestedStart, null);
         log.info("Created appointment {} for patient {} with doctor {} at {}",
                 saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), requestedStart);
-        return AppointmentResponse.from(saved);
+        return mapAppointment(saved, getCurrentAuthenticatedUser());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<AppointmentResponse> listAppointments() {
         User currentUser = getCurrentAuthenticatedUser();
+
+        return findVisibleAppointments(currentUser).stream()
+                .map(appointment -> mapAppointment(appointment, currentUser))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AppointmentResponse> findTodaysAppointments() {
+        LocalDate today = LocalDate.now();
+        User currentUser = getCurrentAuthenticatedUser();
+
+        return findVisibleAppointments(currentUser).stream()
+                .filter(appointment -> today.equals(appointment.getAppointmentDate()))
+                .map(appointment -> mapAppointment(appointment, currentUser))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AppointmentResponse getAppointmentById(Long appointmentId) {
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + appointmentId));
+
+        assertAppointmentAccess(appointment);
+
+        // clinical notes deliberately excluded — they are only available through
+        // GET /api/appointments/{id}/clinical-notes or the patient history endpoint
+        return AppointmentResponse.from(appointment);
+    }
+
+    /**
+     * Appointments the current user is allowed to see:
+     * - SUPER_ADMIN / ADMIN: all
+     * - DOCTOR: only appointments assigned to them
+     * - everyone else: only their own (email-matched) patient profile
+     */
+    private List<Appointment> findVisibleAppointments(User currentUser) {
         Role currentRole = currentUser.getRole();
 
         if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
-            return appointmentRepository.findAll().stream().map(AppointmentResponse::from).toList();
+            return appointmentRepository.findAll();
         }
 
         if (currentRole == Role.DOCTOR) {
             return appointmentRepository.findAll().stream()
                     .filter(appointment -> appointment.getDoctor() != null
                             && appointment.getDoctor().getUserId().equals(currentUser.getUserId()))
-                    .map(AppointmentResponse::from)
                     .toList();
         }
 
@@ -99,12 +148,17 @@ public class AppointmentServiceImpl implements AppointmentService {
         return appointmentRepository.findAll().stream()
                 .filter(appointment -> appointment.getPatient() != null
                         && appointment.getPatient().getPatientId().equals(selfPatient.getPatientId()))
-                .map(AppointmentResponse::from)
                 .toList();
     }
 
     @Override
     public AppointmentResponse updateAppointment(Long appointmentId, UpdateAppointmentRequest request) {
+        // clinical notes can only be written by doctors — reject early, before
+        // any appointment state is touched
+        if (request.clinicalNotes() != null) {
+            assertCanWriteClinicalNotes();
+        }
+
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + appointmentId));
 
@@ -155,13 +209,17 @@ public class AppointmentServiceImpl implements AppointmentService {
             appointment.setReason(request.reason());
         }
 
+        if (request.clinicalNotes() != null) {
+            appointment.setClinicalNotes(request.clinicalNotes());
+        }
+
         Appointment saved = saveWithSlotProtection(appointment, doctorId, newDateTime, appointmentId);
         log.info("Updated appointment {} to doctor {}, patient {}, slot {}",
                 saved.getAppointmentId(),
                 saved.getDoctor() != null ? saved.getDoctor().getUserId() : null,
                 saved.getPatient() != null ? saved.getPatient().getPatientId() : null,
                 newDateTime);
-        return AppointmentResponse.from(saved);
+        return mapAppointment(saved, getCurrentAuthenticatedUser());
     }
 
     @Override
@@ -172,7 +230,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         assertAppointmentAccess(appointment);
 
         if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
-            return AppointmentResponse.from(appointment);
+            return mapAppointment(appointment, getCurrentAuthenticatedUser());
         }
 
         if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
@@ -182,7 +240,99 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setStatus(AppointmentStatus.CANCELLED);
         Appointment saved = appointmentRepository.save(appointment);
         log.info("Cancelled appointment {}", saved.getAppointmentId());
-        return AppointmentResponse.from(saved);
+        return mapAppointment(saved, getCurrentAuthenticatedUser());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AppointmentClinicalNotesResponse getClinicalNotes(Long appointmentId) {
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + appointmentId));
+
+        User currentUser = getCurrentAuthenticatedUser();
+        Role currentRole = currentUser.getRole();
+
+        if (currentRole == Role.DOCTOR) {
+            if (appointment.getDoctor() == null
+                    || !appointment.getDoctor().getUserId().equals(currentUser.getUserId())) {
+                throw new AccessDeniedException(
+                        "Doctors can only read clinical notes of their own appointments");
+            }
+            return AppointmentClinicalNotesResponse.from(appointment);
+        }
+
+        if (currentRole == Role.PHARMACIST) {
+            return AppointmentClinicalNotesResponse.from(appointment);
+        }
+
+        throw new AccessDeniedException("Clinical notes are restricted to doctors and pharmacists");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PatientHistoryResponse getPatientHistory(Long patientId) {
+
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + patientId));
+
+        LocalDate today = LocalDate.now();
+        boolean includeClinicalNotes = SecurityUtil.hasPermission(Permission.APPOINTMENT_READ_CLINICAL_NOTES);
+
+        // previous encounters: dated before today, or already completed/cancelled
+        // (a consultation finished earlier today is still a previous encounter)
+        List<AppointmentResponse> previousAppointments = appointmentRepository
+                .findByPatient_PatientIdOrderByAppointmentDateDescTimeSlotDesc(patient.getPatientId())
+                .stream()
+                .filter(AppointmentServiceImpl::isPreviousEncounter)
+                .map(appointment -> AppointmentResponse.from(appointment, includeClinicalNotes))
+                .toList();
+
+        // previous prescriptions: dated before today, or no longer ISSUED
+        // (clinical notes are not part of a prescription)
+        List<PrescriptionResponse> previousPrescriptions = prescriptionRepository
+                .findByPatient_PatientId(patient.getPatientId())
+                .stream()
+                .filter(prescription -> prescription.getDate().isBefore(today)
+                        || prescription.getStatus() != PrescriptionStatus.ISSUED)
+                .sorted(Comparator.comparing(Prescription::getDate).reversed())
+                .map(PrescriptionResponse::from)
+                .toList();
+
+        return new PatientHistoryResponse(
+                patient.getPatientId(), previousAppointments, previousPrescriptions);
+    }
+
+    /** Before today, or already closed (COMPLETED / CANCELLED). */
+    private static boolean isPreviousEncounter(Appointment appointment) {
+        return appointment.getAppointmentDate().isBefore(LocalDate.now())
+                || appointment.getStatus() == AppointmentStatus.COMPLETED
+                || appointment.getStatus() == AppointmentStatus.CANCELLED;
+    }
+
+    /**
+     * Clinical notes are written only by doctors (APPOINTMENT_WRITE_CLINICAL_NOTES).
+     * Any other caller sending a non-null clinicalNotes value is rejected.
+     */
+    private void assertCanWriteClinicalNotes() {
+        if (!SecurityUtil.hasPermission(Permission.APPOINTMENT_WRITE_CLINICAL_NOTES)) {
+            throw new AccessDeniedException("Only doctors can record clinical notes");
+        }
+    }
+
+    /**
+     * Populates clinicalNotes only for callers holding
+     * APPOINTMENT_READ_CLINICAL_NOTES, and — for doctors — only on their own
+     * appointments. Everyone else gets null (the key is omitted from JSON).
+     */
+    private AppointmentResponse mapAppointment(Appointment appointment, User currentUser) {
+        boolean includeClinicalNotes =
+                SecurityUtil.hasPermission(Permission.APPOINTMENT_READ_CLINICAL_NOTES)
+                        && (currentUser.getRole() != Role.DOCTOR
+                                || (appointment.getDoctor() != null
+                                        && appointment.getDoctor().getUserId()
+                                                .equals(currentUser.getUserId())));
+        return AppointmentResponse.from(appointment, includeClinicalNotes);
     }
 
     private void lockDoctor(Long doctorId) {

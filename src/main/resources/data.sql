@@ -50,29 +50,30 @@ VALUES
 --    8   COMPLETED : already invoiced & PAID (invoice 2) -> 409, immutability
 -- ---------------------------------------------------------------------
 INSERT INTO appointments
-    (appointment_id, patient_id, doctor_id, appointment_date, time_slot, status, created_at, updated_at, reason)
+    (appointment_id, patient_id, doctor_id, appointment_date, time_slot, status, created_at, updated_at, reason, clinical_notes)
 VALUES
-    (1, 1, 3, '2026-10-02', '09:00:00', 'SCHEDULED', NOW(), NOW(), 'Routine medical consultation'),
-    (2, 2, 3, '2026-10-03', '10:30:00', 'SCHEDULED', NOW(), NOW(), 'Follow-up consultation'),
-    (3, 1, 3, '2026-10-04', '09:00:00', 'COMPLETED', NOW(), NOW(), 'Chest pain review'),
-    (4, 2, 3, '2026-10-04', '10:30:00', 'COMPLETED', NOW(), NOW(), 'Diabetes follow-up'),
-    (5, 3, 3, '2026-10-05', '09:00:00', 'COMPLETED', NOW(), NOW(), 'General check-up, no prescription'),
-    (6, 3, 3, '2026-10-05', '10:30:00', 'COMPLETED', NOW(), NOW(), 'Post-op pain review'),
-    (7, 1, 3, '2026-10-01', '11:00:00', 'COMPLETED', NOW(), NOW(), 'Already invoiced (UNPAID)'),
-    (8, 2, 3, '2026-10-01', '12:00:00', 'COMPLETED', NOW(), NOW(), 'Already invoiced (PAID)');
+    (1, 1, 3, '2026-10-02', '09:00:00', 'SCHEDULED', NOW(), NOW(), 'Routine medical consultation', NULL),
+    (2, 2, 3, '2026-10-03', '10:30:00', 'SCHEDULED', NOW(), NOW(), 'Follow-up consultation', NULL),
+    (3, 1, 3, '2026-10-04', '09:00:00', 'COMPLETED', NOW(), NOW(), 'Chest pain review', 'Viral fever, supportive care'),
+    (4, 2, 3, '2026-10-04', '10:30:00', 'COMPLETED', NOW(), NOW(), 'Diabetes follow-up', 'Type-2 diabetes follow-up'),
+    (5, 3, 3, '2026-10-05', '09:00:00', 'COMPLETED', NOW(), NOW(), 'General check-up, no prescription', NULL),
+    (6, 3, 3, '2026-10-05', '10:30:00', 'COMPLETED', NOW(), NOW(), 'Post-op pain review', 'Post-op pain management'),
+    (7, 1, 3, '2026-10-01', '11:00:00', 'COMPLETED', NOW(), NOW(), 'Already invoiced (UNPAID)', NULL),
+    (8, 2, 3, '2026-10-01', '12:00:00', 'COMPLETED', NOW(), NOW(), 'Already invoiced (PAID)', NULL);
 
 -- ---------------------------------------------------------------------
 -- 5. PRESCRIPTIONS
 --    1 DISPENSED : items 1-3, dispensing event 1 (partial handover)
 --    2 ISSUED    : item 4, dispensing event 4 (deferred collection)
 --    3 DISPENSED : items 5-6, NO dispensing rows (full-quantity fallback)
+--    Clinical notes live on the appointments table, not on prescriptions.
 -- ---------------------------------------------------------------------
 INSERT INTO prescriptions
-    (prescription_id, appointment_id, doctor_id, patient_id, date, clinical_notes, status, created_at, updated_at)
+    (prescription_id, appointment_id, doctor_id, patient_id, date, status, created_at, updated_at)
 VALUES
-    (1, 3, 3, 1, '2026-10-04', 'Viral fever, supportive care', 'DISPENSED', NOW(), NOW()),
-    (2, 4, 3, 2, '2026-10-04', 'Type-2 diabetes follow-up', 'ISSUED', NOW(), NOW()),
-    (3, 6, 3, 3, '2026-10-05', 'Post-op pain management', 'DISPENSED', NOW(), NOW());
+    (1, 3, 3, 1, '2026-10-04', 'DISPENSED', NOW(), NOW()),
+    (2, 4, 3, 2, '2026-10-04', 'ISSUED', NOW(), NOW()),
+    (3, 6, 3, 3, '2026-10-05', 'DISPENSED', NOW(), NOW());
 
 -- ---------------------------------------------------------------------
 -- 6. PRESCRIPTION_ITEMS

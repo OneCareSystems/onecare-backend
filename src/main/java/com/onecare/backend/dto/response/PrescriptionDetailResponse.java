@@ -1,6 +1,5 @@
 package com.onecare.backend.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.onecare.backend.entity.Prescription;
 import com.onecare.backend.enums.PrescriptionStatus;
 
@@ -11,12 +10,9 @@ import java.util.List;
 /**
  * Detail response for GET /api/prescriptions/{id}.
  *
- * clinicalNotes is only populated when the caller holds
- * PRESCRIPTION_READ_CLINICAL_NOTES (Doctor / Pharmacist). For any other
- * caller it is null and, thanks to @JsonInclude(NON_NULL), the key is
- * omitted from the JSON entirely.
+ * This record has NO clinicalNotes field at all — clinical notes are stored
+ * on the Appointment entity and are never returned by prescription APIs.
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public record PrescriptionDetailResponse(
         Long prescriptionId,
         Long patientId,
@@ -25,11 +21,10 @@ public record PrescriptionDetailResponse(
         LocalDate date,
         PrescriptionStatus status,
         List<PrescriptionItemResponse> items,
-        String clinicalNotes,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
-    public static PrescriptionDetailResponse from(Prescription prescription, boolean includeClinicalNotes) {
+    public static PrescriptionDetailResponse from(Prescription prescription) {
         return new PrescriptionDetailResponse(
                 prescription.getPrescriptionId(),
                 prescription.getPatient().getPatientId(),
@@ -42,7 +37,6 @@ public record PrescriptionDetailResponse(
                 prescription.getItems().stream()
                         .map(PrescriptionItemResponse::from)
                         .toList(),
-                includeClinicalNotes ? prescription.getClinicalNotes() : null,
                 prescription.getCreatedAt(),
                 prescription.getUpdatedAt());
     }
