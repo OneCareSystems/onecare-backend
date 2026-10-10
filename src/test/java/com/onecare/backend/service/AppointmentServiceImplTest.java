@@ -93,8 +93,7 @@ class AppointmentServiceImplTest {
                 7L,
                 30L,
                 requested,
-                "Follow-up",
-                null));
+                "Follow-up"));
 
         assertEquals(99L, response.appointmentId());
         assertEquals(AppointmentStatus.SCHEDULED.name(), response.status());
