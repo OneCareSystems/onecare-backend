@@ -17,4 +17,6 @@ public interface ExternalDispensingService {
     List<ExternalDispensingResponse> findAllExternalDispensing(String status);
 
     ExternalDispensingResponse findExternalDispensingById(Long dispenseId);
+
+    ExternalDispensingResponse markPrescriptionExternal(Long prescriptionId);
 }

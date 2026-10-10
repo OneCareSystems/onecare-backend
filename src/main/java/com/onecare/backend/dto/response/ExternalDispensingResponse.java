@@ -40,7 +40,9 @@ public record ExternalDispensingResponse(
                 entity.getDispensedAt(),
                 entity.getVerifiedAt(),
                 entity.getRetryCount(),
-                entity.getAuditLogId(),
+                entity.getAuditLog() != null
+                        ? entity.getAuditLog().getLogId()
+                        : null,
                 entity.getItems() == null ? List.of()
                         : entity.getItems().stream()
                                 .map(ExternalDispensingItemResponse::from)

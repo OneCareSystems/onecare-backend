@@ -58,6 +58,50 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
     }
 
     @Override
+    public ExternalDispensingResponse markPrescriptionExternal(Long prescriptionId) {
+
+        Prescription prescription = prescriptionRepository.findById(prescriptionId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Prescription not found with id: " + prescriptionId));
+
+        if (prescription.getStatus() != PrescriptionStatus.ISSUED) {
+            throw new BusinessRuleException(
+                    "Only ISSUED prescriptions can be marked for external dispensing. "
+                            + "Prescription id: " + prescriptionId
+                            + " has status: " + prescription.getStatus());
+        }
+
+        ExternalDispensing event = new ExternalDispensing();
+
+        event.setPrescription(prescription);
+
+        if (prescription.getPatient() != null) {
+            event.setPatientId(prescription.getPatient().getPatientId());
+        }
+
+        event.setStatus(Status.PENDING);
+        event.setVerificationStatus("PENDING");
+        event.setRetryCount(0);
+        event.setVerifiedAt(null);
+
+        event.setVerificationMethod("PHONE");
+        event.setDeliveryMethod(DeliveryMethod.PICK_UP);
+
+        LocalDateTime now = LocalDateTime.now();
+        event.setDispenseDate(now);
+        event.setDispensedAt(now);
+
+        ExternalDispensing saved = externalDispensingRepository.save(event);
+
+        log.info(
+                "Prescription marked for external dispensing | prescriptionId={} | dispenseId={}",
+                prescriptionId,
+                saved.getDispenseId());
+
+        return ExternalDispensingResponse.from(saved);
+    }
+
+    @Override
     public ExternalDispensingResponse createExternalDispensing(CreateExternalDispensingRequest request) {
         if (request == null) {
             throw new BusinessRuleException("External dispensing request is required");
@@ -215,6 +259,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
             throw new BusinessRuleException("External dispensing must be verified before completion");
         }
 
+        boolean partiallyDispensed = false;
+
         for (DispensingItem item : event.getItems()) {
             if (item == null) {
                 continue;
@@ -230,19 +276,37 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
                 throw new BusinessRuleException("Medicine is required for each dispensed item");
             }
 
-            int delta = -Math.max(0, item.getQuantityDispensed());
-            medicineService.updateStock(medicine.getMedicineId(), new StockUpdateRequest(delta));
+            int requestedQuantity = Math.max(0, item.getQuantityDispensed());
+            int availableQuantity = Math.max(0, medicine.getStockQuantity());
+
+            int quantityToDispense = Math.min(requestedQuantity, availableQuantity);
+
+            if (quantityToDispense > 0) {
+                medicineService.updateStock(
+                        medicine.getMedicineId(),
+                        new StockUpdateRequest(-quantityToDispense));
+            }
+
+            item.setQuantityDispensed(quantityToDispense);
+
+            if (quantityToDispense < requestedQuantity) {
+                partiallyDispensed = true;
+            }
         }
 
-        if (event.getPrescription() != null) {
+        if (event.getPrescription() != null && !partiallyDispensed) {
             Prescription prescription = event.getPrescription();
+
             if (prescription.getStatus() != PrescriptionStatus.DISPENSED) {
                 prescription.setStatus(PrescriptionStatus.DISPENSED);
                 prescriptionRepository.save(prescription);
             }
         }
 
-        event.setStatus(Status.DISPENSED);
+        event.setStatus(
+                partiallyDispensed
+                        ? Status.PARTIALLY_DISPENSED
+                        : Status.DISPENSED);
         event.setDispensedAt(LocalDateTime.now());
         event.setVerificationStatus("VERIFIED");
         event = externalDispensingRepository.save(event);
@@ -275,7 +339,8 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
                         .toList();
             } catch (IllegalArgumentException ex) {
                 throw new BusinessRuleException(
-                        "Invalid status filter: " + status + ". Allowed values: PENDING, DISPENSED, CANCELLED");
+                        "Invalid status filter: " + status
+                                + ". Allowed values: PENDING, DISPENSED, PARTIALLY_DISPENSED, CANCELLED");
             }
         }
         return items.stream().map(ExternalDispensingResponse::from).toList();
@@ -324,7 +389,7 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
 
         Optional<ExternalDispensing> event = externalDispensingRepository.findById(Long.valueOf(entityId));
         event.ifPresent(existing -> {
-            existing.setAuditLogId(savedAudit.getLogId());
+            existing.setAuditLog(savedAudit);
             externalDispensingRepository.save(existing);
         });
     }

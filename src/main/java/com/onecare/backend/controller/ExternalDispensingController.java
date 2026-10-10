@@ -58,7 +58,7 @@ public class ExternalDispensingController {
     }
 
     @Operation(summary = "Verify patient identity for an external dispensing event")
-    @PostMapping("/{id}/verify")
+    @PostMapping("/{id}/verify-identity")
     @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_DISPENSE + "')")
     public ResponseEntity<ApiResponse<?>> verifyExternalDispensing(
             @PathVariable Long id,
@@ -69,7 +69,7 @@ public class ExternalDispensingController {
     }
 
     @Operation(summary = "Complete an external dispensing event")
-    @PostMapping("/{id}/dispense")
+    @PostMapping("/{id}/complete")
     @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_DISPENSE + "')")
     public ResponseEntity<ApiResponse<?>> completeExternalDispensing(@PathVariable Long id) {
 
