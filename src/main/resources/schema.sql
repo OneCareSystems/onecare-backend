@@ -3,9 +3,9 @@
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS invoice_items;
 DROP TABLE IF EXISTS dispensing_items;
-DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS external_dispensing;
+DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS prescription_items;
 DROP TABLE IF EXISTS prescriptions;
 DROP TABLE IF EXISTS appointments;
@@ -153,8 +153,12 @@ CREATE TABLE external_dispensing (
     prescription_id     BIGINT  NULL,             -- NULL: OTC / no prescription sheet
     patient_id          BIGINT  NULL,
     verification_method VARCHAR(100) NOT NULL,
+    verification_status VARCHAR(30)  NOT NULL DEFAULT 'PENDING',
+    verified_at         DATETIME     NULL,
+    retry_count        INT          NOT NULL DEFAULT 0,
+    audit_log_id        BIGINT       NULL,
     dispense_date       DATETIME     NOT NULL,
-    status              ENUM('PENDING','DISPENSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
+    status              ENUM('PENDING','DISPENSED','PARTIALLY_DISPENSED','CANCELLED') NOT NULL DEFAULT 'PENDING',
     delivery_method     ENUM('PICK_UP','DELIVERY')              NOT NULL,
     dispensed_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -254,3 +258,8 @@ CREATE TABLE audit_log (
     CONSTRAINT pk_audit_log  PRIMARY KEY (log_id),
     CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+ALTER TABLE external_dispensing
+    ADD CONSTRAINT fk_ext_disp_audit_log
+    FOREIGN KEY (audit_log_id)
+    REFERENCES audit_log(log_id);

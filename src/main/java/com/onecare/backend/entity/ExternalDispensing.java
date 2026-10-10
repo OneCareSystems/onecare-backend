@@ -39,6 +39,19 @@ public class ExternalDispensing {
     @Column(name = "verification_method", nullable = false, length = 100)
     private String verificationMethod;
 
+    @Column(name = "verification_status", nullable = false, length = 30)
+    private String verificationStatus = "PENDING";
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
+
+    @Column(name = "retry_count", nullable = false)
+    private Integer retryCount = 0;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "audit_log_id")
+    private AuditLog auditLog;
+
    @Column(name = "dispensed_at", nullable = false)
     private LocalDateTime dispensedAt;
 
