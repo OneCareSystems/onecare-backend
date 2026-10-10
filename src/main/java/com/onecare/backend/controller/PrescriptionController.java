@@ -4,9 +4,11 @@ import com.onecare.backend.dto.ApiResponse;
 import com.onecare.backend.dto.request.CreatePrescriptionRequest;
 import com.onecare.backend.dto.request.UpdatePrescriptionRequest;
 import com.onecare.backend.dto.response.PrescriptionDetailResponse;
+import com.onecare.backend.dto.response.ExternalDispensingResponse;
 import com.onecare.backend.dto.response.PrescriptionResponse;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.service.PrescriptionService;
+import com.onecare.backend.service.ExternalDispensingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,9 +26,14 @@ import java.util.List;
 public class PrescriptionController {
 
     private final PrescriptionService prescriptionService;
+    private final ExternalDispensingService externalDispensingService;      
+    
+    public PrescriptionController(
+                    PrescriptionService prescriptionService,
+                    ExternalDispensingService externalDispensingService) {
 
-    public PrescriptionController(PrescriptionService prescriptionService) {
-        this.prescriptionService = prescriptionService;
+            this.prescriptionService = prescriptionService;
+            this.externalDispensingService = externalDispensingService;
     }
 
     @Operation(
@@ -106,6 +113,23 @@ public class PrescriptionController {
         PrescriptionDetailResponse response = prescriptionService.findPrescriptionById(id);
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Prescription retrieved successfully", response));
+    }
+
+    @Operation(summary = "Mark prescription for external dispensing", description = "Marks an ISSUED prescription for external dispensing. "
+                    + "Only ISSUED prescriptions are allowed. "
+                    + "DISPENSED or CANCELLED prescriptions return 400 Bad Request.")
+    @PatchMapping("/{id}/mark-external")
+    @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_DISPENSE + "')")
+    public ResponseEntity<ApiResponse<?>> markExternal(
+                    @PathVariable Long id) {
+
+            ExternalDispensingResponse response = externalDispensingService.markPrescriptionExternal(id);
+
+            return ResponseEntity.ok(
+                            new ApiResponse<>(
+                                            true,
+                                            "Prescription marked for external dispensing successfully",
+                                            response));
     }
 
     @Operation(
