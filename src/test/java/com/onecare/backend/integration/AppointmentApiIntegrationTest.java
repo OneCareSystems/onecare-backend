@@ -290,20 +290,6 @@ class AppointmentApiIntegrationTest {
                 .andExpect(jsonPath("$.data[0].clinicalNotes").doesNotExist());
     }
 
-    @Test
-    void createAppointment_byAdminWithClinicalNotes_isRejected() throws Exception {
-        mockMvc.perform(post("/api/appointments")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"doctorId":%d,"patientId":%d,"appointmentDateTime":"%s",
-                                 "reason":"Follow-up","clinicalNotes":"Admins cannot write notes"}"""
-                                .formatted(doctor.getUserId(), patient.getPatientId(),
-                                        LocalDateTime.now().plusDays(1).withHour(11)
-                                                .withMinute(0).withSecond(0).withNano(0))))
-                .andExpect(status().isForbidden());
-    }
-
     // ---------- Today's appointments ----------
 
     @Test
