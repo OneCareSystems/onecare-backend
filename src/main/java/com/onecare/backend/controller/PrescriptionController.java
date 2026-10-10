@@ -40,6 +40,8 @@ public class PrescriptionController {
                     + "never stock-checked, dispensed or invoiced. "
                     + "If any item is invalid the entire request is rejected and no rows are written. "
                     + "Status is always set server-side to ISSUED — clients cannot supply a status. "
+                    + "Clinical notes are not part of a prescription; they are stored on the "
+                    + "appointment. "
                     + "Returns 201 Created; 400 for validation/business-rule failures; 403 without "
                     + "PRESCRIPTION_CREATE (Doctor only); 404 for an unknown patient/appointment.")
     @PostMapping
@@ -56,7 +58,6 @@ public class PrescriptionController {
             summary = "List prescriptions",
             description = "Returns all prescriptions, optionally filtered by status "
                     + "(ISSUED, DISPENSED or CANCELLED; invalid value returns 400). "
-                    + "The list response NEVER contains clinical notes. "
                     + "Returns 403 without PRESCRIPTION_READ_ALL.")
     @GetMapping
     @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_READ_ALL + "')")
@@ -94,9 +95,7 @@ public class PrescriptionController {
     @Operation(
             summary = "Get a prescription by ID",
             description = "Returns the full prescription including its items. "
-                    + "clinicalNotes is included only for callers holding "
-                    + "PRESCRIPTION_READ_CLINICAL_NOTES (Doctor and Pharmacist); for every other "
-                    + "role the field is omitted from the response entirely. "
+                    + "Clinical notes are stored on the appointment, not the prescription. "
                     + "Returns 404 when the prescription does not exist.")
     @GetMapping("/{id}")
     @PreAuthorize(
@@ -125,10 +124,10 @@ public class PrescriptionController {
 
     @Operation(
             summary = "Update a prescription (DDP-25)",
-            description = "Replaces the content of an ISSUED prescription: clinical notes "
-                    + "(optional — omitted/null keeps the current notes) and the full item list "
+            description = "Replaces the content of an ISSUED prescription: the full item list "
                     + "(required; old item lines are replaced). The same medicine rules as create "
-                    + "apply, and a rejected request changes nothing. Status, doctor, patient, "
+                    + "apply, and a rejected request changes nothing. Clinical notes are not part "
+                    + "of a prescription. Status, doctor, patient, "
                     + "appointment and date are never modified. Only the doctor who issued the "
                     + "prescription may update it (400 otherwise). Returns 200; 400 for "
                     + "validation/business-rule failures or non-ISSUED status; 404 for an unknown "
