@@ -60,4 +60,7 @@ public class Appointment {
     @Column(name = "reason", length = 500)
     private String reason;
 
+    @Column(name = "clinical_notes", length = 2000)
+    private String clinicalNotes;
+
 }
