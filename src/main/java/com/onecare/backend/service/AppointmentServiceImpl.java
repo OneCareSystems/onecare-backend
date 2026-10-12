@@ -153,16 +153,23 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public AppointmentResponse updateAppointment(Long appointmentId, UpdateAppointmentRequest request) {
-        // clinical notes can only be written by doctors — reject early, before
-        // any appointment state is touched
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Appointment not found with id: " + appointmentId));
+
+        assertAppointmentAccess(appointment);
+
+        // Cancelled appointments must not receive clinical notes.
+        if (request.clinicalNotes() != null
+                && appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new IllegalStateException(
+                    "Clinical notes cannot be added to a cancelled appointment");
+        }
+
+        // Clinical notes can only be written by doctors.
         if (request.clinicalNotes() != null) {
             assertCanWriteClinicalNotes();
         }
-
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + appointmentId));
-
-        assertAppointmentAccess(appointment);
 
         Long doctorId = request.doctorId() != null ? request.doctorId()
                 : (appointment.getDoctor() != null ? appointment.getDoctor().getUserId() : null);
