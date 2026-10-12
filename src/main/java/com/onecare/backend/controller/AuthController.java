@@ -108,24 +108,50 @@ public class AuthController {
                                                 "If the email address is registered, a password reset link has been sent."));
         }
 
-        @Operation(summary = "Reset password", description = "Sets a new password using the raw token "
-                        + "from the reset email. On success the account is unlocked "
-                        + "(failedAttempts/lock cleared) and the token is consumed (single-use). "
-                        + "Unknown, expired, and already-used tokens are rejected with the same generic message.")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Password has been reset successfully"),
-                        @ApiResponse(responseCode = "400", description = "Validation failed or invalid/expired/used token"),
-                        @ApiResponse(responseCode = "429", description = "Too many requests")
-        })
-        @PostMapping("/reset-password")
-        public ResponseEntity<com.onecare.backend.dto.ApiResponse<Void>> resetPassword(
-                        @Valid @RequestBody ResetPasswordRequest request) {
+	@Operation(summary = "Reset password", description = "Sets a new password using the raw token "
+			+ "from the reset email. On success the account is unlocked "
+			+ "(failedAttempts/lock cleared) and the token is consumed (single-use). "
+			+ "Unknown, expired, and already-used tokens are rejected with the same generic message.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Password has been reset successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed or invalid/expired/used token"),
+			@ApiResponse(responseCode = "429", description = "Too many requests")
+	})
+	@PostMapping("/reset-password")
+	public ResponseEntity<com.onecare.backend.dto.ApiResponse<Void>> resetPassword(
+			@Valid @RequestBody ResetPasswordRequest request) {
 
-                authService.resetPassword(request);
+		authService.resetPassword(request);
 
-                return ResponseEntity.ok(
-                                new com.onecare.backend.dto.ApiResponse<>(
-                                                true,
-                                                "Password has been reset successfully"));
-        }
+		return ResponseEntity.ok(
+				new com.onecare.backend.dto.ApiResponse<>(
+						true,
+						"Password has been reset successfully"));
+	}
+
+	@Operation(summary = "Logout", description = "Invalidates the current session and blacklists the JWT token until its expiration.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Logout successful"),
+			@ApiResponse(responseCode = "401", description = "Missing or invalid access token")
+	})
+	@PreAuthorize("isAuthenticated()")
+	@PostMapping("/logout")
+	public ResponseEntity<com.onecare.backend.dto.ApiResponse<Void>> logout(
+			@RequestHeader(name = org.springframework.http.HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+
+		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+			return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+					.body(new com.onecare.backend.dto.ApiResponse<>(false, "Missing or invalid authorization token", null));
+		}
+
+		String token = authHeader.substring(7);
+		authService.logout(token);
+		org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+		return ResponseEntity.ok(
+				new com.onecare.backend.dto.ApiResponse<>(
+						true,
+						"Logout successful",
+						null));
+	}
 }

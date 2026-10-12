@@ -19,10 +19,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public JwtAuthFilter(JwtService jwtService, AppUserDetailsService userDetailsService) {
+    public JwtAuthFilter(JwtService jwtService,
+            AppUserDetailsService userDetailsService,
+            TokenBlacklistService tokenBlacklistService) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
@@ -42,6 +46,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             
             if (!"access".equals(tokenType)) {
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid access token");
+                return;
+            }
+
+            if (tokenBlacklistService.isBlacklisted(token)) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
                 return;
             }
 
