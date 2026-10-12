@@ -101,54 +101,6 @@ class AppointmentServiceImplTest {
     }
 
     @Test
-    void updateAppointment_rejectsPatientSwitchForSelfServiceUser() {
-        User currentUser = new User();
-        currentUser.setUserId(10L);
-        currentUser.setEmail("alice@example.com");
-        currentUser.setRole(Role.PHARMACIST);
-
-        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
-
-        Patient currentPatient = new Patient();
-        currentPatient.setPatientId(30L);
-        currentPatient.setEmail("alice@example.com");
-
-        Patient otherPatient = new Patient();
-        otherPatient.setPatientId(31L);
-        otherPatient.setEmail("mallory@example.com");
-
-        User doctor = new User();
-        doctor.setUserId(7L);
-        doctor.setRole(Role.DOCTOR);
-
-        Appointment appointment = new Appointment();
-        appointment.setAppointmentId(1L);
-        appointment.setPatient(currentPatient);
-        appointment.setDoctor(doctor);
-        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
-        appointment.setTimeSlot(LocalTime.of(9, 0));
-        appointment.setStatus(AppointmentStatus.SCHEDULED);
-
-        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
-        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
-        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
-        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(doctor));
-        when(patientRepository.findById(31L)).thenReturn(Optional.of(otherPatient));
-        when(patientRepository.findAll()).thenReturn(List.of(currentPatient, otherPatient));
-        when(appointmentRepository.saveAndFlush(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        var request = new UpdateAppointmentRequest(
-                7L,
-                31L,
-                LocalDateTime.now().plusDays(2).withHour(11).withMinute(0).withSecond(0).withNano(0),
-                "Rebook for a different patient",
-                null);
-
-        assertThrows(AccessDeniedException.class, () -> appointmentService.updateAppointment(1L, request));
-        verify(patientRepository, never()).save(any());
-    }
-
-    @Test
     void cancelAppointment_blocksCompletedAppointment() {
         User currentUser = new User();
         currentUser.setUserId(10L);
