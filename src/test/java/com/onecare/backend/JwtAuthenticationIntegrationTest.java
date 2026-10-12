@@ -50,9 +50,6 @@ private JavaMailSender javaMailSender;
     private UserRepository userRepository;
 
     @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
-
-    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -121,6 +118,24 @@ private JavaMailSender javaMailSender;
         assertThat(claims.get("userId")).isNotNull();
         assertThat(claims.get("role")).isEqualTo("DOCTOR");
         assertThat(claims.getExpiration()).isAfter(new Date());
+    }
+
+    // login returns the username and keeps every existing field
+    @Test
+    void loginReturnsUsernameAndPreservesExistingFields() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"username":"doctor1","password":"Password@123"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.username").value("doctor1"))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.expiresIn").value(1800000))
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.data.role").value("DOCTOR"))
+                .andExpect(jsonPath("$.data.redirectUrl").value("/doctor/dashboard"));
     }
 
     @Test

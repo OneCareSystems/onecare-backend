@@ -99,6 +99,10 @@ class AuthServiceImplTest {
         AuthResponse response = authService.login(request);
 
         assertNotNull(response);
+        assertEquals("doctor1", response.username());
+        assertEquals("access-token", response.accessToken());
+        assertEquals("refresh-token", response.refreshToken());
+        assertEquals(Role.DOCTOR, response.role());
 
         verify(authenticationManager).authenticate(any(
                 UsernamePasswordAuthenticationToken.class));
