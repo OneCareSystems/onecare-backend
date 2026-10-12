@@ -252,6 +252,113 @@ class AppointmentServiceImplTest {
         assertEquals("Severe headache", response.clinicalNotes());
     }
 
+
+    @Test
+    void updateAppointment_clinicalNotes_cancelledAppointment_rejected() {
+        // Arrange: authenticated doctor who owns the appointment
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setEmail("dr.test@onecare.test");
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+
+        appUserAuthentication(
+                doctor,
+                "ROLE_DOCTOR",
+                "APPOINTMENT_UPDATE",
+                "APPOINTMENT_WRITE_CLINICAL_NOTES",
+                "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(7L))
+                .thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L))
+                .thenReturn(Optional.of(appointment));
+
+        UpdateAppointmentRequest request =
+                new UpdateAppointmentRequest(
+                        null, null, null, null, "Patient reported symptoms.");
+
+        // Act & Assert: cancelled appointment rejects clinical notes
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> appointmentService.updateAppointment(1L, request));
+
+        assertEquals(
+                "Clinical notes cannot be added to a cancelled appointment",
+                exception.getMessage());
+
+        // Verify: existing appointment remains unchanged and is not saved
+        assertNull(appointment.getClinicalNotes());
+
+        verify(appointmentRepository, never())
+                .saveAndFlush(any(Appointment.class));
+        verify(appointmentRepository, never())
+                .save(any(Appointment.class));
+    }
+
+
+    @Test
+    void updateAppointment_cancelledAppointment_withoutClinicalNotes_preservesExistingBehavior() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setReason("Original reason");
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+
+        appUserAuthentication(
+                doctor,
+                "ROLE_DOCTOR",
+                "APPOINTMENT_UPDATE");
+
+        when(userRepository.findById(7L))
+                .thenReturn(Optional.of(doctor));
+        when(userRepository.findByIdForUpdate(7L))
+                .thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L))
+                .thenReturn(Optional.of(appointment));
+        when(appointmentRepository.findByDoctor_UserIdAndAppointmentDate(
+                eq(7L), any(LocalDate.class)))
+                .thenReturn(List.of());
+        when(appointmentRepository.saveAndFlush(any(Appointment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        UpdateAppointmentRequest request =
+                new UpdateAppointmentRequest(
+                        null, null, null, "Updated reason", null);
+
+        var response =
+                appointmentService.updateAppointment(1L, request);
+
+        assertEquals("Updated reason", appointment.getReason());
+        assertEquals(AppointmentStatus.CANCELLED.name(), response.status());
+        assertNull(appointment.getClinicalNotes());
+
+        verify(appointmentRepository).saveAndFlush(appointment);
+    }
+
+
     @Test
     void getClinicalNotes_assignedDoctor_readsNotes() {
         User doctor = new User();
