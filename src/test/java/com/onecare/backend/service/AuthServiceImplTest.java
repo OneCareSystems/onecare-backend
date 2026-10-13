@@ -9,6 +9,7 @@ import com.onecare.backend.exception.AccountLockedException;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.security.JwtService;
+import com.onecare.backend.security.TokenBlacklistService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +48,9 @@ class AuthServiceImplTest {
     private PasswordResetService passwordResetService;
 
     @Mock
+    private TokenBlacklistService tokenBlacklistService;
+
+    @Mock
     private Authentication authentication;
 
     private AuthServiceImpl authService;
@@ -62,7 +66,8 @@ class AuthServiceImplTest {
                 userRepository,
                 jwtService,
                 userService,
-                passwordResetService
+                passwordResetService,
+                tokenBlacklistService
         );
 
         user = new User();
@@ -340,6 +345,26 @@ class AuthServiceImplTest {
 
         verify(passwordResetService).resetPassword("raw-token", "NewPassword123!");
         verifyNoMoreInteractions(passwordResetService);
+    }
+
+    @Test
+    void logoutShouldBlacklistValidAccessToken() {
+        String token = "valid-access-token";
+        when(jwtService.extractType(token)).thenReturn("access");
+
+        authService.logout(token);
+
+        verify(jwtService).extractType(token);
+        verify(tokenBlacklistService).blacklistToken(token);
+    }
+
+    @Test
+    void logoutShouldThrowBadCredentialsWhenNotAccessToken() {
+        String token = "refresh-token";
+        when(jwtService.extractType(token)).thenReturn("refresh");
+
+        assertThrows(BadCredentialsException.class, () -> authService.logout(token));
+        verify(tokenBlacklistService, never()).blacklistToken(anyString());
     }
 
     private AppUserDetailsService.AppUserDetails userDetails() {

@@ -13,6 +13,7 @@ import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.security.JwtService;
 import com.onecare.backend.security.SecurityUtil;
+import com.onecare.backend.security.TokenBlacklistService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -32,6 +33,7 @@ public class AuthServiceImpl implements AuthService {
         private final JwtService jwtService;
         private final UserService userService;
         private final PasswordResetService passwordResetService;
+        private final TokenBlacklistService tokenBlacklistService;
 
         public AuthServiceImpl(
                         AuthenticationManager authenticationManager,
@@ -39,7 +41,8 @@ public class AuthServiceImpl implements AuthService {
                         UserRepository userRepository,
                         JwtService jwtService,
                         UserService userService,
-                        PasswordResetService passwordResetService) {
+                        PasswordResetService passwordResetService,
+                        TokenBlacklistService tokenBlacklistService) {
 
                 this.authenticationManager = authenticationManager;
                 this.userDetailsService = userDetailsService;
@@ -47,6 +50,7 @@ public class AuthServiceImpl implements AuthService {
                 this.jwtService = jwtService;
                 this.userService = userService;
                 this.passwordResetService = passwordResetService;
+                this.tokenBlacklistService = tokenBlacklistService;
         }
 
         @Override
@@ -203,5 +207,15 @@ public class AuthServiceImpl implements AuthService {
         @Override
         public void resetPassword(ResetPasswordRequest request) {
                 passwordResetService.resetPassword(request.token(), request.newPassword());
+        }
+
+        @Override
+        public void logout(String token) {
+                if (!"access".equals(jwtService.extractType(token))) {
+                        log.warn("Logout rejected | reason=INVALID_TOKEN_TYPE");
+                        throw new BadCredentialsException("Invalid access token");
+                }
+                tokenBlacklistService.blacklistToken(token);
+                log.info("Logout successful | token blacklisted");
         }
 }
