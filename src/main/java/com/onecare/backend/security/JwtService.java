@@ -73,6 +73,16 @@ public class JwtService {
         return Long.parseLong(String.valueOf(value));
     }
 
+    public Date extractExpiration(String token) {
+        return validateAndExtract(token).getExpiration();
+    }
+
+    public long getRemainingTtlMillis(String token) {
+        Date expiration = extractExpiration(token);
+        long remaining = expiration.getTime() - System.currentTimeMillis();
+        return Math.max(0, remaining);
+    }
+
     public long getAccessTokenExpiry() {
         return accessTokenExpiry;
     }
