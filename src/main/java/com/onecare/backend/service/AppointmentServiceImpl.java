@@ -17,6 +17,7 @@ import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -26,27 +27,48 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
 public class AppointmentServiceImpl implements AppointmentService {
 
     private static final Logger log = LoggerFactory.getLogger(AppointmentServiceImpl.class);
-    private static final Duration SLOT_DURATION = Duration.ofMinutes(30);
+    private static final Duration DEFAULT_SLOT_DURATION = Duration.ofMinutes(30);
 
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
+    private final LocalTime operatingStartTime;
+    private final LocalTime operatingEndTime;
+    private final Duration slotDuration;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public AppointmentServiceImpl(
+            AppointmentRepository appointmentRepository,
+            PatientRepository patientRepository,
+            UserRepository userRepository,
+            @Value("${clinic.operating-hours.start-time:16:00}") String startTimeStr,
+            @Value("${clinic.operating-hours.end-time:21:00}") String endTimeStr,
+            @Value("${clinic.operating-hours.slot-duration-minutes:30}") int slotDurationMinutes) {
+        this.appointmentRepository = appointmentRepository;
+        this.patientRepository = patientRepository;
+        this.userRepository = userRepository;
+        this.operatingStartTime = LocalTime.parse(startTimeStr);
+        this.operatingEndTime = LocalTime.parse(endTimeStr);
+        this.slotDuration = Duration.ofMinutes(slotDurationMinutes);
+    }
+
+    // Overload for tests that instantiate directly with 3 repository parameters
     public AppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
             UserRepository userRepository) {
-        this.appointmentRepository = appointmentRepository;
-        this.patientRepository = patientRepository;
-        this.userRepository = userRepository;
+        this(appointmentRepository, patientRepository, userRepository, "16:00", "21:00", 30);
     }
 
     @Override
@@ -60,7 +82,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         lockDoctor(doctor.getUserId());
 
         LocalDateTime requestedStart = request.appointmentDateTime();
-        LocalDateTime requestedEnd = requestedStart.plus(SLOT_DURATION);
+        LocalDateTime requestedEnd = requestedStart.plus(slotDuration);
         assertDoctorSlotAvailability(doctor.getUserId(), requestedStart, requestedEnd, null);
 
         Appointment appointment = new Appointment();
@@ -146,7 +168,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         if (request.appointmentDateTime() != null) {
-            assertDoctorSlotAvailability(doctorId, newDateTime, newDateTime.plus(SLOT_DURATION), appointmentId);
+            assertDoctorSlotAvailability(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
             appointment.setAppointmentDate(newDateTime.toLocalDate());
             appointment.setTimeSlot(newDateTime.toLocalTime());
         }
@@ -197,7 +219,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private Appointment saveWithSlotProtection(Appointment appointment, Long doctorId, LocalDateTime requestedStart,
             Long excludeAppointmentId) {
         List<String> alternatives = findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart,
-                requestedStart.plus(SLOT_DURATION), excludeAppointmentId);
+                requestedStart.plus(slotDuration), excludeAppointmentId);
 
         try {
             return appointmentRepository.saveAndFlush(appointment);
@@ -223,7 +245,7 @@ public class AppointmentServiceImpl implements AppointmentService {
             }
 
             LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
-            LocalDateTime existingEnd = existingStart.plus(SLOT_DURATION);
+            LocalDateTime existingEnd = existingStart.plus(slotDuration);
             boolean overlaps = requestedStart.isBefore(existingEnd) && existingStart.isBefore(requestedEnd);
             if (overlaps) {
                 throw new SlotConflictException(
@@ -239,10 +261,10 @@ public class AppointmentServiceImpl implements AppointmentService {
     private List<String> findAlternativeSlots(Long doctorId, LocalDate appointmentDate, LocalDateTime requestedStart,
             LocalDateTime requestedEnd, Long excludeAppointmentId) {
         List<String> alternatives = new ArrayList<>();
-        LocalDateTime candidate = LocalDateTime.of(appointmentDate, LocalTime.of(9, 0));
+        LocalDateTime candidate = LocalDateTime.of(appointmentDate, operatingStartTime);
 
-        while (!candidate.toLocalTime().isAfter(LocalTime.of(17, 30)) && alternatives.size() < 5) {
-            LocalDateTime candidateEnd = candidate.plus(SLOT_DURATION);
+        while (!candidate.toLocalTime().plus(slotDuration).isAfter(operatingEndTime) && alternatives.size() < 5) {
+            LocalDateTime candidateEnd = candidate.plus(slotDuration);
             boolean free = true;
             for (Appointment existing : appointmentRepository.findByDoctor_UserIdAndAppointmentDate(doctorId,
                     appointmentDate)) {
@@ -255,7 +277,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                 }
 
                 LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
-                LocalDateTime existingEnd = existingStart.plus(SLOT_DURATION);
+                LocalDateTime existingEnd = existingStart.plus(slotDuration);
                 if (candidate.isBefore(existingEnd) && existingStart.isBefore(candidateEnd)) {
                     free = false;
                     break;
@@ -265,10 +287,56 @@ public class AppointmentServiceImpl implements AppointmentService {
             if (free && !candidate.equals(requestedStart)) {
                 alternatives.add(candidate.toString());
             }
-            candidate = candidate.plus(SLOT_DURATION);
+            candidate = candidate.plus(slotDuration);
         }
 
         return alternatives;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> getAvailableSlots(Long doctorId, LocalDate date) {
+        if (doctorId == null || doctorId <= 0) {
+            throw new IllegalArgumentException("Doctor ID must be a positive number");
+        }
+        if (date == null) {
+            throw new IllegalArgumentException("Date is required");
+        }
+
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + doctorId));
+        if (doctor.getRole() != Role.DOCTOR) {
+            throw new IllegalArgumentException("Specified user with id: " + doctorId + " is not a doctor");
+        }
+
+        if (date.isBefore(LocalDate.now())) {
+            return List.of();
+        }
+
+        List<Appointment> existingAppointments = appointmentRepository
+                .findByDoctor_UserIdAndAppointmentDate(doctorId, date);
+
+        Set<LocalTime> bookedSlots = existingAppointments.stream()
+                .filter(a -> a.getStatus() != AppointmentStatus.CANCELLED
+                        && a.getStatus() != AppointmentStatus.NO_SHOW)
+                .map(Appointment::getTimeSlot)
+                .collect(Collectors.toSet());
+
+        List<String> availableSlots = new ArrayList<>();
+        LocalTime candidate = operatingStartTime;
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+
+        while (!candidate.plus(slotDuration).isAfter(operatingEndTime)) {
+            boolean isPast = date.isEqual(LocalDate.now())
+                    && !LocalDateTime.of(date, candidate).isAfter(LocalDateTime.now());
+
+            if (!isPast && !bookedSlots.contains(candidate)) {
+                availableSlots.add(candidate.format(formatter));
+            }
+            candidate = candidate.plus(slotDuration);
+        }
+
+        return availableSlots;
     }
 
     private User getCurrentAuthenticatedUser() {

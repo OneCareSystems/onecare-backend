@@ -14,4 +14,6 @@ public interface AppointmentService {
     AppointmentResponse updateAppointment(Long appointmentId, UpdateAppointmentRequest request);
 
     AppointmentResponse cancelAppointment(Long appointmentId);
+
+    List<String> getAvailableSlots(Long doctorId, java.time.LocalDate date);
 }
