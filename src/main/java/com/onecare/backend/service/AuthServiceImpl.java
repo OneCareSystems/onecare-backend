@@ -103,6 +103,7 @@ public class AuthServiceImpl implements AuthService {
                         );
 
                         return AuthResponse.of(
+                                        user.getUsername(),
                                         accessToken,
                                         refreshToken,
                                         jwtService.getAccessTokenExpiry(),
@@ -181,6 +182,7 @@ public class AuthServiceImpl implements AuthService {
                 );
 
                 return AuthResponse.of(
+                                user.getUsername(),
                                 newAccessToken,
                                 refreshToken,
                                 jwtService.getAccessTokenExpiry(),
