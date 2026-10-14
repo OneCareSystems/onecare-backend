@@ -19,4 +19,6 @@ public interface AuthService {
     public void requestPasswordReset(ForgotPasswordRequest request);
 
     public void resetPassword(ResetPasswordRequest request);
+
+    public void logout(String token);
 }

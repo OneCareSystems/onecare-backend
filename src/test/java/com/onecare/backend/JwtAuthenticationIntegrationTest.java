@@ -34,6 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import com.onecare.backend.security.TokenBlacklistService;
+import java.util.concurrent.TimeUnit;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -50,9 +53,6 @@ private JavaMailSender javaMailSender;
     private UserRepository userRepository;
 
     @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
-
-    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -61,18 +61,25 @@ private JavaMailSender javaMailSender;
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
+
     @Value("${jwt.secret}")
     private String jwtSecret;
 
     @BeforeEach
     void setupUser() {
-        User user = new User();
+        User user = userRepository.findByUsername("doctor1").orElseGet(User::new);
         user.setUsername("doctor1");
         user.setEmail("doctor1@onecare.com");
         user.setPasswordHash(passwordEncoder.encode("Password@123"));
         user.setRole(Role.DOCTOR);
         user.setIsActive(true);
         user.setFailedAttempts(0);
+        user.setLockedUntil(null);
 
         userRepository.save(user);
     }
@@ -123,6 +130,24 @@ private JavaMailSender javaMailSender;
         assertThat(claims.getExpiration()).isAfter(new Date());
     }
 
+    // login returns the username and keeps every existing field
+    @Test
+    void loginReturnsUsernameAndPreservesExistingFields() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"username":"doctor1","password":"Password@123"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.username").value("doctor1"))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.expiresIn").value(1800000))
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.data.role").value("DOCTOR"))
+                .andExpect(jsonPath("$.data.redirectUrl").value("/doctor/dashboard"));
+    }
+
     @Test
     void invalidCredentialsReturnUnauthorized() throws Exception {
         mockMvc.perform(post("/api/auth/login")
@@ -162,6 +187,87 @@ private JavaMailSender javaMailSender;
 
         mockMvc.perform(get("/api/secure/ping")
                 .header("Authorization", "Bearer " + expiredToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void logoutBlacklistsTheToken() throws Exception {
+        String responseBody = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"doctor1","password":"Password@123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = objectMapper.readTree(responseBody).get("data").get("accessToken").asText();
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Logout successful"));
+
+        assertThat(tokenBlacklistService.isBlacklisted(token)).isTrue();
+        String redisKey = tokenBlacklistService.buildKey(token);
+        assertThat(redisTemplate.hasKey(redisKey)).isTrue();
+        Long ttl = redisTemplate.getExpire(redisKey, TimeUnit.MILLISECONDS);
+        assertThat(ttl).isNotNull().isPositive();
+    }
+
+    @Test
+    void blacklistedTokenCannotAccessProtectedApis() throws Exception {
+        String token = jwtService.issueAccessToken(1L, "doctor1", "DOCTOR");
+        tokenBlacklistService.blacklistToken(token);
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void redisBlacklistEntryExpiresCorrectly() throws Exception {
+        String key = "blacklist:token:test-expire-key";
+        redisTemplate.opsForValue().set(key, "revoked", 80, TimeUnit.MILLISECONDS);
+        assertThat(redisTemplate.hasKey(key)).isTrue();
+
+        Thread.sleep(120);
+
+        assertThat(redisTemplate.hasKey(key)).isFalse();
+    }
+
+    @Test
+    void oldTokenReuseAfterLogoutIsRejected() throws Exception {
+        String responseBody = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"doctor1","password":"Password@123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String accessToken = objectMapper.readTree(responseBody).get("data").get("accessToken").asText();
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unauthenticatedLogoutReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
                 .andExpect(status().isUnauthorized());
     }
 }

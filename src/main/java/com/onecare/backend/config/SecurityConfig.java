@@ -4,6 +4,7 @@ import com.onecare.backend.security.ApiRateLimitFilter;
 import com.onecare.backend.security.AppUserDetailsService;
 import com.onecare.backend.security.JwtAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,6 +19,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import java.util.Arrays;
+import java.util.List;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
@@ -28,8 +34,12 @@ public class SecurityConfig {
     private final AppUserDetailsService userDetailsService;
     private final ApiRateLimitFilter apiRateLimitFilter;
 
+    /** Comma-separated list of allowed frontend origins, configurable per environment. */
+    @Value("${frontend.allowed-origins}")
+    String allowedOrigins;
+
     public SecurityConfig(JwtAuthFilter jwtAuthFilter, AppUserDetailsService userDetailsService,
-            ApiRateLimitFilter apiRateLimitFilter) {
+                          ApiRateLimitFilter apiRateLimitFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
         this.apiRateLimitFilter = apiRateLimitFilter;
@@ -38,6 +48,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex
@@ -53,7 +64,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")
-                            .permitAll()
+                        .permitAll()
                         .requestMatchers("/api/users/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/patients/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
                         .requestMatchers("/api/medicines/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST")
@@ -71,6 +82,37 @@ public class SecurityConfig {
                 .addFilterBefore(apiRateLimitFilter, JwtAuthFilter.class);
 
         return http.build();
+    }
+
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOrigins(
+                Arrays.stream(allowedOrigins.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isEmpty())
+                        .toList()
+        );
+
+        configuration.setAllowedMethods(
+                List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        );
+
+        configuration.setAllowedHeaders(
+                List.of("Authorization", "Content-Type", "Accept", "X-Requested-With")
+        );
+
+        // For JWT in an Authorization header, cookies are not required.
+        configuration.setAllowCredentials(false);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
     }
 
     @Bean
