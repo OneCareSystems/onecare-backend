@@ -174,6 +174,38 @@ class AppointmentServiceImplTest {
         assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(1L));
     }
 
+    @Test
+    void cancelAppointment_blocksNoShowAppointment() {
+        User currentUser = new User();
+        currentUser.setUserId(10L);
+        currentUser.setEmail("alice@example.com");
+        currentUser.setRole(Role.PHARMACIST);
+
+        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+        patient.setEmail("alice@example.com");
+
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(2L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().minusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setStatus(AppointmentStatus.NO_SHOW);
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
+        when(appointmentRepository.findById(2L)).thenReturn(Optional.of(appointment));
+        when(patientRepository.findAll()).thenReturn(List.of(patient));
+
+        assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(2L));
+    }
+
     private void appUserAuthentication(User user, String authority) {
         var principal = new AppUserDetailsService.AppUserDetails(
                 user.getUserId(),

@@ -1,6 +1,7 @@
 package com.onecare.backend.service;
 
 import com.onecare.backend.dto.request.AppointmentStatusRequest;
+import com.onecare.backend.dto.request.GenerateInvoiceRequest;
 import com.onecare.backend.dto.response.AppointmentResponse;
 import com.onecare.backend.dto.response.QueueResponse;
 import com.onecare.backend.entity.Appointment;
@@ -11,6 +12,7 @@ import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.AppointmentRepository;
+import com.onecare.backend.repository.InvoiceRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.SecurityUtil;
@@ -34,14 +36,20 @@ public class QueueServiceImpl implements QueueService {
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
+    private final InvoiceService invoiceService;
+    private final InvoiceRepository invoiceRepository;
 
     public QueueServiceImpl(
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            InvoiceService invoiceService,
+            InvoiceRepository invoiceRepository) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
         this.userRepository = userRepository;
+        this.invoiceService = invoiceService;
+        this.invoiceRepository = invoiceRepository;
     }
 
     @Override
@@ -54,7 +62,8 @@ public class QueueServiceImpl implements QueueService {
         List<Appointment> appointments = appointmentRepository
                 .findByAppointmentDateOrderByTimeSlotAscAppointmentIdAsc(today).stream()
                 .filter(appointment -> appointment.getStatus() != null
-                        && appointment.getStatus() != AppointmentStatus.CANCELLED)
+                        && appointment.getStatus() != AppointmentStatus.CANCELLED
+                        && appointment.getStatus() != AppointmentStatus.NO_SHOW)
                 .filter(appointment -> {
                     if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
                         return true;
@@ -95,19 +104,66 @@ public class QueueServiceImpl implements QueueService {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + appointmentId));
 
+        AppointmentStatus currentStatus = appointment.getStatus();
         AppointmentStatus requestedStatus = request.status();
 
-        if (appointment.getStatus() == AppointmentStatus.CANCELLED && requestedStatus != AppointmentStatus.CANCELLED) {
+        // Terminal states cannot be changed
+        if (currentStatus == AppointmentStatus.CANCELLED && requestedStatus != AppointmentStatus.CANCELLED) {
             throw new InvalidAppointmentStatusException("Cancelled appointments cannot be changed to another status");
         }
 
-        if (appointment.getStatus() == AppointmentStatus.COMPLETED && requestedStatus != AppointmentStatus.COMPLETED) {
+        if (currentStatus == AppointmentStatus.COMPLETED && requestedStatus != AppointmentStatus.COMPLETED) {
             throw new InvalidAppointmentStatusException("Completed appointments cannot be changed to another status");
+        }
+
+        if (currentStatus == AppointmentStatus.NO_SHOW && requestedStatus != AppointmentStatus.NO_SHOW) {
+            throw new InvalidAppointmentStatusException("No-show appointments cannot be changed to another status");
+        }
+
+        // AC1: Appointments that are already ARRIVED or COMPLETED must not be changed to NO_SHOW
+        if (requestedStatus == AppointmentStatus.NO_SHOW) {
+            if (currentStatus == AppointmentStatus.ARRIVED || currentStatus == AppointmentStatus.COMPLETED) {
+                throw new InvalidAppointmentStatusException(
+                        "Appointments that are already ARRIVED or COMPLETED cannot be changed to NO_SHOW");
+            }
+        }
+
+        // AC1: Only the Doctor can mark the Appointment as COMPLETED after finishing the consultation.
+        if (requestedStatus == AppointmentStatus.COMPLETED) {
+            User currentUser = getCurrentAuthenticatedUser();
+            if (currentUser.getRole() != Role.DOCTOR) {
+                throw new AccessDeniedException("Only doctors can mark an appointment as COMPLETED");
+            }
+            if (appointment.getDoctor() != null && !appointment.getDoctor().getUserId().equals(currentUser.getUserId())) {
+                throw new AccessDeniedException("Doctors can only complete their own assigned appointments");
+            }
+        }
+
+        // AC1: Admin check-in: marking as ARRIVED is only valid from SCHEDULED
+        if (requestedStatus == AppointmentStatus.ARRIVED && currentStatus != AppointmentStatus.SCHEDULED) {
+            throw new InvalidAppointmentStatusException("Only scheduled appointments can be marked as ARRIVED");
         }
 
         appointment.setStatus(requestedStatus);
         Appointment saved = appointmentRepository.save(appointment);
         log.info("Updated appointment {} status to {}", saved.getAppointmentId(), requestedStatus);
+
+        // AC3: Automatically create invoice when appointment is marked COMPLETED
+        if (requestedStatus == AppointmentStatus.COMPLETED) {
+            if (invoiceRepository != null && !invoiceRepository.existsByAppointmentAppointmentId(saved.getAppointmentId())) {
+                if (invoiceService != null) {
+                    try {
+                        invoiceService.generateInvoice(new GenerateInvoiceRequest(saved.getAppointmentId(), null));
+                        log.info("Automatically generated invoice for completed appointment {}", saved.getAppointmentId());
+                    } catch (Exception ex) {
+                        log.error("Failed to auto-generate invoice for completed appointment {}: {}",
+                                saved.getAppointmentId(), ex.getMessage(), ex);
+                        throw ex;
+                    }
+                }
+            }
+        }
+
         return AppointmentResponse.from(saved);
     }
 

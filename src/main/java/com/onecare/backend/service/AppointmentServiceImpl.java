@@ -179,6 +179,10 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new InvalidAppointmentStatusException("Cannot cancel a completed appointment");
         }
 
+        if (appointment.getStatus() == AppointmentStatus.NO_SHOW) {
+            throw new InvalidAppointmentStatusException("Cannot cancel a no-show appointment");
+        }
+
         appointment.setStatus(AppointmentStatus.CANCELLED);
         Appointment saved = appointmentRepository.save(appointment);
         log.info("Cancelled appointment {}", saved.getAppointmentId());
@@ -214,7 +218,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                 continue;
             }
 
-            if (existing.getStatus() == AppointmentStatus.CANCELLED) {
+            if (existing.getStatus() == AppointmentStatus.CANCELLED || existing.getStatus() == AppointmentStatus.NO_SHOW) {
                 continue;
             }
 
@@ -246,7 +250,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                         && existing.getAppointmentId().equals(excludeAppointmentId)) {
                     continue;
                 }
-                if (existing.getStatus() == AppointmentStatus.CANCELLED) {
+                if (existing.getStatus() == AppointmentStatus.CANCELLED || existing.getStatus() == AppointmentStatus.NO_SHOW) {
                     continue;
                 }
 
