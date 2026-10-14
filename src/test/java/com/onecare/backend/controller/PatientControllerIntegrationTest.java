@@ -178,4 +178,41 @@ class PatientControllerIntegrationTest {
         assertFalse(reloaded.getIsActive());
         assertTrue(patientRepository.existsById(saved.getPatientId())); // row preserved
     }
+
+    @Test
+    void registerAndSearch_sharedPhone_returnsMultiplePatients() throws Exception {
+        String patient1 = """
+                {"full_name":"Sunil Perera","dateOfBirth":"1970-01-01",
+                 "contactNo":"0771234567","gender":"MALE"}""";
+        String patient2 = """
+                {"full_name":"Kamal Perera","dateOfBirth":"2000-01-01",
+                 "contactNo":"0771234567","gender":"MALE"}""";
+
+        mockMvc.perform(post("/api/patients").with(as(Role.ADMIN)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(patient1))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.duplicateSuspected").value(false));
+
+        mockMvc.perform(post("/api/patients").with(as(Role.ADMIN)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(patient2))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.duplicateSuspected").value(false));
+
+        mockMvc.perform(get("/api/patients").param("search", "0771234567").with(as(Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    @Test
+    void createPatient_omittedBloodGroup_registersSuccessfully() throws Exception {
+        String patientWithoutBloodGroup = """
+                {"full_name":"No BloodGroup Patient","dateOfBirth":"1995-06-15",
+                 "contactNo":"0779998888","gender":"FEMALE"}""";
+
+        mockMvc.perform(post("/api/patients").with(as(Role.ADMIN)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(patientWithoutBloodGroup))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.patientId").isNumber())
+                .andExpect(jsonPath("$.data.bloodGroup").doesNotExist());
+    }
 }

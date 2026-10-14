@@ -7,6 +7,7 @@ import com.onecare.backend.entity.Patient;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.security.SecurityUtil;
+import com.onecare.backend.util.PhoneNumberUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
@@ -31,16 +32,25 @@ public class PatientServiceImpl implements PatientService {
      @Override
     public PatientResponse createPatient(PatientCreateRequest request) {
 
-        // AC3: duplicate-suspect check — informational only, never blocks creation
+        String rawContactNo = request.contactNo() != null ? request.contactNo().trim() : "";
+        String normalizedContactNo = PhoneNumberUtil.isValidSriLankanPhone(rawContactNo)
+                ? PhoneNumberUtil.normalizeSriLankanPhone(rawContactNo)
+                : rawContactNo;
+
+        // AC3: duplicate-suspect check — informational only, never blocks creation.
+        // Requires both matching full name AND contact number.
         boolean duplicateSuspected = patientRepository
                 .existsByFullNameIgnoreCaseAndContactNo(
-                request.full_name(), request.contactNo());
+                request.full_name(), normalizedContactNo)
+                || (!normalizedContactNo.equals(rawContactNo)
+                && patientRepository.existsByFullNameIgnoreCaseAndContactNo(
+                request.full_name(), rawContactNo));
 
         Patient patient = new Patient();
         patient.setFullName(request.full_name());
         patient.setDateOfBirth(request.dateOfBirth());
         patient.setAddress(request.address());
-        patient.setContactNo(request.contactNo());
+        patient.setContactNo(normalizedContactNo);
         patient.setEmail(request.email());
         patient.setBloodGroup(request.bloodGroup());
         patient.setGender(request.gender());
@@ -82,21 +92,42 @@ public class PatientServiceImpl implements PatientService {
             return List.of(); // AC/negative test: empty search -> 200 []
         }
 
+        String query = search.trim();
         List<Patient> results = new ArrayList<>();
 
         // Exact patient ID match, only if the search string is fully numeric
-        if (search.chars().allMatch(Character::isDigit)) {
-            patientRepository.findById(Long.parseLong(search))
+        if (query.chars().allMatch(Character::isDigit)) {
+            patientRepository.findById(Long.parseLong(query))
                     .filter(Patient::getIsActive)
                     .ifPresent(results::add);
         }
 
-        // Exact contact number match
-        patientRepository.findByContactNoAndIsActiveTrue(search)
-                .ifPresent(p -> addIfAbsent(results, p));
+        // Exact contact number match as given
+        for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(query)) {
+            addIfAbsent(results, p);
+        }
+
+        // Contact number match using normalized format (+94 XXX XXX XXX)
+        String normalizedSearch = PhoneNumberUtil.normalizeSriLankanPhone(query);
+        if (normalizedSearch != null && !normalizedSearch.equals(query)) {
+            for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(normalizedSearch)) {
+                addIfAbsent(results, p);
+            }
+        }
+
+        // Contact number match using local 10-digit format (0XXXXXXXXX)
+        String nineDigits = PhoneNumberUtil.extractNineDigits(query);
+        if (nineDigits != null) {
+            String localFormat = "0" + nineDigits;
+            if (!localFormat.equals(query) && !localFormat.equals(normalizedSearch)) {
+                for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(localFormat)) {
+                    addIfAbsent(results, p);
+                }
+            }
+        }
 
         // Partial name match (first + last combined)
-        for (Patient p : patientRepository.searchByName(search)) {
+        for (Patient p : patientRepository.searchByName(query)) {
             addIfAbsent(results, p);
         }
 
@@ -118,7 +149,13 @@ public class PatientServiceImpl implements PatientService {
 
         if (request.full_name() != null) patient.setFullName(request.full_name());
         if (request.address() != null) patient.setAddress(request.address());
-        if (request.contactNo() != null) patient.setContactNo(request.contactNo());
+        if (request.contactNo() != null) {
+            String raw = request.contactNo().trim();
+            String normalized = PhoneNumberUtil.isValidSriLankanPhone(raw)
+                    ? PhoneNumberUtil.normalizeSriLankanPhone(raw)
+                    : raw;
+            patient.setContactNo(normalized);
+        }
         if (request.email() != null) patient.setEmail(request.email());
         if (request.bloodGroup() != null) patient.setBloodGroup(request.bloodGroup());
         if (request.gender() != null) patient.setGender(request.gender());
