@@ -10,6 +10,9 @@ import java.time.LocalTime;
 /**
  * Appointment response.
  *
+ * patientId and patientFullName identify the patient; patientFullName is the
+ * patient's full name (null when the appointment has no linked patient).
+ *
  * clinicalNotes is only populated for callers holding
  * APPOINTMENT_READ_CLINICAL_NOTES (Doctor / Pharmacist). For every other
  * caller it is null and, thanks to @JsonInclude(NON_NULL), the key is
@@ -19,6 +22,7 @@ import java.time.LocalTime;
 public record AppointmentResponse(
         Long appointmentId,
         Long patientId,
+        String patientFullName,
         Long doctorId,
         LocalDate appointmentDate,
         LocalTime timeSlot,
@@ -41,6 +45,7 @@ public record AppointmentResponse(
         return new AppointmentResponse(
                 appointment.getAppointmentId(),
                 appointment.getPatient() != null ? appointment.getPatient().getPatientId() : null,
+                appointment.getPatient() != null ? appointment.getPatient().getFullName() : null,
                 appointment.getDoctor() != null ? appointment.getDoctor().getUserId() : null,
                 appointment.getAppointmentDate(),
                 appointment.getTimeSlot(),

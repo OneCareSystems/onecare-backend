@@ -287,6 +287,9 @@ class AppointmentApiIntegrationTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].reason").value("Checkup"))
+                .andExpect(jsonPath("$.data[0].patientId")
+                        .value(patient.getPatientId().intValue()))
+                .andExpect(jsonPath("$.data[0].patientFullName").value("Test Patient"))
                 .andExpect(jsonPath("$.data[0].clinicalNotes").doesNotExist());
     }
 
