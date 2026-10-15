@@ -16,18 +16,18 @@ public interface PrescriptionService {
      */
     PrescriptionResponse createPrescription(CreatePrescriptionRequest request);
 
-    /** All prescriptions, optionally filtered by status. Never exposes clinical notes. */
+    /** All prescriptions, optionally filtered by status. Clinical notes never belong to a prescription. */
     List<PrescriptionResponse> findAllPrescriptions(String status);
 
-    /** All today prescriptions, optionally filtered by status. Never exposes clinical notes. */
+    /** All today prescriptions, optionally filtered by status. Clinical notes never belong to a prescription. */
     List<PrescriptionResponse> findTodaysPrescriptions();
 
-    /** Detail view; clinical notes only for callers with PRESCRIPTION_READ_CLINICAL_NOTES. */
+    /** Detail view with items. Clinical notes are not part of a prescription. */
     PrescriptionDetailResponse findPrescriptionById(Long id);
 
     /**
-     * Replaces the content of an ISSUED prescription: clinical notes (when provided)
-     * and all item lines. Only the doctor who issued it may update it; medicines are
+     * Replaces the content of an ISSUED prescription: all item lines.
+     * Only the doctor who issued it may update it; medicines are
      * validated before anything is mutated, so a rejected request changes nothing.
      */
     PrescriptionResponse updatePrescription(Long id, UpdatePrescriptionRequest request);

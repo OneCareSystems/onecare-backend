@@ -128,7 +128,7 @@ class PrescriptionControllerIntegrationTest {
         return medicineRepository.save(medicine);
     }
 
-    private Prescription savePrescription(PrescriptionStatus status, String clinicalNotes) {
+    private Prescription savePrescription(PrescriptionStatus status) {
         User doctor = createUser(Role.DOCTOR);
         Patient patient = createPatient(true);
         Appointment appointment = createAppointment(patient, doctor);
@@ -139,11 +139,10 @@ class PrescriptionControllerIntegrationTest {
         prescription.setAppointment(appointment);
         prescription.setDate(LocalDate.now());
         prescription.setStatus(status);
-        prescription.setClinicalNotes(clinicalNotes);
         return prescriptionRepository.save(prescription);
     }
 
-    private String body(Patient patient, Appointment appointment, String clinicalNotes, Medicine... medicines) {
+    private String body(Patient patient, Appointment appointment, Medicine... medicines) {
         StringBuilder items = new StringBuilder();
         for (Medicine medicine : medicines) {
             if (items.length() > 0) {
@@ -154,8 +153,8 @@ class PrescriptionControllerIntegrationTest {
                     .formatted(medicine.getMedicineId()));
         }
         return """
-                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"%s","items":[%s]}"""
-                .formatted(patient.getPatientId(), appointment.getAppointmentId(), clinicalNotes, items);
+                {"patientId":%d,"appointmentId":%d,"items":[%s]}"""
+                .formatted(patient.getPatientId(), appointment.getAppointmentId(), items);
     }
 
     private Medicine validMedicine() {
@@ -175,7 +174,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, "Severe headache", med1, med2)))
+                        .content(body(patient, appointment, med1, med2)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.prescriptionId").isNumber())
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
@@ -190,13 +189,42 @@ class PrescriptionControllerIntegrationTest {
     }
 
     @Test
+    void create_clientSuppliedClinicalNotes_isIgnoredAndNeverStored() throws Exception {
+        User doctor = createUser(Role.DOCTOR);
+        Patient patient = createPatient(true);
+        Appointment appointment = createAppointment(patient, doctor);
+        Medicine medicine = validMedicine();
+
+        String body = """
+                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"Should never be stored",
+                 "items":[{"itemType":"IN_HOUSE","medicineId":%d,"dosage":"500mg","frequency":"TDS",
+                           "durationDays":5,"quantity":10}]}"""
+                .formatted(patient.getPatientId(), appointment.getAppointmentId(),
+                        medicine.getMedicineId());
+
+        mockMvc.perform(post("/api/prescriptions")
+                        .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("ISSUED"))
+                .andExpect(jsonPath("$.data.clinicalNotes").doesNotExist());
+
+        // neither the prescription (no such column) nor its appointment picked up the notes
+        Prescription saved = prescriptionRepository.findAll().get(0);
+        assertEquals(PrescriptionStatus.ISSUED, saved.getStatus());
+        Appointment reloadedAppointment = appointmentRepository
+                .findById(appointment.getAppointmentId()).orElseThrow();
+        assertEquals(null, reloadedAppointment.getClinicalNotes());
+    }
+
+    @Test
     void create_missingAppointment_returns400() throws Exception {
         User doctor = createUser(Role.DOCTOR);
         Patient patient = createPatient(true);
         Medicine medicine = validMedicine();
 
         String body = """
-                {"patientId":%d,"clinicalNotes":"Notes",
+                {"patientId":%d,
                  "items":[{"itemType":"IN_HOUSE","medicineId":%d,"dosage":"500mg","frequency":"TDS",
                            "durationDays":5,"quantity":10}]}"""
                 .formatted(patient.getPatientId(), medicine.getMedicineId());
@@ -220,7 +248,6 @@ class PrescriptionControllerIntegrationTest {
 
         String body = """
                 {"patientId":%d,"appointmentId":%d,"doctorId":%d,"status":"DISPENSED",
-                 "clinicalNotes":"Notes",
                  "items":[{"itemType":"IN_HOUSE","medicineId":%d,"dosage":"500mg","frequency":"TDS",
                            "durationDays":5,"quantity":10}]}"""
                 .formatted(patient.getPatientId(), appointment.getAppointmentId(),
@@ -248,7 +275,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as("admin-test", Role.ADMIN)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, "Notes", medicine)))
+                        .content(body(patient, appointment, medicine)))
                 .andExpect(status().isForbidden());
 
         assertEquals(0, prescriptionRepository.count());
@@ -264,7 +291,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as("superadmin-test", Role.SUPER_ADMIN)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, "Notes", medicine)))
+                        .content(body(patient, appointment, medicine)))
                 .andExpect(status().isForbidden());
 
         assertEquals(0, prescriptionRepository.count());
@@ -278,7 +305,7 @@ class PrescriptionControllerIntegrationTest {
         Medicine medicine = validMedicine();
 
         String body = """
-                {"patientId":999999,"appointmentId":%d,"clinicalNotes":"Notes",
+                {"patientId":999999,"appointmentId":%d,
                  "items":[{"itemType":"IN_HOUSE","medicineId":%d,"dosage":"500mg","frequency":"TDS",
                            "durationDays":5,"quantity":10}]}"""
                 .formatted(appointment.getAppointmentId(), medicine.getMedicineId());
@@ -301,7 +328,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(inactive, appointment, "Notes", medicine)))
+                        .content(body(inactive, appointment, medicine)))
                 .andExpect(status().isBadRequest());
 
         assertEquals(0, prescriptionRepository.count());
@@ -314,7 +341,7 @@ class PrescriptionControllerIntegrationTest {
         Appointment appointment = createAppointment(patient, doctor);
 
         String body = """
-                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"Notes",
+                {"patientId":%d,"appointmentId":%d,
                  "items":[{"itemType":"IN_HOUSE","medicineId":999999,"dosage":"500mg","frequency":"TDS",
                            "durationDays":5,"quantity":10}]}"""
                 .formatted(patient.getPatientId(), appointment.getAppointmentId());
@@ -337,7 +364,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, "Notes", quarantined)))
+                        .content(body(patient, appointment, quarantined)))
                 .andExpect(status().isBadRequest());
 
         assertEquals(0, prescriptionRepository.count());
@@ -353,7 +380,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, "Notes", expired)))
+                        .content(body(patient, appointment, expired)))
                 .andExpect(status().isBadRequest());
 
         assertEquals(0, prescriptionRepository.count());
@@ -366,7 +393,7 @@ class PrescriptionControllerIntegrationTest {
         Medicine medicine = validMedicine();
 
         String body = """
-                {"patientId":%d,"appointmentId":999999,"clinicalNotes":"Notes",
+                {"patientId":%d,"appointmentId":999999,
                  "items":[{"itemType":"IN_HOUSE","medicineId":%d,"dosage":"500mg","frequency":"TDS",
                            "durationDays":5,"quantity":10}]}"""
                 .formatted(patient.getPatientId(), medicine.getMedicineId());
@@ -391,7 +418,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(otherPatient, appointment, "Notes", medicine)))
+                        .content(body(otherPatient, appointment, medicine)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
                         .value("Appointment with id: " + appointment.getAppointmentId()
@@ -413,7 +440,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(otherDoctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, "Notes", medicine)))
+                        .content(body(patient, appointment, medicine)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
                         .value("Appointment with id: " + appointment.getAppointmentId()
@@ -429,7 +456,7 @@ class PrescriptionControllerIntegrationTest {
         Appointment appointment = createAppointment(patient, doctor);
 
         String body = """
-                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"Notes","items":[]}"""
+                {"patientId":%d,"appointmentId":%d,"items":[]}"""
                 .formatted(patient.getPatientId(), appointment.getAppointmentId());
 
         mockMvc.perform(post("/api/prescriptions")
@@ -454,7 +481,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, "Notes", med1, med2Expired, med3)))
+                        .content(body(patient, appointment, med1, med2Expired, med3)))
                 .andExpect(status().isBadRequest());
 
         assertEquals(0, prescriptionRepository.count());
@@ -470,7 +497,7 @@ class PrescriptionControllerIntegrationTest {
         Appointment appointment = createAppointment(patient, doctor);
 
         String body = """
-                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"Notes",
+                {"patientId":%d,"appointmentId":%d,
                  "items":[{"itemType":"EXTERNAL_PURCHASE","medicineName":"Imported Drug X",
                            "dosage":"500mg","frequency":"TDS","durationDays":5,"quantity":10}]}"""
                 .formatted(patient.getPatientId(), appointment.getAppointmentId());
@@ -498,7 +525,7 @@ class PrescriptionControllerIntegrationTest {
         Appointment appointment = createAppointment(patient, doctor);
 
         String body = """
-                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"Notes",
+                {"patientId":%d,"appointmentId":%d,
                  "items":[
                     {"itemType":"IN_HOUSE","medicineId":%d,"dosage":"500mg","frequency":"TDS",
                      "durationDays":5,"quantity":10},
@@ -529,7 +556,7 @@ class PrescriptionControllerIntegrationTest {
         Appointment appointment = createAppointment(patient, doctor);
 
         String body = """
-                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"Notes",
+                {"patientId":%d,"appointmentId":%d,
                  "items":[{"itemType":"EXTERNAL_PURCHASE","medicineId":1,
                            "medicineName":"Imported Drug X","dosage":"500mg","frequency":"TDS",
                            "durationDays":5,"quantity":10}]}"""
@@ -552,7 +579,7 @@ class PrescriptionControllerIntegrationTest {
         Appointment appointment = createAppointment(patient, doctor);
 
         String body = """
-                {"patientId":%d,"appointmentId":%d,"clinicalNotes":"Notes",
+                {"patientId":%d,"appointmentId":%d,
                  "items":[{"itemType":"IN_HOUSE",
                            "dosage":"500mg","frequency":"TDS","durationDays":5,"quantity":10}]}"""
                 .formatted(patient.getPatientId(), appointment.getAppointmentId());
@@ -571,7 +598,7 @@ class PrescriptionControllerIntegrationTest {
 
     @Test
     void list_neverExposesClinicalNotes() throws Exception {
-        savePrescription(PrescriptionStatus.ISSUED, "Highly sensitive clinical notes");
+        savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(get("/api/prescriptions").with(as("rx-list", Role.PHARMACIST)))
                 .andExpect(status().isOk())
@@ -582,8 +609,8 @@ class PrescriptionControllerIntegrationTest {
 
     @Test
     void list_statusFilter_returnsMatchingOnly() throws Exception {
-        savePrescription(PrescriptionStatus.ISSUED, "notes");
-        savePrescription(PrescriptionStatus.DISPENSED, "notes");
+        savePrescription(PrescriptionStatus.ISSUED);
+        savePrescription(PrescriptionStatus.DISPENSED);
 
         mockMvc.perform(get("/api/prescriptions")
                         .param("status", "DISPENSED").with(as("rx-list2", Role.ADMIN)))
@@ -599,32 +626,33 @@ class PrescriptionControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
-    // ---------- 7. Detail + clinical notes ----------
+    // ---------- 7. Detail — clinical notes never belong to a prescription ----------
 
     @Test
-    void detail_asDoctor_includesClinicalNotes() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "Severe headache");
+    void detail_asDoctor_neverContainsClinicalNotes() throws Exception {
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(get("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as("rx-doc-detail", Role.DOCTOR)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.prescriptionId").value(prescription.getPrescriptionId().intValue()))
-                .andExpect(jsonPath("$.data.clinicalNotes").value("Severe headache"));
+                .andExpect(jsonPath("$.data.status").value("ISSUED"))
+                .andExpect(jsonPath("$.data.clinicalNotes").doesNotExist());
     }
 
     @Test
-    void detail_asPharmacist_includesClinicalNotes() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "Severe headache");
+    void detail_asPharmacist_neverContainsClinicalNotes() throws Exception {
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(get("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as("rx-pharma-detail", Role.PHARMACIST)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.clinicalNotes").value("Severe headache"));
+                .andExpect(jsonPath("$.data.clinicalNotes").doesNotExist());
     }
 
     @Test
-    void detail_asAdmin_omitsClinicalNotes() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "Severe headache");
+    void detail_asAdmin_neverContainsClinicalNotes() throws Exception {
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(get("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as("rx-admin-detail", Role.ADMIN)))
@@ -634,8 +662,8 @@ class PrescriptionControllerIntegrationTest {
     }
 
     @Test
-    void detail_asSuperAdmin_omitsClinicalNotes() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "Severe headache");
+    void detail_asSuperAdmin_neverContainsClinicalNotes() throws Exception {
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(get("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as("rx-superadmin-detail", Role.SUPER_ADMIN)))
@@ -653,7 +681,7 @@ class PrescriptionControllerIntegrationTest {
 
     @Test
     void cancel_whileIssued_returns200_andBecomesCancelled() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
         User doctor = prescription.getDoctor();
 
         mockMvc.perform(delete("/api/prescriptions/" + prescription.getPrescriptionId())
@@ -668,7 +696,7 @@ class PrescriptionControllerIntegrationTest {
 
     @Test
     void cancel_whileDispensed_returns400() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.DISPENSED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.DISPENSED);
         User doctor = prescription.getDoctor();
 
         mockMvc.perform(delete("/api/prescriptions/" + prescription.getPrescriptionId())
@@ -691,7 +719,7 @@ class PrescriptionControllerIntegrationTest {
 
     @Test
     void cancel_asPharmacist_returns403() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(delete("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as("rx-pharma-cancel", Role.PHARMACIST)).with(csrf()))
@@ -706,32 +734,32 @@ class PrescriptionControllerIntegrationTest {
 
     @Test
     void update_asAdmin_returns403() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
         Medicine medicine = validMedicine();
 
         // Admin holds PRESCRIPTION_STATUS_UPDATE but NOT PRESCRIPTION_UPDATE
         mockMvc.perform(put("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as("rx-admin-update", Role.ADMIN)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Updated notes", medicine)))
+                        .content(updateBody(medicine)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void update_asPharmacist_returns403() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
         Medicine medicine = validMedicine();
 
         mockMvc.perform(put("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as("rx-pharma-update", Role.PHARMACIST)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Updated notes", medicine)))
+                        .content(updateBody(medicine)))
                 .andExpect(status().isForbidden());
     }
 
     // ---------- PUT /{id}: prescription content/items flow (DDP-25) ----------
 
-    private String updateBody(String clinicalNotes, Medicine... medicines) {
+    private String updateBody(Medicine... medicines) {
         StringBuilder items = new StringBuilder();
         for (Medicine medicine : medicines) {
             if (items.length() > 0) {
@@ -742,17 +770,17 @@ class PrescriptionControllerIntegrationTest {
                     .formatted(medicine.getMedicineId()));
         }
         return """
-                {"clinicalNotes":%s,"items":[%s]}"""
-                .formatted(clinicalNotes == null ? "null" : "\"" + clinicalNotes + "\"", items);
+                {"items":[%s]}"""
+                .formatted(items);
     }
 
     private Long createIssuedPrescriptionViaApi(User doctor, Patient patient,
                                                 Appointment appointment,
-                                                String clinicalNotes, Medicine... medicines) throws Exception {
+                                                Medicine... medicines) throws Exception {
         mockMvc.perform(post("/api/prescriptions")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(patient, appointment, clinicalNotes, medicines)))
+                        .content(body(patient, appointment, medicines)))
                 .andExpect(status().isCreated());
 
         return prescriptionRepository.findAll().get(0).getPrescriptionId();
@@ -766,13 +794,12 @@ class PrescriptionControllerIntegrationTest {
         Medicine initial = validMedicine();
         Medicine replacement = validMedicine();
 
-        Long id = createIssuedPrescriptionViaApi(doctor, patient, appointment,
-                "Original notes", initial);
+        Long id = createIssuedPrescriptionViaApi(doctor, patient, appointment, initial);
 
         mockMvc.perform(put("/api/prescriptions/" + id)
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Updated notes", replacement)))
+                        .content(updateBody(replacement)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.prescriptionId").value(id.intValue()))
@@ -785,7 +812,6 @@ class PrescriptionControllerIntegrationTest {
                         .value(replacement.getMedicineId().intValue()));
 
         Prescription reloaded = prescriptionRepository.findById(id).orElseThrow();
-        assertEquals("Updated notes", reloaded.getClinicalNotes());
         assertEquals(PrescriptionStatus.ISSUED, reloaded.getStatus());
         assertEquals(1, reloaded.getItems().size());
         assertEquals(replacement.getMedicineId(),
@@ -793,56 +819,54 @@ class PrescriptionControllerIntegrationTest {
     }
 
     @Test
-    void update_nullClinicalNotes_keepsExistingNotes() throws Exception {
+    void update_itemsOnly_returns200_andPrescriptionHasNoNotes() throws Exception {
         User doctor = createUser(Role.DOCTOR);
         Patient patient = createPatient(true);
         Appointment appointment = createAppointment(patient, doctor);
         Medicine medicine = validMedicine();
 
-        Long id = createIssuedPrescriptionViaApi(doctor, patient, appointment,
-                "Keep me", medicine);
+        Long id = createIssuedPrescriptionViaApi(doctor, patient, appointment, medicine);
 
         mockMvc.perform(put("/api/prescriptions/" + id)
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody(null, medicine)))
-                .andExpect(status().isOk());
+                        .content(updateBody(medicine)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.clinicalNotes").doesNotExist());
 
         Prescription reloaded = prescriptionRepository.findById(id).orElseThrow();
-        assertEquals("Keep me", reloaded.getClinicalNotes());
         assertEquals(1, reloaded.getItems().size());
     }
 
     @Test
     void update_dispensedPrescription_returns400() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.DISPENSED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.DISPENSED);
         Medicine medicine = validMedicine();
         Long id = prescription.getPrescriptionId();
 
         mockMvc.perform(put("/api/prescriptions/" + id)
                         .with(as(prescription.getDoctor().getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Updated notes", medicine)))
+                        .content(updateBody(medicine)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
                         .value("Only ISSUED prescriptions can be updated, prescription id: "
                                 + id + " has status: DISPENSED"));
 
         Prescription reloaded = prescriptionRepository.findById(id).orElseThrow();
-        assertEquals("notes", reloaded.getClinicalNotes());
         assertEquals(PrescriptionStatus.DISPENSED, reloaded.getStatus());
     }
 
     @Test
     void update_cancelledPrescription_returns400() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.CANCELLED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.CANCELLED);
         Medicine medicine = validMedicine();
         Long id = prescription.getPrescriptionId();
 
         mockMvc.perform(put("/api/prescriptions/" + id)
                         .with(as(prescription.getDoctor().getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Updated notes", medicine)))
+                        .content(updateBody(medicine)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
                         .value("Only ISSUED prescriptions can be updated, prescription id: "
@@ -851,7 +875,7 @@ class PrescriptionControllerIntegrationTest {
 
     @Test
     void update_anotherDoctorsPrescription_returns400_prescriptionUnchanged() throws Exception {
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
         User otherDoctor = createUser(Role.DOCTOR);
         Medicine medicine = validMedicine();
         Long id = prescription.getPrescriptionId();
@@ -859,13 +883,12 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(put("/api/prescriptions/" + id)
                         .with(as(otherDoctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Hijacked notes", medicine)))
+                        .content(updateBody(medicine)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
                         .value("Prescription with id: " + id + " was issued by another doctor"));
 
         Prescription reloaded = prescriptionRepository.findById(id).orElseThrow();
-        assertEquals("notes", reloaded.getClinicalNotes());
     }
 
     @Test
@@ -876,7 +899,7 @@ class PrescriptionControllerIntegrationTest {
         mockMvc.perform(put("/api/prescriptions/999999")
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Updated notes", medicine)))
+                        .content(updateBody(medicine)))
                 .andExpect(status().isNotFound());
     }
 
@@ -888,17 +911,15 @@ class PrescriptionControllerIntegrationTest {
         Medicine initial = validMedicine();
         Medicine expired = createMedicine(LocalDate.now().minusDays(1), false);
 
-        Long id = createIssuedPrescriptionViaApi(doctor, patient, appointment,
-                "Original notes", initial);
+        Long id = createIssuedPrescriptionViaApi(doctor, patient, appointment, initial);
 
         mockMvc.perform(put("/api/prescriptions/" + id)
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Updated notes", expired)))
+                        .content(updateBody(expired)))
                 .andExpect(status().isBadRequest());
 
         Prescription reloaded = prescriptionRepository.findById(id).orElseThrow();
-        assertEquals("Original notes", reloaded.getClinicalNotes());
         assertEquals(1, reloaded.getItems().size());
         assertEquals(initial.getMedicineId(),
                 reloaded.getItems().get(0).getMedicine().getMedicineId());
@@ -907,12 +928,12 @@ class PrescriptionControllerIntegrationTest {
     @Test
     void update_emptyItems_returns400() throws Exception {
         User doctor = createUser(Role.DOCTOR);
-        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(put("/api/prescriptions/" + prescription.getPrescriptionId())
                         .with(as(doctor.getUsername(), Role.DOCTOR)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"clinicalNotes\":\"Updated notes\",\"items\":[]}"))
+                        .content("{\"items\":[]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.data[?(@.field == 'items')]").isNotEmpty());
 
@@ -921,8 +942,6 @@ class PrescriptionControllerIntegrationTest {
         Prescription unchanged = prescriptionRepository
                 .findById(prescription.getPrescriptionId())
                 .orElseThrow();
-
-        assertEquals("notes", unchanged.getClinicalNotes());
         assertEquals(PrescriptionStatus.ISSUED, unchanged.getStatus());
     }
 }

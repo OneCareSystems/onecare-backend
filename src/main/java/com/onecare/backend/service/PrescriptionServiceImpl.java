@@ -21,7 +21,6 @@ import com.onecare.backend.repository.MedicineRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
-import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,7 +118,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setAppointment(appointment);
         prescription.setDate(LocalDate.now());
         prescription.setStatus(PrescriptionStatus.ISSUED);
-        prescription.setClinicalNotes(request.clinicalNotes());
 
         populateItems(prescription, request.items(), medicines);
 
@@ -146,7 +144,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 ? prescriptionRepository.findAll()
                 : prescriptionRepository.findByStatus(filter);
 
-        // PrescriptionResponse has no clinicalNotes field — nothing to strip here
+        // PrescriptionResponse has no clinicalNotes field — clinical notes
+        // live on the Appointment entity and are never exposed here
         return prescriptions.stream()
                 .map(PrescriptionResponse::from)
                 .toList();
@@ -171,10 +170,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
 
-        boolean includeClinicalNotes =
-                SecurityUtil.hasPermission(Permission.PRESCRIPTION_READ_CLINICAL_NOTES);
-
-        return PrescriptionDetailResponse.from(prescription, includeClinicalNotes);
+        return PrescriptionDetailResponse.from(prescription);
     }
 
     @Override
@@ -203,12 +199,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         //    so a rejected request leaves the prescription exactly as it was
         Map<Long, Medicine> medicines = loadAndValidateMedicines(request.items());
 
-        // 6. Replace content: notes only when provided; items are swapped as a whole
+        // 6. Replace content: items are swapped as a whole
         //    (orphanRemoval deletes the old lines on save)
-        if (request.clinicalNotes() != null) {
-            prescription.setClinicalNotes(request.clinicalNotes());
-        }
-
         prescription.getItems().clear();
         populateItems(prescription, request.items(), medicines);
 

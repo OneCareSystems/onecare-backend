@@ -87,12 +87,13 @@ public final class RolePermission {
                     Permission.APPOINTMENT_READ_ALL,
                     Permission.APPOINTMENT_READ,
                     Permission.APPOINTMENT_UPDATE,
+                    Permission.APPOINTMENT_READ_CLINICAL_NOTES,
+                    Permission.APPOINTMENT_WRITE_CLINICAL_NOTES,
 
                     Permission.PRESCRIPTION_CREATE,
                     Permission.PRESCRIPTION_READ_ALL,
                     Permission.PRESCRIPTION_READ,
-                    Permission.PRESCRIPTION_UPDATE,
-                    Permission.PRESCRIPTION_READ_CLINICAL_NOTES
+                    Permission.PRESCRIPTION_UPDATE
             );
 
             case PHARMACIST -> Set.of(
@@ -106,8 +107,9 @@ public final class RolePermission {
                     Permission.PRESCRIPTION_READ,
                     Permission.PRESCRIPTION_DISPENSE,
                     Permission.PRESCRIPTION_STATUS_UPDATE,
-                    Permission.PRESCRIPTION_READ_CLINICAL_NOTES,
-                    
+
+                    Permission.APPOINTMENT_READ_CLINICAL_NOTES,
+
                     Permission.INVOICE_CREATE,
                     Permission.INVOICE_READ,
                     Permission.INVOICE_UPDATE,

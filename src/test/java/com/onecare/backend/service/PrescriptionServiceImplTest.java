@@ -21,7 +21,6 @@ import com.onecare.backend.repository.MedicineRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
-import com.onecare.backend.security.Permission;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +41,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -151,15 +151,15 @@ class PrescriptionServiceImplTest {
     }
 
     private CreatePrescriptionRequest request(Long patientId, PrescriptionItemRequest... items) {
-        return new CreatePrescriptionRequest(patientId, APPOINTMENT_ID, "Severe headache", List.of(items));
+        return new CreatePrescriptionRequest(patientId, APPOINTMENT_ID, List.of(items));
     }
 
     private CreatePrescriptionRequest requestWithoutAppointment(Long patientId, PrescriptionItemRequest... items) {
-        return new CreatePrescriptionRequest(patientId, null, "Severe headache", List.of(items));
+        return new CreatePrescriptionRequest(patientId, null, List.of(items));
     }
 
-    private UpdatePrescriptionRequest updateRequest(String clinicalNotes, PrescriptionItemRequest... items) {
-        return new UpdatePrescriptionRequest(clinicalNotes, List.of(items));
+    private UpdatePrescriptionRequest updateRequest(PrescriptionItemRequest... items) {
+        return new UpdatePrescriptionRequest(List.of(items));
     }
 
     private void stubSaveAssignsId(long id) {
@@ -172,7 +172,7 @@ class PrescriptionServiceImplTest {
         });
     }
 
-    private Prescription savedPrescription(PrescriptionStatus status, String notes) {
+    private Prescription savedPrescription(PrescriptionStatus status) {
         Prescription prescription = new Prescription();
         prescription.setPrescriptionId(1L);
         prescription.setDoctor(doctorUser);
@@ -180,7 +180,6 @@ class PrescriptionServiceImplTest {
         prescription.setAppointment(appointment());
         prescription.setDate(LocalDate.now());
         prescription.setStatus(status);
-        prescription.setClinicalNotes(notes);
         prescription.setCreatedAt(LocalDateTime.now());
         prescription.setUpdatedAt(LocalDateTime.now());
         return prescription;
@@ -212,7 +211,8 @@ class PrescriptionServiceImplTest {
         assertEquals(LocalDate.now(), saved.getDate());
         assertEquals(101L, response.prescriptionId());
         assertEquals(PrescriptionStatus.ISSUED, response.status());
-        assertEquals("Severe headache", saved.getClinicalNotes());
+        // clinical notes are stored on the appointment, never on the prescription
+        assertNull(saved.getAppointment().getClinicalNotes());
     }
 
     @Test
@@ -458,16 +458,15 @@ class PrescriptionServiceImplTest {
     void updatePrescription_issuedBySameDoctor_replacesContentAndItems() {
         authenticate("dr.test", "ROLE_DOCTOR");
         stubAuthenticatedDoctor();
-        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED, "old notes");
+        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED);
         when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
         when(medicineRepository.findAllById(anyList())).thenReturn(List.of(
                 medicine(1L, LocalDate.now().plusYears(1), false)));
         when(prescriptionRepository.save(any(Prescription.class))).thenAnswer(i -> i.getArgument(0));
 
         PrescriptionResponse response = service.updatePrescription(
-                1L, updateRequest("new notes", item(1L)));
+                1L, updateRequest(item(1L)));
 
-        assertEquals("new notes", prescription.getClinicalNotes());
         assertEquals(PrescriptionStatus.ISSUED, prescription.getStatus());
         assertEquals(doctorUser, prescription.getDoctor());
         assertEquals(1, prescription.getItems().size());
@@ -477,30 +476,14 @@ class PrescriptionServiceImplTest {
     }
 
     @Test
-    void updatePrescription_nullClinicalNotes_keepsExistingNotes() {
-        authenticate("dr.test", "ROLE_DOCTOR");
-        stubAuthenticatedDoctor();
-        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED, "keep me");
-        when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
-        when(medicineRepository.findAllById(anyList())).thenReturn(List.of(
-                medicine(1L, LocalDate.now().plusYears(1), false)));
-        when(prescriptionRepository.save(any(Prescription.class))).thenAnswer(i -> i.getArgument(0));
-
-        service.updatePrescription(1L, updateRequest(null, item(1L)));
-
-        assertEquals("keep me", prescription.getClinicalNotes());
-        assertEquals(1, prescription.getItems().size());
-    }
-
-    @Test
     void updatePrescription_externalOnlyItem_skipsMedicineLookup() {
         authenticate("dr.test", "ROLE_DOCTOR");
         stubAuthenticatedDoctor();
-        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED);
         when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
         when(prescriptionRepository.save(any(Prescription.class))).thenAnswer(i -> i.getArgument(0));
 
-        service.updatePrescription(1L, updateRequest("notes", externalItem("Imported Drug X")));
+        service.updatePrescription(1L, updateRequest(externalItem("Imported Drug X")));
 
         verify(medicineRepository, never()).findAllById(anyList());
         assertEquals(1, prescription.getItems().size());
@@ -512,14 +495,14 @@ class PrescriptionServiceImplTest {
     void updatePrescription_dispensed_rejected_nothingChanged() {
         authenticate("dr.test", "ROLE_DOCTOR");
         stubAuthenticatedDoctor();
-        Prescription prescription = savedPrescription(PrescriptionStatus.DISPENSED, "notes");
+        Prescription prescription = savedPrescription(PrescriptionStatus.DISPENSED);
         when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
 
         BusinessRuleException exception = assertThrows(BusinessRuleException.class,
-                () -> service.updatePrescription(1L, updateRequest("new notes", item(1L))));
+                () -> service.updatePrescription(1L, updateRequest(item(1L))));
 
         assertTrue(exception.getMessage().contains("ISSUED"));
-        assertEquals("notes", prescription.getClinicalNotes());
+        assertEquals(PrescriptionStatus.DISPENSED, prescription.getStatus());
         assertTrue(prescription.getItems().isEmpty());
         verify(medicineRepository, never()).findAllById(anyList());
         verify(prescriptionRepository, never()).save(any());
@@ -529,11 +512,11 @@ class PrescriptionServiceImplTest {
     void updatePrescription_cancelled_rejected_nothingChanged() {
         authenticate("dr.test", "ROLE_DOCTOR");
         stubAuthenticatedDoctor();
-        Prescription prescription = savedPrescription(PrescriptionStatus.CANCELLED, "notes");
+        Prescription prescription = savedPrescription(PrescriptionStatus.CANCELLED);
         when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.updatePrescription(1L, updateRequest("new notes", item(1L))));
+                () -> service.updatePrescription(1L, updateRequest(item(1L))));
 
         verify(prescriptionRepository, never()).save(any());
     }
@@ -546,15 +529,15 @@ class PrescriptionServiceImplTest {
         otherDoctor.setUserId(99L);
         otherDoctor.setUsername("other.doctor");
         otherDoctor.setRole(Role.DOCTOR);
-        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED);
         prescription.setDoctor(otherDoctor);
         when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
 
         BusinessRuleException exception = assertThrows(BusinessRuleException.class,
-                () -> service.updatePrescription(1L, updateRequest("Hijacked", item(1L))));
+                () -> service.updatePrescription(1L, updateRequest(item(1L))));
 
         assertTrue(exception.getMessage().contains("another doctor"));
-        assertEquals("notes", prescription.getClinicalNotes());
+        assertTrue(prescription.getItems().isEmpty());
         verify(medicineRepository, never()).findAllById(anyList());
         verify(prescriptionRepository, never()).save(any());
     }
@@ -566,7 +549,7 @@ class PrescriptionServiceImplTest {
         when(prescriptionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service.updatePrescription(99L, updateRequest("new notes", item(1L))));
+                () -> service.updatePrescription(99L, updateRequest(item(1L))));
 
         verify(prescriptionRepository, never()).save(any());
     }
@@ -575,14 +558,14 @@ class PrescriptionServiceImplTest {
     void updatePrescription_invalidMedicine_rejected_prescriptionUnchanged() {
         authenticate("dr.test", "ROLE_DOCTOR");
         stubAuthenticatedDoctor();
-        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED, "old notes");
+        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED);
         when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
         when(medicineRepository.findAllById(anyList())).thenReturn(List.of()); // medicine missing
 
         assertThrows(BusinessRuleException.class,
-                () -> service.updatePrescription(1L, updateRequest("new notes", item(1L))));
+                () -> service.updatePrescription(1L, updateRequest(item(1L))));
 
-        assertEquals("old notes", prescription.getClinicalNotes());
+        assertEquals(PrescriptionStatus.ISSUED, prescription.getStatus());
         assertTrue(prescription.getItems().isEmpty());
         verify(prescriptionRepository, never()).save(any());
     }
@@ -597,7 +580,7 @@ class PrescriptionServiceImplTest {
         when(userRepository.findByUsername("dr.test")).thenReturn(Optional.of(pharmacist));
 
         BusinessRuleException exception = assertThrows(BusinessRuleException.class,
-                () -> service.updatePrescription(1L, updateRequest("new notes", item(1L))));
+                () -> service.updatePrescription(1L, updateRequest(item(1L))));
 
         assertTrue(exception.getMessage().contains("DOCTOR"));
         verify(prescriptionRepository, never()).findById(any());
@@ -608,7 +591,7 @@ class PrescriptionServiceImplTest {
 
     @Test
     void cancel_issuedPrescription_becomesCancelled() {
-        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED, "notes");
+        Prescription prescription = savedPrescription(PrescriptionStatus.ISSUED);
         when(prescriptionRepository.findById(1L)).thenReturn(Optional.of(prescription));
         when(prescriptionRepository.save(any(Prescription.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -620,7 +603,7 @@ class PrescriptionServiceImplTest {
     @Test
     void cancel_dispensedPrescription_rejected() {
         when(prescriptionRepository.findById(1L))
-                .thenReturn(Optional.of(savedPrescription(PrescriptionStatus.DISPENSED, "notes")));
+                .thenReturn(Optional.of(savedPrescription(PrescriptionStatus.DISPENSED)));
 
         BusinessRuleException exception = assertThrows(BusinessRuleException.class,
                 () -> service.cancelPrescription(1L));
@@ -632,7 +615,7 @@ class PrescriptionServiceImplTest {
     @Test
     void cancel_alreadyCancelled_rejected() {
         when(prescriptionRepository.findById(1L))
-                .thenReturn(Optional.of(savedPrescription(PrescriptionStatus.CANCELLED, "notes")));
+                .thenReturn(Optional.of(savedPrescription(PrescriptionStatus.CANCELLED)));
 
         assertThrows(BusinessRuleException.class, () -> service.cancelPrescription(1L));
         verify(prescriptionRepository, never()).save(any());
@@ -645,28 +628,34 @@ class PrescriptionServiceImplTest {
         assertThrows(ResourceNotFoundException.class, () -> service.cancelPrescription(99L));
     }
 
-    // ---------- Clinical notes visibility ----------
+    // ---------- Clinical notes never belong to a prescription ----------
 
     @Test
-    void detail_withClinicalNotesPermission_includesNotes() {
-        authenticate("dr.test", "ROLE_DOCTOR", Permission.PRESCRIPTION_READ_CLINICAL_NOTES);
+    void detail_neverContainsClinicalNotes_evenWithReadPermission() throws Exception {
+        authenticate("dr.test", "ROLE_DOCTOR", "APPOINTMENT_READ_CLINICAL_NOTES");
         when(prescriptionRepository.findById(1L))
-                .thenReturn(Optional.of(savedPrescription(PrescriptionStatus.ISSUED, "Severe headache")));
+                .thenReturn(Optional.of(savedPrescription(PrescriptionStatus.ISSUED)));
 
         PrescriptionDetailResponse response = service.findPrescriptionById(1L);
 
-        assertEquals("Severe headache", response.clinicalNotes());
+        // the record itself has no clinicalNotes component — verified via JSON
+        String json = new com.fasterxml.jackson.databind.ObjectMapper()
+                .findAndRegisterModules()
+                .writeValueAsString(response);
+        assertTrue(json.contains("\"prescriptionId\":1"));
+        assertFalse(json.contains("clinicalNotes"));
     }
 
     @Test
-    void detail_withoutClinicalNotesPermission_omitsNotes() {
-        authenticate("admin", "ROLE_ADMIN");
-        when(prescriptionRepository.findById(1L))
-                .thenReturn(Optional.of(savedPrescription(PrescriptionStatus.ISSUED, "Severe headache")));
+    void listResponses_neverContainClinicalNotes() throws Exception {
+        when(prescriptionRepository.findAll()).thenReturn(List.of(
+                savedPrescription(PrescriptionStatus.ISSUED)));
 
-        PrescriptionDetailResponse response = service.findPrescriptionById(1L);
+        String json = new com.fasterxml.jackson.databind.ObjectMapper()
+                .findAndRegisterModules()
+                .writeValueAsString(service.findAllPrescriptions(null));
 
-        assertNull(response.clinicalNotes());
+        assertFalse(json.contains("clinicalNotes"));
     }
 
     @Test
@@ -682,7 +671,7 @@ class PrescriptionServiceImplTest {
     @Test
     void list_withoutFilter_returnsAll() {
         when(prescriptionRepository.findAll()).thenReturn(List.of(
-                savedPrescription(PrescriptionStatus.ISSUED, "notes")));
+                savedPrescription(PrescriptionStatus.ISSUED)));
 
         List<PrescriptionResponse> response = service.findAllPrescriptions(null);
 
@@ -695,7 +684,7 @@ class PrescriptionServiceImplTest {
     @Test
     void list_withStatusFilter_filtersByStatus() {
         when(prescriptionRepository.findByStatus(PrescriptionStatus.DISPENSED))
-                .thenReturn(List.of(savedPrescription(PrescriptionStatus.DISPENSED, "notes")));
+                .thenReturn(List.of(savedPrescription(PrescriptionStatus.DISPENSED)));
 
         List<PrescriptionResponse> response = service.findAllPrescriptions("DISPENSED");
 

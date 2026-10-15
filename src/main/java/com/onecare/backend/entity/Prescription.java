@@ -45,9 +45,6 @@ public class Prescription {
     @JoinColumn(name = "patient_id", nullable = false)
     private Patient patient;
 
-    @Column(name = "clinical_notes", length = 2000)
-    private String clinicalNotes;
-
     @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PrescriptionItem> items = new ArrayList<>();
 

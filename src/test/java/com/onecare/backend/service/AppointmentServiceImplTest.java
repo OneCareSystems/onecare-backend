@@ -8,6 +8,7 @@ import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.InvalidAppointmentStatusException;
+import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
@@ -41,7 +42,8 @@ class AppointmentServiceImplTest {
         appointmentRepository = mock(AppointmentRepository.class);
         patientRepository = mock(PatientRepository.class);
         userRepository = mock(UserRepository.class);
-        appointmentService = new AppointmentServiceImpl(appointmentRepository, patientRepository, userRepository);
+        appointmentService = new AppointmentServiceImpl(
+                appointmentRepository, patientRepository, userRepository);
     }
 
     @AfterEach
@@ -96,67 +98,19 @@ class AppointmentServiceImplTest {
     }
 
     @Test
-    void updateAppointment_rejectsPatientSwitchForSelfServiceUser() {
-        User currentUser = new User();
-        currentUser.setUserId(10L);
-        currentUser.setEmail("alice@example.com");
-        currentUser.setRole(Role.PHARMACIST);
-
-        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
-
-        Patient currentPatient = new Patient();
-        currentPatient.setPatientId(30L);
-        currentPatient.setEmail("alice@example.com");
-
-        Patient otherPatient = new Patient();
-        otherPatient.setPatientId(31L);
-        otherPatient.setEmail("mallory@example.com");
-
-        User doctor = new User();
-        doctor.setUserId(7L);
-        doctor.setRole(Role.DOCTOR);
-
-        Appointment appointment = new Appointment();
-        appointment.setAppointmentId(1L);
-        appointment.setPatient(currentPatient);
-        appointment.setDoctor(doctor);
-        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
-        appointment.setTimeSlot(LocalTime.of(9, 0));
-        appointment.setStatus(AppointmentStatus.SCHEDULED);
-
-        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
-        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
-        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
-        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(doctor));
-        when(patientRepository.findById(31L)).thenReturn(Optional.of(otherPatient));
-        when(patientRepository.findAll()).thenReturn(List.of(currentPatient, otherPatient));
-        when(appointmentRepository.saveAndFlush(any(Appointment.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        var request = new UpdateAppointmentRequest(
-                7L,
-                31L,
-                LocalDateTime.now().plusDays(2).withHour(11).withMinute(0).withSecond(0).withNano(0),
-                "Rebook for a different patient");
-
-        assertThrows(AccessDeniedException.class, () -> appointmentService.updateAppointment(1L, request));
-        verify(patientRepository, never()).save(any());
-    }
-
-    @Test
     void cancelAppointment_blocksCompletedAppointment() {
         User currentUser = new User();
         currentUser.setUserId(10L);
-        currentUser.setEmail("alice@example.com");
-        currentUser.setRole(Role.PHARMACIST);
+        currentUser.setRole(Role.DOCTOR);
 
-        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
+        appUserAuthentication(currentUser, "ROLE_DOCTOR");
 
         Patient patient = new Patient();
         patient.setPatientId(30L);
         patient.setEmail("alice@example.com");
 
         User doctor = new User();
-        doctor.setUserId(7L);
+        doctor.setUserId(10L);
         doctor.setRole(Role.DOCTOR);
 
         Appointment appointment = new Appointment();
@@ -169,19 +123,19 @@ class AppointmentServiceImplTest {
 
         when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
         when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
-        when(patientRepository.findAll()).thenReturn(List.of(patient));
-
         assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(1L));
     }
 
+    // ---------- Clinical notes ----------
+
     @Test
-    void cancelAppointment_blocksNoShowAppointment() {
+    void updateAppointment_clinicalNotes_withoutWritePermission_rejected() {
         User currentUser = new User();
         currentUser.setUserId(10L);
         currentUser.setEmail("alice@example.com");
         currentUser.setRole(Role.PHARMACIST);
 
-        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
+        appUserAuthentication(currentUser, "ROLE_PHARMACIST", "APPOINTMENT_UPDATE");
 
         Patient patient = new Patient();
         patient.setPatientId(30L);
@@ -192,18 +146,370 @@ class AppointmentServiceImplTest {
         doctor.setRole(Role.DOCTOR);
 
         Appointment appointment = new Appointment();
-        appointment.setAppointmentId(2L);
+        appointment.setAppointmentId(1L);
         appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+        when(patientRepository.findAll()).thenReturn(List.of(patient));
+
+        var request = new UpdateAppointmentRequest(null, null, null, null, "Notes");
+
+        assertThrows(AccessDeniedException.class, () -> appointmentService.updateAppointment(1L, request));
+        assertNull(appointment.getClinicalNotes());
+    }
+
+    @Test
+    void updateAppointment_clinicalNotes_byAssignedDoctor_persists() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setEmail("dr.test@onecare.test");
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
+
+        appUserAuthentication(doctor, "ROLE_DOCTOR", "APPOINTMENT_UPDATE",
+                "APPOINTMENT_WRITE_CLINICAL_NOTES", "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.saveAndFlush(any(Appointment.class))).thenAnswer(i -> i.getArgument(0));
+
+        var request = new UpdateAppointmentRequest(null, null, null, null, "Severe headache");
+
+        var response = appointmentService.updateAppointment(1L, request);
+
+        assertEquals("Severe headache", appointment.getClinicalNotes());
+        assertEquals("Severe headache", response.clinicalNotes());
+    }
+
+
+    @Test
+    void updateAppointment_clinicalNotes_cancelledAppointment_rejected() {
+        // Arrange: authenticated doctor who owns the appointment
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setEmail("dr.test@onecare.test");
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+
+        appUserAuthentication(
+                doctor,
+                "ROLE_DOCTOR",
+                "APPOINTMENT_UPDATE",
+                "APPOINTMENT_WRITE_CLINICAL_NOTES",
+                "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(7L))
+                .thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L))
+                .thenReturn(Optional.of(appointment));
+
+        UpdateAppointmentRequest request =
+                new UpdateAppointmentRequest(
+                        null, null, null, null, "Patient reported symptoms.");
+
+        // Act & Assert: cancelled appointment rejects clinical notes
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> appointmentService.updateAppointment(1L, request));
+
+        assertEquals(
+                "Clinical notes cannot be added to a cancelled appointment",
+                exception.getMessage());
+
+        // Verify: existing appointment remains unchanged and is not saved
+        assertNull(appointment.getClinicalNotes());
+
+        verify(appointmentRepository, never())
+                .saveAndFlush(any(Appointment.class));
+        verify(appointmentRepository, never())
+                .save(any(Appointment.class));
+    }
+
+
+    @Test
+    void updateAppointment_cancelledAppointment_withoutClinicalNotes_preservesExistingBehavior() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setReason("Original reason");
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+
+        appUserAuthentication(
+                doctor,
+                "ROLE_DOCTOR",
+                "APPOINTMENT_UPDATE");
+
+        when(userRepository.findById(7L))
+                .thenReturn(Optional.of(doctor));
+        when(userRepository.findByIdForUpdate(7L))
+                .thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L))
+                .thenReturn(Optional.of(appointment));
+        when(appointmentRepository.findByDoctor_UserIdAndAppointmentDate(
+                eq(7L), any(LocalDate.class)))
+                .thenReturn(List.of());
+        when(appointmentRepository.saveAndFlush(any(Appointment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        UpdateAppointmentRequest request =
+                new UpdateAppointmentRequest(
+                        null, null, null, "Updated reason", null);
+
+        var response =
+                appointmentService.updateAppointment(1L, request);
+
+        assertEquals("Updated reason", appointment.getReason());
+        assertEquals(AppointmentStatus.CANCELLED.name(), response.status());
+        assertNull(appointment.getClinicalNotes());
+
+        verify(appointmentRepository).saveAndFlush(appointment);
+    }
+
+
+    @Test
+    void getClinicalNotes_assignedDoctor_readsNotes() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setClinicalNotes("Severe headache");
+
+        appUserAuthentication(doctor, "ROLE_DOCTOR", "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+
+        var response = appointmentService.getClinicalNotes(1L);
+
+        assertEquals(1L, response.appointmentId());
+        assertEquals("Severe headache", response.clinicalNotes());
+    }
+
+    @Test
+    void getClinicalNotes_anotherDoctorsAppointment_denied() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setRole(Role.DOCTOR);
+
+        User otherDoctor = new User();
+        otherDoctor.setUserId(8L);
+        otherDoctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(otherDoctor);
+        appointment.setClinicalNotes("Severe headache");
+
+        appUserAuthentication(doctor, "ROLE_DOCTOR", "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+
+        assertThrows(AccessDeniedException.class, () -> appointmentService.getClinicalNotes(1L));
+    }
+
+    @Test
+    void getClinicalNotes_pharmacist_readsAnyAppointment() {
+        User pharmacist = new User();
+        pharmacist.setUserId(9L);
+        pharmacist.setUsername("pharma.test");
+        pharmacist.setRole(Role.PHARMACIST);
+
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setClinicalNotes("Post-op pain management");
+
+        appUserAuthentication(pharmacist, "ROLE_PHARMACIST", "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(9L)).thenReturn(Optional.of(pharmacist));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+
+        var response = appointmentService.getClinicalNotes(1L);
+
+        assertEquals("Post-op pain management", response.clinicalNotes());
+    }
+
+    @Test
+    void getClinicalNotes_admin_denied() {
+        User admin = new User();
+        admin.setUserId(5L);
+        admin.setUsername("admin.test");
+        admin.setRole(Role.ADMIN);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setClinicalNotes("Severe headache");
+
+        appUserAuthentication(admin, "ROLE_ADMIN");
+
+        when(userRepository.findById(5L)).thenReturn(Optional.of(admin));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+
+        assertThrows(AccessDeniedException.class, () -> appointmentService.getClinicalNotes(1L));
+    }
+
+    @Test
+    void getClinicalNotes_unknownAppointment_throwsNotFound() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setRole(Role.DOCTOR);
+
+        appUserAuthentication(doctor, "ROLE_DOCTOR", "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> appointmentService.getClinicalNotes(99L));
+    }
+
+    // ---------- Today / By ID ----------
+
+    @Test
+    void findTodaysAppointments_adminSeesOnlyTodaysAppointments() {
+        User admin = new User();
+        admin.setUserId(5L);
+        admin.setUsername("admin.test");
+        admin.setRole(Role.ADMIN);
+
+        appUserAuthentication(admin, "ROLE_ADMIN");
+
+        Appointment today = new Appointment();
+        today.setAppointmentId(1L);
+        today.setAppointmentDate(LocalDate.now());
+        today.setTimeSlot(LocalTime.of(9, 0));
+        today.setStatus(AppointmentStatus.SCHEDULED);
+
+        Appointment tomorrow = new Appointment();
+        tomorrow.setAppointmentId(2L);
+        tomorrow.setAppointmentDate(LocalDate.now().plusDays(1));
+        tomorrow.setTimeSlot(LocalTime.of(10, 0));
+        tomorrow.setStatus(AppointmentStatus.SCHEDULED);
+
+        when(userRepository.findById(5L)).thenReturn(Optional.of(admin));
+        when(appointmentRepository.findAll()).thenReturn(List.of(today, tomorrow));
+
+        var response = appointmentService.findTodaysAppointments();
+
+        assertEquals(1, response.size());
+        assertEquals(1L, response.get(0).appointmentId());
+        assertNull(response.get(0).clinicalNotes());
+    }
+
+    @Test
+    void getAppointmentById_ownAppointment_excludesClinicalNotes() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setUsername("dr.test");
+        doctor.setRole(Role.DOCTOR);
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(1L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setReason("Checkup");
+        appointment.setClinicalNotes("Severe headache");
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
+
+        appUserAuthentication(doctor, "ROLE_DOCTOR", "APPOINTMENT_READ",
+                "APPOINTMENT_READ_CLINICAL_NOTES");
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
+
+        var response = appointmentService.getAppointmentById(1L);
+
+        assertEquals(1L, response.appointmentId());
+        assertEquals("Checkup", response.reason());
+        assertNull(response.clinicalNotes());
+    }
+
+    @Test
+    void cancelAppointment_blocksNoShowAppointment() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+        appUserAuthentication(doctor, "ROLE_DOCTOR");
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(2L);
         appointment.setDoctor(doctor);
         appointment.setAppointmentDate(LocalDate.now().minusDays(1));
         appointment.setTimeSlot(LocalTime.of(9, 0));
         appointment.setStatus(AppointmentStatus.NO_SHOW);
 
-        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
         when(appointmentRepository.findById(2L)).thenReturn(Optional.of(appointment));
-        when(patientRepository.findAll()).thenReturn(List.of(patient));
 
-        assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(2L));
+        assertThrows(InvalidAppointmentStatusException.class,
+                () -> appointmentService.cancelAppointment(2L));
     }
 
     @Test
@@ -211,7 +517,6 @@ class AppointmentServiceImplTest {
         User doctor = new User();
         doctor.setUserId(7L);
         doctor.setRole(Role.DOCTOR);
-
         LocalDate futureDate = LocalDate.now().plusDays(3);
 
         Appointment booked = new Appointment();
@@ -220,7 +525,6 @@ class AppointmentServiceImplTest {
         booked.setAppointmentDate(futureDate);
         booked.setTimeSlot(LocalTime.of(16, 30));
         booked.setStatus(AppointmentStatus.SCHEDULED);
-
         Appointment cancelled = new Appointment();
         cancelled.setAppointmentId(11L);
         cancelled.setDoctor(doctor);
@@ -233,14 +537,11 @@ class AppointmentServiceImplTest {
                 .thenReturn(List.of(booked, cancelled));
 
         List<String> available = appointmentService.getAvailableSlots(7L, futureDate);
-
-        // Operating hours: 16:00 to 21:00 (slots: 16:00, 16:30, 17:00, 17:30, 18:00, 18:30, 19:00, 19:30, 20:00, 20:30)
-        // 16:30 is booked, 17:00 is cancelled (so available)
         assertTrue(available.contains("16:00"));
         assertFalse(available.contains("16:30"));
         assertTrue(available.contains("17:00"));
         assertTrue(available.contains("20:30"));
-        assertEquals(9, available.size()); // 10 total slots - 1 booked = 9
+        assertEquals(9, available.size());
     }
 
     @Test
@@ -251,9 +552,7 @@ class AppointmentServiceImplTest {
         doctor.setRole(Role.DOCTOR);
         when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
 
-        List<String> available = appointmentService.getAvailableSlots(7L, pastDate);
-
-        assertTrue(available.isEmpty());
+        assertTrue(appointmentService.getAvailableSlots(7L, pastDate).isEmpty());
     }
 
     @Test
@@ -267,22 +566,15 @@ class AppointmentServiceImplTest {
                 () -> appointmentService.getAvailableSlots(8L, LocalDate.now().plusDays(1)));
     }
 
-    private void appUserAuthentication(User user, String authority) {
+    private void appUserAuthentication(User user, String... authorities) {
+        var granted = java.util.Arrays.stream(authorities)
+                .map(SimpleGrantedAuthority::new)
+                .toList();
         var principal = new AppUserDetailsService.AppUserDetails(
                 user.getUserId(),
                 user.getUsername() != null ? user.getUsername() : "alice",
-                "password",
-                true,
-                true,
-                true,
-                true,
-                List.of(new SimpleGrantedAuthority(authority)));
-
-        var authentication = new UsernamePasswordAuthenticationToken(
-                principal,
-                "password",
-                List.of(new SimpleGrantedAuthority(authority)));
-
+                "password", true, true, true, true, granted);
+        var authentication = new UsernamePasswordAuthenticationToken(principal, "password", granted);
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

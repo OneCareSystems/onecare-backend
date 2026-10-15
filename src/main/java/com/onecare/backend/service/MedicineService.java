@@ -10,7 +10,7 @@ public interface MedicineService {
 
     MedicineResponse createMedicine(MedicineRequest request);
 
-    List<MedicineResponse> findAllMedicines();
+    List<MedicineResponse> findAllMedicines(String search);
 
     MedicineResponse findMedicineById(Long id);
 

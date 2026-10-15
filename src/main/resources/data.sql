@@ -49,30 +49,50 @@ VALUES
 --    7   COMPLETED : already invoiced (invoice 1) -> POST -> 409, PUT/pay here
 --    8   COMPLETED : already invoiced & PAID (invoice 2) -> 409, immutability
 -- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------
+-- 4. APPOINTMENTS
+-- ---------------------------------------------------------------------
 INSERT INTO appointments
-    (appointment_id, patient_id, doctor_id, appointment_date, time_slot, status, created_at, updated_at, reason)
+    (appointment_id, patient_id, doctor_id, appointment_date,
+     time_slot, status, created_at, updated_at, reason, clinical_notes)
 VALUES
-    (1, 1, 3, '2026-10-02', '09:00:00', 'SCHEDULED', NOW(), NOW(), 'Routine medical consultation'),
-    (2, 2, 3, '2026-10-03', '10:30:00', 'SCHEDULED', NOW(), NOW(), 'Follow-up consultation'),
-    (3, 1, 3, '2026-10-04', '09:00:00', 'COMPLETED', NOW(), NOW(), 'Chest pain review'),
-    (4, 2, 3, '2026-10-04', '10:30:00', 'COMPLETED', NOW(), NOW(), 'Diabetes follow-up'),
-    (5, 3, 3, '2026-10-05', '09:00:00', 'COMPLETED', NOW(), NOW(), 'General check-up, no prescription'),
-    (6, 3, 3, '2026-10-05', '10:30:00', 'COMPLETED', NOW(), NOW(), 'Post-op pain review'),
-    (7, 1, 3, '2026-10-01', '11:00:00', 'COMPLETED', NOW(), NOW(), 'Already invoiced (UNPAID)'),
-    (8, 2, 3, '2026-10-01', '12:00:00', 'COMPLETED', NOW(), NOW(), 'Already invoiced (PAID)');
+    (1, 1, 3, '2026-10-02', '09:00:00', 'SCHEDULED',
+     NOW(), NOW(), 'Routine medical consultation', NULL),
+    (2, 2, 3, '2026-10-03', '10:30:00', 'SCHEDULED',
+     NOW(), NOW(), 'Follow-up consultation', NULL),
+    (3, 1, 3, '2026-10-04', '09:00:00', 'COMPLETED',
+     NOW(), NOW(), 'Chest pain review', 'Viral fever, supportive care'),
+    (4, 2, 3, '2026-10-04', '10:30:00', 'COMPLETED',
+     NOW(), NOW(), 'Diabetes follow-up', 'Type-2 diabetes follow-up'),
+    (5, 3, 3, '2026-10-05', '09:00:00', 'COMPLETED',
+     NOW(), NOW(), 'General check-up, no prescription', NULL),
+    (6, 3, 3, '2026-10-05', '10:30:00', 'COMPLETED',
+     NOW(), NOW(), 'Post-op pain review', 'Post-op pain management'),
+    (7, 1, 3, '2026-10-01', '11:00:00', 'COMPLETED',
+     NOW(), NOW(), 'Already invoiced (UNPAID)', NULL),
+    (8, 2, 3, '2026-10-01', '12:00:00', 'COMPLETED',
+     NOW(), NOW(), 'Already invoiced (PAID)', NULL),
+
+    (9, 1, 3, CURDATE(), '09:00:00', 'SCHEDULED',
+     NOW(), NOW(), 'Routine medical consultation', NULL),
+    (10, 2, 3, CURDATE(), '10:00:00', 'SCHEDULED',
+     NOW(), NOW(), 'Follow-up consultation', NULL),
+    (11, 3, 3, CURDATE(), '11:00:00', 'COMPLETED',
+     NOW(), NOW(), 'Chest pain review', NULL);
 
 -- ---------------------------------------------------------------------
 -- 5. PRESCRIPTIONS
 --    1 DISPENSED : items 1-3, dispensing event 1 (partial handover)
 --    2 ISSUED    : item 4, dispensing event 4 (deferred collection)
 --    3 DISPENSED : items 5-6, NO dispensing rows (full-quantity fallback)
+--    Clinical notes live on the appointments table, not on prescriptions.
 -- ---------------------------------------------------------------------
 INSERT INTO prescriptions
-    (prescription_id, appointment_id, doctor_id, patient_id, date, clinical_notes, status, created_at, updated_at)
+    (prescription_id, appointment_id, doctor_id, patient_id, date, status, created_at, updated_at)
 VALUES
-    (1, 3, 3, 1, '2026-10-04', 'Viral fever, supportive care', 'DISPENSED', NOW(), NOW()),
-    (2, 4, 3, 2, '2026-10-04', 'Type-2 diabetes follow-up', 'ISSUED', NOW(), NOW()),
-    (3, 6, 3, 3, '2026-10-05', 'Post-op pain management', 'DISPENSED', NOW(), NOW());
+    (1, 3, 3, 1, '2026-10-04', 'DISPENSED', NOW(), NOW()),
+    (2, 4, 3, 2, '2026-10-04', 'ISSUED', NOW(), NOW()),
+    (3, 6, 3, 3, '2026-10-05', 'DISPENSED', NOW(), NOW());
 
 -- ---------------------------------------------------------------------
 -- 6. PRESCRIPTION_ITEMS
@@ -146,3 +166,172 @@ INSERT INTO payments
 VALUES
     (1, 2, 500.00, 'CASH', 1, NOW());
 
+
+
+-- =====================================================================
+-- 10. ADDITIONAL PATIENTS
+-- Fictional test data. Existing patient IDs 1-3 are preserved.
+-- INSERT IGNORE helps prevent duplicate primary-key inserts on reruns.
+-- =====================================================================
+
+INSERT IGNORE INTO patients
+    (patient_id, full_name, date_of_birth, address, contact_no, email,
+     blood_group, gender, created_at, updated_at)
+VALUES
+    (4, 'Amaya Jayasinghe', '1995-03-18', '10 Park Road, Colombo',
+     '0700000004', 'amaya.j@example.test', 'A-', 'FEMALE', NOW(), NOW()),
+    (5, 'Tharindu Wijesinghe', '1988-07-22', '22 Hill Street, Kandy',
+     '0700000005', 'tharindu.w@example.test', 'B+', 'MALE', NOW(), NOW()),
+    (6, 'Ishara Gunawardena', '1978-09-11', '15 Beach Road, Galle',
+     '0700000006', 'ishara.g@example.test', 'O-', 'FEMALE', NOW(), NOW()),
+    (7, 'Nethmi Bandara', '2003-12-05', '8 Garden Lane, Kurunegala',
+     '0700000007', 'nethmi.b@example.test', 'AB+', 'FEMALE', NOW(), NOW()),
+    (8, 'Dilan Madushanka', '1969-04-27', '30 Station Road, Matara',
+     '0700000008', 'dilan.m@example.test', 'O+', 'MALE', NOW(), NOW());
+
+
+-- =====================================================================
+-- 11. ADDITIONAL MEDICINES
+-- New medicine IDs 6-10; expiry dates are in the future.
+-- Prices and stock levels are fictional test values.
+-- =====================================================================
+
+INSERT IGNORE INTO medicines
+    (medicine_id, name, generic_name, category, unit, price,
+     stock_quantity, reorder_level, expiry_date, is_quarantined,
+     created_at, updated_at)
+VALUES
+    (6, 'Cetirizine 10mg', 'Cetirizine', 'Antihistamine',
+     'Tablet', 6.00, 250, 30, '2027-08-31', FALSE, NOW(), NOW()),
+    (7, 'Omeprazole 20mg', 'Omeprazole', 'Gastrointestinal',
+     'Capsule', 10.00, 180, 25, '2027-09-30', FALSE, NOW(), NOW()),
+    (8, 'Losartan 50mg', 'Losartan', 'Antihypertensive',
+     'Tablet', 14.00, 160, 25, '2027-10-31', FALSE, NOW(), NOW()),
+    (9, 'Vitamin C 500mg', 'Ascorbic Acid', 'Vitamin',
+     'Tablet', 4.00, 400, 50, '2028-01-31', FALSE, NOW(), NOW()),
+    (10, 'Azithromycin 250mg', 'Azithromycin', 'Antibiotic',
+     'Tablet', 18.00, 120, 20, '2027-07-31', FALSE, NOW(), NOW());
+
+
+-- =====================================================================
+-- 12. ADDITIONAL APPOINTMENTS
+-- Doctor ID 3 already exists.
+-- New slots are 30 minutes apart and do not overlap appointments 9-16.
+-- Appointments 17-24 are scheduled for today, subject to your
+-- application's booking-hour rules.
+-- =====================================================================
+
+INSERT IGNORE INTO appointments
+    (appointment_id, patient_id, doctor_id, appointment_date,
+     time_slot, status, created_at, updated_at, reason, clinical_notes)
+VALUES
+    (17, 4, 3, CURDATE(), '17:00:00', 'SCHEDULED',
+     NOW(), NOW(), 'Seasonal allergy consultation', NULL),
+
+    (18, 5, 3, CURDATE(), '17:30:00', 'COMPLETED',
+     NOW(), NOW(), 'Gastric discomfort follow-up',
+     'Consultation completed; follow-up advice documented'),
+
+    (19, 6, 3, CURDATE(), '18:00:00', 'COMPLETED',
+     NOW(), NOW(), 'Blood pressure review',
+     'Blood pressure reviewed; routine follow-up planned'),
+
+    (20, 7, 3, CURDATE(), '18:30:00', 'COMPLETED',
+     NOW(), NOW(), 'Vitamin deficiency review',
+     'Consultation completed; nutritional advice discussed'),
+
+    (21, 8, 3, CURDATE(), '19:00:00', 'COMPLETED',
+     NOW(), NOW(), 'General health review',
+     'General assessment completed'),
+
+    (22, 4, 3, CURDATE(), '19:30:00', 'CANCELLED',
+     NOW(), NOW(), 'Rescheduled allergy consultation', NULL),
+
+    (23, 5, 3, CURDATE(), '20:00:00', 'COMPLETED',
+     NOW(), NOW(), 'Medication follow-up',
+     'Follow-up consultation completed'),
+
+    (24, 6, 3, CURDATE(), '20:30:00', 'SCHEDULED',
+     NOW(), NOW(), 'Routine follow-up appointment', NULL);
+
+
+-- =====================================================================
+-- 13. ADDITIONAL PRESCRIPTIONS
+-- Only completed appointments receive prescriptions.
+-- Existing prescriptions 1-3 remain unchanged.
+-- =====================================================================
+
+INSERT IGNORE INTO prescriptions
+    (prescription_id, appointment_id, doctor_id, patient_id,
+     date, status, created_at, updated_at)
+VALUES
+    (4, 18, 3, 5, CURDATE(), 'DISPENSED', NOW(), NOW()),
+    (5, 19, 3, 6, CURDATE(), 'ISSUED', NOW(), NOW()),
+    (6, 20, 3, 7, CURDATE(), 'DISPENSED', NOW(), NOW()),
+    (7, 21, 3, 8, CURDATE(), 'ISSUED', NOW(), NOW()),
+    (8, 23, 3, 5, CURDATE(), 'DISPENSED', NOW(), NOW()),
+    (9, 18, 3, 5, CURDATE(), 'ISSUED', NOW(), NOW());
+
+
+-- =====================================================================
+-- 14. ADDITIONAL PRESCRIPTION ITEMS
+-- Medicine IDs 6-10 refer to the medicines inserted above.
+-- Prescription 9 intentionally represents a second history entry for
+-- the same appointment; remove it if your schema allows only one
+-- prescription per appointment.
+-- =====================================================================
+
+INSERT IGNORE INTO prescription_items
+    (item_id, prescription_id, medicine_id, medicine_name, item_type,
+     dosage, duration_days, instruction, quantity, frequency)
+VALUES
+    (7, 4, 7, NULL, 'IN_HOUSE',
+     '1 capsule', 7, 'Follow medical instructions', 7, 'OD'),
+
+    (8, 4, 6, NULL, 'IN_HOUSE',
+     '1 tablet', 5, 'Follow medical instructions', 5, 'OD'),
+
+    (9, 5, 8, NULL, 'IN_HOUSE',
+     'As prescribed', 30, 'Follow medical instructions', 30, 'OD'),
+
+    (10, 6, 9, NULL, 'IN_HOUSE',
+     'As prescribed', 10, 'Follow medical instructions', 10, 'OD'),
+
+    (11, 7, 8, NULL, 'IN_HOUSE',
+     'As prescribed', 30, 'Follow medical instructions', 30, 'OD'),
+
+    (12, 8, 6, NULL, 'IN_HOUSE',
+     'As prescribed', 5, 'Follow medical instructions', 5, 'OD');
+
+-- =====================================================================
+-- 15. ADDITIONAL DISPENSING HISTORY
+-- Existing dispense IDs 1-4 are preserved.
+-- =====================================================================
+
+INSERT IGNORE INTO external_dispensing
+    (dispense_id, prescription_id, patient_id, verification_method,
+     dispense_date, status, delivery_method, dispensed_at)
+VALUES
+    (5, 4, 5, 'PRESCRIPTION_SHEET', NOW(),
+     'DISPENSED', 'PICK_UP', NOW()),
+
+    (6, 6, 7, 'PRESCRIPTION_SHEET', NOW(),
+     'DISPENSED', 'PICK_UP', NOW()),
+
+    (7, 8, 5, 'PRESCRIPTION_SHEET', NOW(),
+     'DISPENSED', 'PICK_UP', NOW());
+
+
+-- =====================================================================
+-- 16. ADDITIONAL DISPENSING ITEMS
+-- Prescription item IDs must match the rows above.
+-- =====================================================================
+
+INSERT IGNORE INTO dispensing_items
+    (dispensing_item_id, dispense_id, prescription_item_id,
+     medicine_id, quantity_dispensed)
+VALUES
+    (7, 5, 7, 7, 7),
+    (8, 5, 8, 6, 5),
+    (9, 6, 10, 9, 10),
+    (10, 7, 12, 6, 5);

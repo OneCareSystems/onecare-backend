@@ -3,9 +3,19 @@ package com.onecare.backend.service;
 import com.onecare.backend.dto.request.PatientCreateRequest;
 import com.onecare.backend.dto.request.PatientUpdateRequest;
 import com.onecare.backend.dto.response.PatientResponse;
+import com.onecare.backend.dto.response.AppointmentResponse;
+import com.onecare.backend.dto.response.PatientHistoryPrescriptionResponse;
+import com.onecare.backend.dto.response.PatientHistoryResponse;
+import com.onecare.backend.entity.Appointment;
 import com.onecare.backend.entity.Patient;
+import com.onecare.backend.entity.Prescription;
+import com.onecare.backend.enums.AppointmentStatus;
+import com.onecare.backend.enums.PrescriptionStatus;
 import com.onecare.backend.exception.ResourceNotFoundException;
+import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PatientRepository;
+import com.onecare.backend.repository.PrescriptionRepository;
+import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import com.onecare.backend.util.PhoneNumberUtil;
 import org.slf4j.Logger;
@@ -14,8 +24,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 
 @Service
 @Transactional
@@ -24,9 +36,15 @@ public class PatientServiceImpl implements PatientService {
      private static final Logger log = LoggerFactory.getLogger(PatientServiceImpl.class);
 
     private final PatientRepository patientRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final PrescriptionRepository prescriptionRepository;
 
-    public PatientServiceImpl(PatientRepository patientRepository) {
+    public PatientServiceImpl(PatientRepository patientRepository,
+                              AppointmentRepository appointmentRepository,
+                              PrescriptionRepository prescriptionRepository) {
         this.patientRepository = patientRepository;
+        this.appointmentRepository = appointmentRepository;
+        this.prescriptionRepository = prescriptionRepository;
     }
 
      @Override
@@ -72,10 +90,23 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PatientResponse> findAllPatients(Pageable pageable) {
-        return patientRepository.findAll(pageable)
+    public List<PatientResponse> findAllPatients(String search, Pageable pageable) {
+
+        if (search == null) {
+            return patientRepository.findAll(pageable)
+                    .map(PatientResponse::from)
+                    .getContent();
+        }
+
+        if (search.isBlank()) {
+            return List.of(); // AC/negative test: empty search -> 200 []
+        }
+
+        // name (partial), contact number (exact) and patient ID (exact) in one
+        // DB query, so page/size/sort apply to the filtered set
+        return patientRepository.search(search, pageable).stream()
                 .map(PatientResponse::from)
-                .getContent();
+                .toList();
     }
 
     @Override
@@ -140,6 +171,40 @@ public class PatientServiceImpl implements PatientService {
         if (!alreadyPresent) {
             results.add(candidate);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PatientHistoryResponse getPatientHistory(Long patientId) {
+        Patient patient = findPatientByIdInternal(patientId);
+        LocalDate today = LocalDate.now();
+        boolean includeClinicalNotes = SecurityUtil.hasPermission(Permission.APPOINTMENT_READ_CLINICAL_NOTES);
+
+        List<AppointmentResponse> previousAppointments = appointmentRepository
+                .findByPatient_PatientIdOrderByAppointmentDateDescTimeSlotDesc(patient.getPatientId())
+                .stream()
+                .filter(appointment -> isPreviousEncounter(appointment, today))
+                .map(appointment -> AppointmentResponse.from(appointment, includeClinicalNotes))
+                .toList();
+
+        List<PatientHistoryPrescriptionResponse> previousPrescriptions = prescriptionRepository
+                .findByPatient_PatientId(patient.getPatientId())
+                .stream()
+                .filter(prescription -> prescription.getDate().isBefore(today)
+                        || prescription.getStatus() != PrescriptionStatus.ISSUED)
+                .sorted(Comparator.comparing(Prescription::getDate).reversed())
+                .map(prescription -> PatientHistoryPrescriptionResponse.from(
+                        prescription, includeClinicalNotes))
+                .toList();
+
+        return new PatientHistoryResponse(
+                PatientResponse.from(patient), previousAppointments, previousPrescriptions);
+    }
+
+    private static boolean isPreviousEncounter(Appointment appointment, LocalDate today) {
+        return appointment.getAppointmentDate().isBefore(today)
+                || appointment.getStatus() == AppointmentStatus.COMPLETED
+                || appointment.getStatus() == AppointmentStatus.CANCELLED;
     }
 
     @Override

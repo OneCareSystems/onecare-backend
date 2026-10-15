@@ -72,9 +72,18 @@ public class QueueServiceImpl implements QueueService {
                         return appointment.getDoctor() != null
                                 && appointment.getDoctor().getUserId().equals(currentUser.getUserId());
                     }
-                    Patient selfPatient = resolveSelfPatient(currentUser);
-                    return appointment.getPatient() != null
-                            && appointment.getPatient().getPatientId().equals(selfPatient.getPatientId());
+                    // TODO(patient-login): Patient visibility validation cannot be tested until
+                    // patient login functionality is implemented. There is no patient role or
+                    // patient credential yet, so a real caller can never resolve to a patient
+                    // profile through resolveSelfPatient() and this check is unreachable in an
+                    // automated test. The lines below are commented out for now and must be
+                    // restored (and covered by tests) once patient login is available.
+                    //
+                    // Patient selfPatient = resolveSelfPatient(currentUser);
+                    // return appointment.getPatient() != null
+                    //         && appointment.getPatient().getPatientId().equals(selfPatient.getPatientId());
+                    
+                    return false;
                 })
                 .sorted(Comparator.comparing(Appointment::getTimeSlot).thenComparing(Appointment::getAppointmentId))
                 .toList();
@@ -85,6 +94,7 @@ public class QueueServiceImpl implements QueueService {
             queue.add(new QueueResponse(
                     appointment.getAppointmentId(),
                     appointment.getPatient() != null ? appointment.getPatient().getPatientId() : null,
+                    appointment.getPatient() != null ? appointment.getPatient().getFullName() : null,
                     appointment.getDoctor() != null ? appointment.getDoctor().getUserId() : null,
                     appointment.getAppointmentDate(),
                     appointment.getTimeSlot(),

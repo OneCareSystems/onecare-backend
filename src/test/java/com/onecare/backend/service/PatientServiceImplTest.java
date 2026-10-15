@@ -12,6 +12,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -124,24 +129,25 @@ class PatientServiceImplTest {
 
     @Test
     void search_partialName_returnsMatches() {
-        when(patientRepository.searchByName("mal"))
+        when(patientRepository.search(eq("mal"), any(Pageable.class)))
                 .thenReturn(List.of(activePatient(1L, "Nimal Perera", "0771234567")));
 
-        List<PatientResponse> results = patientService.searchPatients("mal");
+        List<PatientResponse> results = patientService.findAllPatients("mal", Pageable.unpaged());
 
         assertEquals(1, results.size());
         assertEquals("Nimal Perera", results.get(0).fullName());
     }
 
     @Test
-    void search_exactPatientId_returnsThatPatient() {
-        when(patientRepository.findById(7L))
-            .thenReturn(Optional.of(activePatient(7L, "Kamal Silva", "0712345678")));
+    void search_passesQueryAndPagingToRepository() {
+        Pageable pageable = PageRequest.of(1, 5, Sort.by("fullName"));
+        when(patientRepository.search("0771234567", pageable))
+                .thenReturn(List.of(activePatient(3L, "Nimal Perera", "0771234567")));
 
-        List<PatientResponse> results = patientService.searchPatients("7");
+        List<PatientResponse> results = patientService.findAllPatients("0771234567", pageable);
 
         assertEquals(1, results.size());
-        assertEquals(7L, results.get(0).patientId());
+        verify(patientRepository).search("0771234567", pageable); // one query, no merge/dedupe needed
     }
 
     @Test
@@ -151,7 +157,7 @@ class PatientServiceImplTest {
 
         List<PatientResponse> results = patientService.searchPatients("0771234567");
 
-        assertEquals(1, results.size());
+        assertTrue(patientService.findAllPatients("zzzz", Pageable.unpaged()).isEmpty());
     }
 
     @Test
@@ -178,16 +184,14 @@ class PatientServiceImplTest {
     }
 
     @Test
-    void search_noMatch_returnsEmptyList() {
-        assertTrue(patientService.searchPatients("zzzz").isEmpty());
-    }
+    void list_withoutSearch_returnsAllPatients() {
+        when(patientRepository.findAll(Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of(activePatient(1L, "Nimal Perera", "0771234567"))));
 
-    @Test
-    void search_blankOrNull_returnsEmptyList_withoutQueryingDatabase() {
-        assertTrue(patientService.searchPatients("").isEmpty());
-        assertTrue(patientService.searchPatients("   ").isEmpty());
-        assertTrue(patientService.searchPatients(null).isEmpty());
-        verifyNoInteractions(patientRepository);
+        List<PatientResponse> results = patientService.findAllPatients(null, Pageable.unpaged());
+
+        assertEquals(1, results.size());
+        verify(patientRepository, never()).search(any(), any());
     }
 
     // ---------- Soft deactivation ----------

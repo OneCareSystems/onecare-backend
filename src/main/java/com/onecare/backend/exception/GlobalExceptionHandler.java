@@ -3,6 +3,8 @@ package com.onecare.backend.exception;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.onecare.backend.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Hidden;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -12,6 +14,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -21,6 +24,8 @@ import java.util.Map;
 @ControllerAdvice
 @Hidden
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<?>> handleNotFound(ResourceNotFoundException exception) {
@@ -113,6 +118,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
 
+        log.error("Unhandled exception handling request", ex);
+
         ApiResponse<?> response = new ApiResponse<>(false, "Internal Server Error");
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -166,6 +173,16 @@ public ResponseEntity<ApiResponse<?>> handleInvalidStock(
     public ResponseEntity<ApiResponse<?>> handleBusinessRule(BusinessRuleException exception) {
 
         ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<?>> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(false,
+                "Invalid value '" + exception.getValue()
+                        + "' for parameter '" + exception.getName() + "'");
 
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
