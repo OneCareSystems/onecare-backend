@@ -494,15 +494,10 @@ class AppointmentServiceImplTest {
 
     @Test
     void cancelAppointment_blocksNoShowAppointment() {
-        User currentUser = new User();
-        currentUser.setUserId(10L);
-        currentUser.setEmail("alice@example.com");
-        currentUser.setRole(Role.PHARMACIST);
-        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
-
         User doctor = new User();
         doctor.setUserId(7L);
         doctor.setRole(Role.DOCTOR);
+        appUserAuthentication(doctor, "ROLE_DOCTOR");
         Appointment appointment = new Appointment();
         appointment.setAppointmentId(2L);
         appointment.setDoctor(doctor);
@@ -510,7 +505,7 @@ class AppointmentServiceImplTest {
         appointment.setTimeSlot(LocalTime.of(9, 0));
         appointment.setStatus(AppointmentStatus.NO_SHOW);
 
-        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
         when(appointmentRepository.findById(2L)).thenReturn(Optional.of(appointment));
 
         assertThrows(InvalidAppointmentStatusException.class,
