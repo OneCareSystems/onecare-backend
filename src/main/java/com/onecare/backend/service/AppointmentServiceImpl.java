@@ -499,7 +499,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     private void validateCreateRequest(CreateAppointmentRequest request) {
         if (request == null) {
-            throw new IllegalArgumentException("Appointment request is required");
+            throw new InvalidAppointmentStatusException("Appointment request is required");
         }
 
         if (request.doctorId() == null || request.doctorId() <= 0) {
