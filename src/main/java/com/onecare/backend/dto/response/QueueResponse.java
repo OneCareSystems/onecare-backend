@@ -6,6 +6,7 @@ import java.time.LocalTime;
 public record QueueResponse(
         Long appointmentId,
         Long patientId,
+        String patientFullName,
         Long doctorId,
         LocalDate appointmentDate,
         LocalTime timeSlot,

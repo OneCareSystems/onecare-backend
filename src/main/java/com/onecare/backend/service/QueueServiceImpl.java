@@ -85,6 +85,7 @@ public class QueueServiceImpl implements QueueService {
             queue.add(new QueueResponse(
                     appointment.getAppointmentId(),
                     appointment.getPatient() != null ? appointment.getPatient().getPatientId() : null,
+                    appointment.getPatient() != null ? appointment.getPatient().getFullName() : null,
                     appointment.getDoctor() != null ? appointment.getDoctor().getUserId() : null,
                     appointment.getAppointmentDate(),
                     appointment.getTimeSlot(),
