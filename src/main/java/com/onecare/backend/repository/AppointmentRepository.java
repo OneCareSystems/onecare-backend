@@ -1,6 +1,7 @@
 package com.onecare.backend.repository;
 
 import com.onecare.backend.entity.Appointment;
+import com.onecare.backend.enums.AppointmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import org.springframework.stereotype.Repository;
@@ -15,4 +16,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findByDoctor_UserIdAndAppointmentDate(Long doctorId, LocalDate appointmentDate);
 
     List<Appointment> findByPatient_PatientIdOrderByAppointmentDateDescTimeSlotDesc(Long patientId);
+  
+    List<Appointment> findByAppointmentDateAndStatus(LocalDate appointmentDate, AppointmentStatus status);
 }

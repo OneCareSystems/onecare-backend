@@ -2,6 +2,8 @@ package com.onecare.backend.enums;
 
 public enum AppointmentStatus {
     SCHEDULED,
+    ARRIVED,
     COMPLETED,
-    CANCELLED
+    CANCELLED,
+    NO_SHOW
 }

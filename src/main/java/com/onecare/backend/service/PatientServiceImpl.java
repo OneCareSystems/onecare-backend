@@ -17,6 +17,7 @@ import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
+import com.onecare.backend.util.PhoneNumberUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
@@ -48,16 +49,25 @@ public class PatientServiceImpl implements PatientService {
      @Override
     public PatientResponse createPatient(PatientCreateRequest request) {
 
-        // AC3: duplicate-suspect check — informational only, never blocks creation
+        String rawContactNo = request.contactNo() != null ? request.contactNo().trim() : "";
+        String normalizedContactNo = PhoneNumberUtil.isValidSriLankanPhone(rawContactNo)
+                ? PhoneNumberUtil.normalizeSriLankanPhone(rawContactNo)
+                : rawContactNo;
+
+        // AC3: duplicate-suspect check — informational only, never blocks creation.
+        // Requires both matching full name AND contact number.
         boolean duplicateSuspected = patientRepository
                 .existsByFullNameIgnoreCaseAndContactNo(
-                request.full_name(), request.contactNo());
+                request.full_name(), normalizedContactNo)
+                || (!normalizedContactNo.equals(rawContactNo)
+                && patientRepository.existsByFullNameIgnoreCaseAndContactNo(
+                request.full_name(), rawContactNo));
 
         Patient patient = new Patient();
         patient.setFullName(request.full_name());
         patient.setDateOfBirth(request.dateOfBirth());
         patient.setAddress(request.address());
-        patient.setContactNo(request.contactNo());
+        patient.setContactNo(normalizedContactNo);
         patient.setEmail(request.email());
         patient.setBloodGroup(request.bloodGroup());
         patient.setGender(request.gender());
@@ -145,7 +155,13 @@ public class PatientServiceImpl implements PatientService {
 
         if (request.full_name() != null) patient.setFullName(request.full_name());
         if (request.address() != null) patient.setAddress(request.address());
-        if (request.contactNo() != null) patient.setContactNo(request.contactNo());
+        if (request.contactNo() != null) {
+            String raw = request.contactNo().trim();
+            String normalized = PhoneNumberUtil.isValidSriLankanPhone(raw)
+                    ? PhoneNumberUtil.normalizeSriLankanPhone(raw)
+                    : raw;
+            patient.setContactNo(normalized);
+        }
         if (request.email() != null) patient.setEmail(request.email());
         if (request.bloodGroup() != null) patient.setBloodGroup(request.bloodGroup());
         if (request.gender() != null) patient.setGender(request.gender());

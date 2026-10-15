@@ -40,4 +40,5 @@ public interface AppointmentService {
      */
     AppointmentClinicalNotesResponse getClinicalNotes(Long appointmentId);
 
+    List<String> getAvailableSlots(Long doctorId, java.time.LocalDate date);
 }
