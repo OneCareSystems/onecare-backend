@@ -224,7 +224,7 @@ class PatientControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.duplicateSuspected").value(false));
 
-        mockMvc.perform(get("/api/patients").param("search", "0771234567").with(as(Role.ADMIN)))
+        mockMvc.perform(get("/api/patients").param("search", "+94 771 234 567").with(as(Role.ADMIN)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2));
     }
