@@ -460,6 +460,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         //         || !appointment.getPatient().getPatientId().equals(selfPatient.getPatientId())) {
         //     throw new AccessDeniedException("Patients can only manage their own appointments");
         // }
+        throw new AccessDeniedException(
+                "Access denied: insufficient permissions to manage appointments");
     }
 
     private Patient resolveTrustedPatient(Long requestedPatientId) {
