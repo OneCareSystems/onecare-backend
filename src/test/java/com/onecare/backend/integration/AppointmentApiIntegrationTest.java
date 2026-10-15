@@ -562,10 +562,11 @@ class AppointmentApiIntegrationTest {
         seedPrescription(doctor, patient, completedToday, LocalDate.now(),
                 PrescriptionStatus.ISSUED);
 
-        mockMvc.perform(get("/api/appointments/patient/" + patient.getPatientId() + "/history")
+        mockMvc.perform(get("/api/patients/" + patient.getPatientId() + "/history")
                         .header("Authorization", "Bearer " + doctorToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.patientId").value(patient.getPatientId().intValue()))
+                .andExpect(jsonPath("$.data.patient.patientId").value(patient.getPatientId().intValue()))
+                .andExpect(jsonPath("$.data.patient.fullName").value(patient.getFullName()))
                 .andExpect(jsonPath("$.data.appointments.length()").value(2))
                 .andExpect(jsonPath("$.data.appointments[0].reason").value("Finished consult"))
                 .andExpect(jsonPath("$.data.appointments[0].clinicalNotes")
@@ -574,33 +575,36 @@ class AppointmentApiIntegrationTest {
                 .andExpect(jsonPath("$.data.appointments[1].clinicalNotes").value("Viral fever"))
                 .andExpect(jsonPath("$.data.prescriptions.length()").value(1))
                 .andExpect(jsonPath("$.data.prescriptions[0].status").value("DISPENSED"))
+                .andExpect(jsonPath("$.data.prescriptions[0].appointment.appointmentId")
+                        .value(yesterday.getAppointmentId().intValue()))
+                .andExpect(jsonPath("$.data.prescriptions[0].appointment.reason").value("Yesterday"))
                 .andExpect(jsonPath("$.data.prescriptions[0].clinicalNotes").doesNotExist());
     }
 
     @Test
     void history_asAdmin_returns403() throws Exception {
-        mockMvc.perform(get("/api/appointments/patient/" + patient.getPatientId() + "/history")
+        mockMvc.perform(get("/api/patients/" + patient.getPatientId() + "/history")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void history_asPharmacist_returns403() throws Exception {
-        mockMvc.perform(get("/api/appointments/patient/" + patient.getPatientId() + "/history")
+        mockMvc.perform(get("/api/patients/" + patient.getPatientId() + "/history")
                         .header("Authorization", "Bearer " + pharmacistToken))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void history_unknownPatient_returns404() throws Exception {
-        mockMvc.perform(get("/api/appointments/patient/999999/history")
+        mockMvc.perform(get("/api/patients/999999/history")
                         .header("Authorization", "Bearer " + doctorToken))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void history_patientWithoutEncounters_returnsEmptyLists() throws Exception {
-        mockMvc.perform(get("/api/appointments/patient/" + patient.getPatientId() + "/history")
+        mockMvc.perform(get("/api/patients/" + patient.getPatientId() + "/history")
                         .header("Authorization", "Bearer " + doctorToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.appointments").isArray())

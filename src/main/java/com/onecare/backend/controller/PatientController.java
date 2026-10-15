@@ -3,6 +3,7 @@ package com.onecare.backend.controller;
 import com.onecare.backend.dto.ApiResponse;
 import com.onecare.backend.dto.request.PatientCreateRequest;
 import com.onecare.backend.dto.request.PatientUpdateRequest;
+import com.onecare.backend.dto.response.PatientHistoryResponse;
 import com.onecare.backend.dto.response.PatientResponse;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.service.PatientService;
@@ -45,9 +46,9 @@ public class PatientController {
 
     @Operation(
             summary = "List or search patients",
-            description = "Without 'search': returns a paginated Page of patients (use page, size, sort). "
-                    + "With 'search': returns a plain List matching partial name, exact contact number, "
-                    + "or exact patient ID. No match returns 200 with an empty list.")
+            description = "Paginated list (use page, size, sort). Optional 'search' filters by partial "
+                    + "name (case-insensitive), exact contact number, or exact patient ID, and paging "
+                    + "applies to the filtered results too. Blank 'search' returns 200 with an empty list.")
     @GetMapping
     @PreAuthorize("hasAuthority('" + Permission.PATIENT_READ_ALL + "')")
     public ResponseEntity<ApiResponse<?>> findAllPatients(
@@ -55,13 +56,25 @@ public class PatientController {
             @RequestParam(required = false) String search,
             Pageable pageable) {
 
-        if (search != null) {
-            List<PatientResponse> results = patientService.searchPatients(search);
-            return ResponseEntity.ok(new ApiResponse<>(true, "Search results", results));
-        }
+        List<PatientResponse> patients = patientService.findAllPatients(search, pageable);
+        String message = search != null ? "Search results" : "Patients retrieved successfully";
+        return ResponseEntity.ok(new ApiResponse<>(true, message, patients));
+    }
 
-        List<PatientResponse> patients = patientService.findAllPatients(pageable);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Patients retrieved successfully", patients));
+    @Operation(
+            summary = "Patient clinical history",
+            description = "Returns a patient's previous encounters for clinical continuity: "
+                    + "past appointments (each with its clinical notes) and past prescriptions. "
+                    + "Doctor role only. 'Previous' means dated before today, plus any "
+                    + "already COMPLETED/CANCELLED appointment and any no-longer-ISSUED prescription. "
+                    + "Returns 404 when the patient does not exist.")
+    @GetMapping("/{patientId}/history")
+    @PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<ApiResponse<PatientHistoryResponse>> getPatientHistory(
+            @PathVariable Long patientId) {
+        PatientHistoryResponse response = patientService.getPatientHistory(patientId);
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Patient history retrieved successfully", response));
     }
 
     @Operation(summary = "Get a patient by ID")

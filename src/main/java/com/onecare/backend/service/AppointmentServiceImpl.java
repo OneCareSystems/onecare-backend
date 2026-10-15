@@ -4,14 +4,10 @@ import com.onecare.backend.dto.request.CreateAppointmentRequest;
 import com.onecare.backend.dto.request.UpdateAppointmentRequest;
 import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
 import com.onecare.backend.dto.response.AppointmentResponse;
-import com.onecare.backend.dto.response.PatientHistoryResponse;
-import com.onecare.backend.dto.response.PrescriptionResponse;
 import com.onecare.backend.entity.Appointment;
 import com.onecare.backend.entity.Patient;
-import com.onecare.backend.entity.Prescription;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.AppointmentStatus;
-import com.onecare.backend.enums.PrescriptionStatus;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.exception.InvalidAppointmentStatusException;
@@ -19,7 +15,6 @@ import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.exception.SlotConflictException;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PatientRepository;
-import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
@@ -35,7 +30,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -48,17 +42,14 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
-    private final PrescriptionRepository prescriptionRepository;
 
     public AppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
-            UserRepository userRepository,
-            PrescriptionRepository prescriptionRepository) {
+            UserRepository userRepository) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
         this.userRepository = userRepository;
-        this.prescriptionRepository = prescriptionRepository;
     }
 
     @Override
@@ -330,46 +321,6 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         throw new AccessDeniedException("Clinical notes are restricted to doctors and pharmacists");
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PatientHistoryResponse getPatientHistory(Long patientId) {
-        Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + patientId));
-
-        LocalDate today = LocalDate.now();
-        boolean includeClinicalNotes = SecurityUtil.hasPermission(Permission.APPOINTMENT_READ_CLINICAL_NOTES);
-
-        // previous encounters: dated before today, or already completed/cancelled
-        // (a consultation finished earlier today is still a previous encounter)
-        List<AppointmentResponse> previousAppointments = appointmentRepository
-                .findByPatient_PatientIdOrderByAppointmentDateDescTimeSlotDesc(patient.getPatientId())
-                .stream()
-                .filter(AppointmentServiceImpl::isPreviousEncounter)
-                .map(appointment -> AppointmentResponse.from(appointment, includeClinicalNotes))
-                .toList();
-
-        // previous prescriptions: dated before today, or no longer ISSUED
-        // (clinical notes are not part of a prescription)
-        List<PrescriptionResponse> previousPrescriptions = prescriptionRepository
-                .findByPatient_PatientId(patient.getPatientId())
-                .stream()
-                .filter(prescription -> prescription.getDate().isBefore(today)
-                        || prescription.getStatus() != PrescriptionStatus.ISSUED)
-                .sorted(Comparator.comparing(Prescription::getDate).reversed())
-                .map(PrescriptionResponse::from)
-                .toList();
-
-        return new PatientHistoryResponse(
-                patient.getPatientId(), previousAppointments, previousPrescriptions);
-    }
-
-    /** Before today, or already closed (COMPLETED / CANCELLED). */
-    private static boolean isPreviousEncounter(Appointment appointment) {
-        return appointment.getAppointmentDate().isBefore(LocalDate.now())
-                || appointment.getStatus() == AppointmentStatus.COMPLETED
-                || appointment.getStatus() == AppointmentStatus.CANCELLED;
     }
 
     /**

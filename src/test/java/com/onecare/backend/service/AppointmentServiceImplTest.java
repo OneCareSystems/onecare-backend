@@ -11,7 +11,6 @@ import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PatientRepository;
-import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.AppUserDetailsService;
 import org.junit.jupiter.api.AfterEach;
@@ -36,7 +35,6 @@ class AppointmentServiceImplTest {
     private AppointmentRepository appointmentRepository;
     private PatientRepository patientRepository;
     private UserRepository userRepository;
-    private PrescriptionRepository prescriptionRepository;
     private AppointmentServiceImpl appointmentService;
 
     @BeforeEach
@@ -44,9 +42,8 @@ class AppointmentServiceImplTest {
         appointmentRepository = mock(AppointmentRepository.class);
         patientRepository = mock(PatientRepository.class);
         userRepository = mock(UserRepository.class);
-        prescriptionRepository = mock(PrescriptionRepository.class);
         appointmentService = new AppointmentServiceImpl(
-                appointmentRepository, patientRepository, userRepository, prescriptionRepository);
+                appointmentRepository, patientRepository, userRepository);
     }
 
     @AfterEach
@@ -496,21 +493,6 @@ class AppointmentServiceImplTest {
         assertEquals(1L, response.appointmentId());
         assertEquals("Checkup", response.reason());
         assertNull(response.clinicalNotes());
-    }
-
-    @Test
-    void getPatientHistory_unknownPatient_throwsNotFound() {
-        User doctor = new User();
-        doctor.setUserId(7L);
-        doctor.setUsername("dr.test");
-        doctor.setRole(Role.DOCTOR);
-
-        appUserAuthentication(doctor, "ROLE_DOCTOR");
-
-        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
-        when(patientRepository.findById(99L)).thenReturn(Optional.empty());
-
-        assertThrows(ResourceNotFoundException.class, () -> appointmentService.getPatientHistory(99L));
     }
 
     private void appUserAuthentication(User user, String... authorities) {

@@ -5,7 +5,6 @@ import com.onecare.backend.dto.request.CreateAppointmentRequest;
 import com.onecare.backend.dto.request.UpdateAppointmentRequest;
 import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
 import com.onecare.backend.dto.response.AppointmentResponse;
-import com.onecare.backend.dto.response.PatientHistoryResponse;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.service.AppointmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -86,20 +85,6 @@ public class AppointmentController {
     public ResponseEntity<ApiResponse<AppointmentResponse>> getAppointmentById(@PathVariable Long id) {
         AppointmentResponse response = appointmentService.getAppointmentById(id);
         return ResponseEntity.ok(new ApiResponse<>(true, "Appointment retrieved successfully", response));
-    }
-
-    @Operation(summary = "Patient clinical history",
-            description = "Returns a patient's previous encounters for clinical continuity: "
-                    + "past appointments (each with its clinical notes) and past prescriptions. "
-                    + "Doctor role only. 'Previous' means dated before today, plus any "
-                    + "already COMPLETED/CANCELLED appointment and any no-longer-ISSUED prescription. "
-                    + "Returns 404 when the patient does not exist.")
-    @GetMapping("/patient/{patientId}/history")
-    @PreAuthorize("hasRole('DOCTOR')")
-    public ResponseEntity<ApiResponse<PatientHistoryResponse>> getPatientHistory(@PathVariable Long patientId) {
-        PatientHistoryResponse response = appointmentService.getPatientHistory(patientId);
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Patient history retrieved successfully", response));
     }
 
     @Operation(summary = "Update appointment",

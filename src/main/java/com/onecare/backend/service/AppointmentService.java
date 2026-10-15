@@ -4,7 +4,6 @@ import com.onecare.backend.dto.request.CreateAppointmentRequest;
 import com.onecare.backend.dto.request.UpdateAppointmentRequest;
 import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
 import com.onecare.backend.dto.response.AppointmentResponse;
-import com.onecare.backend.dto.response.PatientHistoryResponse;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -41,9 +40,4 @@ public interface AppointmentService {
      */
     AppointmentClinicalNotesResponse getClinicalNotes(Long appointmentId);
 
-    /**
-     * Previous encounters of a patient for clinical continuity:
-     * past appointments (with clinical notes) and past prescriptions.
-     */
-    PatientHistoryResponse getPatientHistory(Long patientId);
 }

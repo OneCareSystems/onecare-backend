@@ -165,6 +165,32 @@ class PatientControllerIntegrationTest {
                 .andExpect(jsonPath("$.data").isArray());
     }
 
+    // Search and pagination combine: page/size/sort apply to the filtered set
+    @Test
+    void list_withSearchAndPagination_pagesTheFilteredResults() throws Exception {
+        savePatient("Nimal Perera", "0771111222");
+        savePatient("Kamal Silva", "0772223333");
+        savePatient("Nimal Silva", "0779999888");
+
+        mockMvc.perform(get("/api/patients")
+                        .param("search", "nimal")
+                        .param("page", "0").param("size", "1")
+                        .param("sort", "fullName,asc")
+                        .with(as(Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].fullName").value("Nimal Perera"));
+
+        mockMvc.perform(get("/api/patients")
+                        .param("search", "nimal")
+                        .param("page", "1").param("size", "1")
+                        .param("sort", "fullName,asc")
+                        .with(as(Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].fullName").value("Nimal Silva"));
+    }
+
     // 7: soft deactivation keeps the row, with isActive=false
     @Test
     void deletePatient_softDeactivates_andKeepsRecord() throws Exception {
