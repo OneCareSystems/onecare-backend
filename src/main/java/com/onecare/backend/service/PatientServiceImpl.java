@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 
 @Service
@@ -112,6 +113,64 @@ public class PatientServiceImpl implements PatientService {
     @Transactional(readOnly = true)
     public PatientResponse findPatientById(Long id) {
         return PatientResponse.from(findPatientByIdInternal(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PatientResponse> searchPatients(String search) {
+
+        if (search == null || search.isBlank()) {
+            return List.of(); // AC/negative test: empty search -> 200 []
+        }
+
+        String query = search.trim();
+        List<Patient> results = new ArrayList<>();
+
+        // Exact patient ID match, only if the search string is fully numeric
+        if (query.chars().allMatch(Character::isDigit)) {
+            patientRepository.findById(Long.parseLong(query))
+                    .filter(Patient::getIsActive)
+                    .ifPresent(results::add);
+        }
+
+        // Exact contact number match as given
+        for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(query)) {
+            addIfAbsent(results, p);
+        }
+
+        // Contact number match using normalized format (+94 XXX XXX XXX)
+        String normalizedSearch = PhoneNumberUtil.normalizeSriLankanPhone(query);
+        if (normalizedSearch != null && !normalizedSearch.equals(query)) {
+            for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(normalizedSearch)) {
+                addIfAbsent(results, p);
+            }
+        }
+
+        // Contact number match using local 10-digit format (0XXXXXXXXX)
+        String nineDigits = PhoneNumberUtil.extractNineDigits(query);
+        if (nineDigits != null) {
+            String localFormat = "0" + nineDigits;
+            if (!localFormat.equals(query) && !localFormat.equals(normalizedSearch)) {
+                for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(localFormat)) {
+                    addIfAbsent(results, p);
+                }
+            }
+        }
+
+        // Partial name match (first + last combined)
+        for (Patient p : patientRepository.searchByName(query)) {
+            addIfAbsent(results, p);
+        }
+
+        return results.stream().map(PatientResponse::from).toList();
+    }
+
+    private void addIfAbsent(List<Patient> results, Patient candidate) {
+        boolean alreadyPresent = results.stream()
+                .anyMatch(p -> p.getPatientId().equals(candidate.getPatientId()));
+        if (!alreadyPresent) {
+            results.add(candidate);
+        }
     }
 
     @Override

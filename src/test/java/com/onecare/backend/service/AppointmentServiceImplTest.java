@@ -492,30 +492,19 @@ class AppointmentServiceImplTest {
         assertNull(response.clinicalNotes());
     }
 
-    private void appUserAuthentication(User user, String... authorities) {
-        var granted = java.util.Arrays.stream(authorities)
-                .map(SimpleGrantedAuthority::new)
-                .toList();
-
+    @Test
     void cancelAppointment_blocksNoShowAppointment() {
         User currentUser = new User();
         currentUser.setUserId(10L);
         currentUser.setEmail("alice@example.com");
         currentUser.setRole(Role.PHARMACIST);
-
         appUserAuthentication(currentUser, "ROLE_PHARMACIST");
-
-        Patient patient = new Patient();
-        patient.setPatientId(30L);
-        patient.setEmail("alice@example.com");
 
         User doctor = new User();
         doctor.setUserId(7L);
         doctor.setRole(Role.DOCTOR);
-
         Appointment appointment = new Appointment();
         appointment.setAppointmentId(2L);
-        appointment.setPatient(patient);
         appointment.setDoctor(doctor);
         appointment.setAppointmentDate(LocalDate.now().minusDays(1));
         appointment.setTimeSlot(LocalTime.of(9, 0));
@@ -523,9 +512,9 @@ class AppointmentServiceImplTest {
 
         when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
         when(appointmentRepository.findById(2L)).thenReturn(Optional.of(appointment));
-        when(patientRepository.findAll()).thenReturn(List.of(patient));
 
-        assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(2L));
+        assertThrows(InvalidAppointmentStatusException.class,
+                () -> appointmentService.cancelAppointment(2L));
     }
 
     @Test
@@ -533,7 +522,6 @@ class AppointmentServiceImplTest {
         User doctor = new User();
         doctor.setUserId(7L);
         doctor.setRole(Role.DOCTOR);
-
         LocalDate futureDate = LocalDate.now().plusDays(3);
 
         Appointment booked = new Appointment();
@@ -542,7 +530,6 @@ class AppointmentServiceImplTest {
         booked.setAppointmentDate(futureDate);
         booked.setTimeSlot(LocalTime.of(16, 30));
         booked.setStatus(AppointmentStatus.SCHEDULED);
-
         Appointment cancelled = new Appointment();
         cancelled.setAppointmentId(11L);
         cancelled.setDoctor(doctor);
@@ -555,14 +542,11 @@ class AppointmentServiceImplTest {
                 .thenReturn(List.of(booked, cancelled));
 
         List<String> available = appointmentService.getAvailableSlots(7L, futureDate);
-
-        // Operating hours: 16:00 to 21:00 (slots: 16:00, 16:30, 17:00, 17:30, 18:00, 18:30, 19:00, 19:30, 20:00, 20:30)
-        // 16:30 is booked, 17:00 is cancelled (so available)
         assertTrue(available.contains("16:00"));
         assertFalse(available.contains("16:30"));
         assertTrue(available.contains("17:00"));
         assertTrue(available.contains("20:30"));
-        assertEquals(9, available.size()); // 10 total slots - 1 booked = 9
+        assertEquals(9, available.size());
     }
 
     @Test
@@ -573,9 +557,7 @@ class AppointmentServiceImplTest {
         doctor.setRole(Role.DOCTOR);
         when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
 
-        List<String> available = appointmentService.getAvailableSlots(7L, pastDate);
-
-        assertTrue(available.isEmpty());
+        assertTrue(appointmentService.getAvailableSlots(7L, pastDate).isEmpty());
     }
 
     @Test
@@ -589,22 +571,15 @@ class AppointmentServiceImplTest {
                 () -> appointmentService.getAvailableSlots(8L, LocalDate.now().plusDays(1)));
     }
 
-    private void appUserAuthentication(User user, String authority) {
+    private void appUserAuthentication(User user, String... authorities) {
+        var granted = java.util.Arrays.stream(authorities)
+                .map(SimpleGrantedAuthority::new)
+                .toList();
         var principal = new AppUserDetailsService.AppUserDetails(
                 user.getUserId(),
                 user.getUsername() != null ? user.getUsername() : "alice",
-                "password",
-                true,
-                true,
-                true,
-                true,
-                granted);
-
-        var authentication = new UsernamePasswordAuthenticationToken(
-                principal,
-                "password",
-                granted);
-
+                "password", true, true, true, true, granted);
+        var authentication = new UsernamePasswordAuthenticationToken(principal, "password", granted);
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

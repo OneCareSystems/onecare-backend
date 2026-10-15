@@ -628,6 +628,8 @@ class AppointmentApiIntegrationTest {
         prescription.setDate(date);
         prescription.setStatus(status);
         prescriptionRepository.save(prescription);
+    }
+
     @Test
     void getAvailableSlots_returnsOperatingHoursSlots() throws Exception {
         LocalDate futureDate = LocalDate.now().plusDays(2);

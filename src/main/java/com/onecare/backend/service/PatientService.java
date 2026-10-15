@@ -19,6 +19,8 @@ public interface PatientService {
     List<PatientResponse> findAllPatients(String search, Pageable pageable);
     PatientResponse findPatientById(Long id);
 
+    List<PatientResponse> searchPatients(String search);
+
     PatientHistoryResponse getPatientHistory(Long patientId);
 
     PatientResponse updatePatient(Long id, PatientUpdateRequest request);
