@@ -101,17 +101,16 @@ class AppointmentServiceImplTest {
     void cancelAppointment_blocksCompletedAppointment() {
         User currentUser = new User();
         currentUser.setUserId(10L);
-        currentUser.setEmail("alice@example.com");
-        currentUser.setRole(Role.PHARMACIST);
+        currentUser.setRole(Role.DOCTOR);
 
-        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
+        appUserAuthentication(currentUser, "ROLE_DOCTOR");
 
         Patient patient = new Patient();
         patient.setPatientId(30L);
         patient.setEmail("alice@example.com");
 
         User doctor = new User();
-        doctor.setUserId(7L);
+        doctor.setUserId(10L);
         doctor.setRole(Role.DOCTOR);
 
         Appointment appointment = new Appointment();
@@ -124,8 +123,6 @@ class AppointmentServiceImplTest {
 
         when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
         when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
-        when(patientRepository.findAll()).thenReturn(List.of(patient));
-
         assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(1L));
     }
 
