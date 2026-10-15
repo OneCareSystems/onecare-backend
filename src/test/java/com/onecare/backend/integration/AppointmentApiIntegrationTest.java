@@ -293,6 +293,157 @@ class AppointmentApiIntegrationTest {
                 .andExpect(jsonPath("$.data[0].clinicalNotes").doesNotExist());
     }
 
+    // ---------- Date filtering on the list endpoint ----------
+
+    @Test
+    void listAppointments_withDate_returnsOnlyThatDaysAppointments() throws Exception {
+        seedQueueAppointment(doctor, patient, LocalTime.of(9, 0), "today");
+        seedAppointment(doctor, patient, LocalTime.of(10, 0), "tomorrow", null);
+
+        mockMvc.perform(get("/api/appointments?date=" + LocalDate.now())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].reason").value("today"));
+    }
+
+    @Test
+    void listAppointments_withDateRange_returnsOnlyAppointmentsInRange() throws Exception {
+        seedQueueAppointment(doctor, patient, LocalTime.of(9, 0), "today");
+        seedAppointment(doctor, patient, LocalTime.of(10, 0), "soon", null);
+        Appointment later = seedAppointment(doctor, patient, LocalTime.of(11, 0), "later", null);
+        later.setAppointmentDate(LocalDate.now().plusDays(5));
+        appointmentRepository.save(later);
+
+        String from = LocalDate.now().toString();
+        String to = LocalDate.now().plusDays(2).toString();
+
+        mockMvc.perform(get("/api/appointments?from=" + from + "&to=" + to)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].reason").value("today"))
+                .andExpect(jsonPath("$.data[1].reason").value("soon"));
+    }
+
+    @Test
+    void listAppointments_withOpenEndedFrom_returnsAppointmentsOnOrAfter() throws Exception {
+        seedQueueAppointment(doctor, patient, LocalTime.of(9, 0), "today");
+        seedAppointment(doctor, patient, LocalTime.of(10, 0), "soon", null);
+
+        String from = LocalDate.now().plusDays(1).toString();
+
+        mockMvc.perform(get("/api/appointments?from=" + from)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].reason").value("soon"));
+    }
+
+    @Test
+    void listAppointments_dateCombinedWithRange_returns400() throws Exception {
+        mockMvc.perform(get("/api/appointments?date=" + LocalDate.now()
+                        + "&from=" + LocalDate.now())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listAppointments_fromAfterTo_returns400() throws Exception {
+        mockMvc.perform(get("/api/appointments?from=2026-12-31&to=2026-01-01")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listAppointments_malformedDate_returns400() throws Exception {
+        mockMvc.perform(get("/api/appointments?date=not-a-date")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("Invalid value 'not-a-date' for parameter 'date'"));
+    }
+
+    // ---------- Patient search (name / phone) on the list endpoint ----------
+
+    @Test
+    void listAppointments_withNameSearch_returnsOnlyMatchingPatientsAppointments() throws Exception {
+        Patient other = saveOtherPatient("Nimal Perera", "0779999888");
+        seedAppointment(doctor, patient, LocalTime.of(9, 0), "mine", null);
+        seedAppointment(doctor, other, LocalTime.of(10, 0), "theirs", null);
+
+        // partial, case-insensitive name match
+        mockMvc.perform(get("/api/appointments?search=nimal")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].reason").value("theirs"))
+                .andExpect(jsonPath("$.data[0].patientFullName").value("Nimal Perera"));
+    }
+
+    @Test
+    void listAppointments_withPhoneSearch_returnsOnlyMatchingPatientsAppointments() throws Exception {
+        saveOtherPatient("Nimal Perera", "0779999888");
+        seedAppointment(doctor, patient, LocalTime.of(9, 0), "mine", null);
+        seedAppointment(doctor, patient, LocalTime.of(10, 0), "mine again", null);
+
+        // exact contact-number match
+        mockMvc.perform(get("/api/appointments?search=0771111222")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].patientFullName").value("Test Patient"))
+                .andExpect(jsonPath("$.data[1].patientFullName").value("Test Patient"));
+    }
+
+    @Test
+    void listAppointments_searchCombinedWithDate_appliesBothFilters() throws Exception {
+        Patient other = saveOtherPatient("Nimal Perera", "0779999888");
+        seedAppointment(doctor, patient, LocalTime.of(9, 0), "name match wrong day", null);
+        Appointment rightDay = seedAppointment(doctor, other, LocalTime.of(10, 0), "name match right day", null);
+        rightDay.setAppointmentDate(LocalDate.now());
+        appointmentRepository.save(rightDay);
+
+        mockMvc.perform(get("/api/appointments?search=nimal&date=" + LocalDate.now())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].reason").value("name match right day"));
+    }
+
+    @Test
+    void listAppointments_searchWithoutMatches_returnsEmptyList() throws Exception {
+        seedAppointment(doctor, patient, LocalTime.of(9, 0), "Checkup", null);
+
+        mockMvc.perform(get("/api/appointments?search=nobody")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void listAppointments_blankSearch_returnsAllAppointments() throws Exception {
+        seedAppointment(doctor, patient, LocalTime.of(9, 0), "Checkup", null);
+        seedAppointment(doctor, patient, LocalTime.of(10, 0), "Follow-up", null);
+
+        mockMvc.perform(get("/api/appointments?search=")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    private Patient saveOtherPatient(String fullName, String contactNo) {
+        Patient other = new Patient();
+        other.setFullName(fullName);
+        other.setDateOfBirth(LocalDate.of(1985, 5, 5));
+        other.setContactNo(contactNo);
+        other.setEmail(fullName.toLowerCase().replace(' ', '.') + "@example.com");
+        other.setGender(Gender.FEMALE);
+        other.setIsActive(true);
+        return patientRepository.save(other);
+    }
+
     // ---------- Today's appointments ----------
 
     @Test

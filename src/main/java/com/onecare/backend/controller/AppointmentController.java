@@ -13,9 +13,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Tag(name = "Appointments", description = "Appointment management APIs")
@@ -41,12 +43,22 @@ public class AppointmentController {
                 .body(new ApiResponse<>(true, "Appointment created successfully", response));
     }
 
-    @Operation(summary = "List appointments", description = "Return authorized appointment records")
+    @Operation(summary = "List appointments",
+            description = "Return authorized appointment records. Optionally filter by date: "
+                    + "?date=YYYY-MM-DD returns one day; ?from=YYYY-MM-DD&to=YYYY-MM-DD returns an "
+                    + "inclusive range (each side optional), and by patient with ?search=... "
+                    + "(partial case-insensitive name or exact contact number, same as the patient "
+                    + "search). Filters combine; with no params every record is returned. "
+                    + "Combining date with from/to, or from after to, returns 400.")
     @GetMapping
         @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ_ALL + "') or hasAuthority('"
             + Permission.APPOINTMENT_READ + "')")
-    public ResponseEntity<ApiResponse<List<AppointmentResponse>>> listAppointments() {
-        List<AppointmentResponse> appointments = appointmentService.listAppointments();
+    public ResponseEntity<ApiResponse<List<AppointmentResponse>>> listAppointments(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String search) {
+        List<AppointmentResponse> appointments = appointmentService.listAppointments(date, from, to, search);
         return ResponseEntity.ok(new ApiResponse<>(true, "Appointments retrieved successfully", appointments));
     }
 

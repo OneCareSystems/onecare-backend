@@ -13,6 +13,7 @@ import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.enums.PrescriptionStatus;
 import com.onecare.backend.enums.Role;
+import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.exception.SlotConflictException;
@@ -90,12 +91,61 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AppointmentResponse> listAppointments() {
+    public List<AppointmentResponse> listAppointments(LocalDate date, LocalDate from, LocalDate to, String search) {
+        validateDateFilters(date, from, to);
         User currentUser = getCurrentAuthenticatedUser();
+        String query = search != null ? search.trim() : null;
 
         return findVisibleAppointments(currentUser).stream()
+                .filter(appointment -> matchesDateFilter(appointment.getAppointmentDate(), date, from, to))
+                .filter(appointment -> matchesPatientSearch(appointment.getPatient(), query))
                 .map(appointment -> mapAppointment(appointment, currentUser))
                 .toList();
+    }
+
+    /**
+     * Patient filter, same semantics as the patient search endpoint: partial
+     * case-insensitive name match or exact contact-number match. A blank query
+     * matches everything; an appointment without a linked patient matches nothing.
+     */
+    private static boolean matchesPatientSearch(Patient patient, String query) {
+        if (query == null || query.isEmpty()) {
+            return true;
+        }
+        if (patient == null) {
+            return false;
+        }
+        if (patient.getFullName() != null
+                && patient.getFullName().toLowerCase().contains(query.toLowerCase())) {
+            return true;
+        }
+        return query.equals(patient.getContactNo());
+    }
+
+    /**
+     * 'date' selects one day; 'from'/'to' select an inclusive range (either may be
+     * omitted to leave that side open); no params match every date.
+     */
+    private static boolean matchesDateFilter(LocalDate appointmentDate, LocalDate date, LocalDate from, LocalDate to) {
+        if (date != null) {
+            return date.equals(appointmentDate);
+        }
+        if (appointmentDate == null) {
+            return false;
+        }
+        if (from != null && appointmentDate.isBefore(from)) {
+            return false;
+        }
+        return to == null || !appointmentDate.isAfter(to);
+    }
+
+    private static void validateDateFilters(LocalDate date, LocalDate from, LocalDate to) {
+        if (date != null && (from != null || to != null)) {
+            throw new BusinessRuleException("Filter by either 'date' or 'from'/'to', not both");
+        }
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BusinessRuleException("'from' must not be after 'to'");
+        }
     }
 
     @Override

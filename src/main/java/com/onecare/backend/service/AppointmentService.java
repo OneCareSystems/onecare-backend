@@ -6,12 +6,24 @@ import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
 import com.onecare.backend.dto.response.AppointmentResponse;
 import com.onecare.backend.dto.response.PatientHistoryResponse;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface AppointmentService {
     AppointmentResponse createAppointment(CreateAppointmentRequest request);
 
-    List<AppointmentResponse> listAppointments();
+    /**
+     * Appointments scoped to the caller's role, optionally filtered by date and patient:
+     * - date set: only that day's appointments
+     * - from and/or to set: appointments within that inclusive range
+     * - search set: only appointments whose patient matches by partial name
+     *   (case-insensitive) or exact contact number; blank/absent matches all
+     * - no filters: everything
+     *
+     * @throws com.onecare.backend.exception.BusinessRuleException when date is combined
+     *         with from/to, or when from is after to
+     */
+    List<AppointmentResponse> listAppointments(LocalDate date, LocalDate from, LocalDate to, String search);
 
     /** Appointments scheduled for today, scoped to the caller's role. */
     List<AppointmentResponse> findTodaysAppointments();
