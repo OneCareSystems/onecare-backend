@@ -34,4 +34,12 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
             @Param("today") LocalDate today,
             @Param("nearExpiryDate") LocalDate nearExpiryDate
     );
+
+    @Query("""
+            SELECT m
+            FROM Medicine m
+            WHERE LOWER(m.name) LIKE LOWER(CONCAT('%', :search, '%'))
+            OR CAST(m.medicineId AS string) = :search
+            """)
+    List<Medicine> search(@Param("search") String search);
 }

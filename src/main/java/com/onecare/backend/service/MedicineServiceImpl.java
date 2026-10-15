@@ -69,9 +69,22 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<MedicineResponse> findAllMedicines() {
+    public List<MedicineResponse> findAllMedicines(String search) {
 
-        return medicineRepository.findAll()
+        if (search == null) {
+            return medicineRepository.findAll()
+                    .stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        }
+
+        if (search.isBlank()) {
+            return List.of(); // AC/negative test: empty search -> 200 []
+        }
+
+        // Name (partial, case-insensitive) and medicine ID (exact) in one
+        // DB query
+        return medicineRepository.search(search.trim())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();

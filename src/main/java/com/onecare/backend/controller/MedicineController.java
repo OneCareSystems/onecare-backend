@@ -7,6 +7,7 @@ import com.onecare.backend.security.Permission;
 import com.onecare.backend.service.MedicineService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -72,8 +73,10 @@ public class MedicineController {
     }
 
     @Operation(
-            summary = "Get all medicines",
-            description = "Returns all medicine records."
+            summary = "List or search medicines",
+            description = "Returns all medicine records. Optional 'search' filters by partial "
+                    + "medicine name (case-insensitive) or exact medicine ID. A blank 'search' "
+                    + "returns 200 with an empty list."
     )
     @ApiResponses({
             @ApiResponse(
@@ -87,15 +90,22 @@ public class MedicineController {
     })
     @GetMapping
     @PreAuthorize("hasAuthority('" + Permission.MEDICINE_READ_ALL + "')")
-    public ResponseEntity<com.onecare.backend.dto.ApiResponse<List<MedicineResponse>>> findAllMedicines() {
+    public ResponseEntity<com.onecare.backend.dto.ApiResponse<List<MedicineResponse>>> findAllMedicines(
+            @Parameter(description = "Partial medicine name or exact medicine ID")
+            @RequestParam(required = false) String search
+    ) {
 
         List<MedicineResponse> response =
-                medicineService.findAllMedicines();
+                medicineService.findAllMedicines(search);
+
+        String message = search != null
+                ? "Search results"
+                : "Medicines retrieved successfully";
 
         return ResponseEntity.ok(
                 new com.onecare.backend.dto.ApiResponse<>(
                         true,
-                        "Medicines retrieved successfully",
+                        message,
                         response
                 )
         );
