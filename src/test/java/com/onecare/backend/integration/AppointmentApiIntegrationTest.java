@@ -7,6 +7,7 @@ import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Gender;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.AppointmentRepository;
+import com.onecare.backend.repository.InvoiceRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
@@ -26,6 +27,7 @@ import java.time.LocalTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -51,6 +53,9 @@ class AppointmentApiIntegrationTest {
     private AppointmentRepository appointmentRepository;
 
     @Autowired
+    private InvoiceRepository invoiceRepository;
+
+    @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
@@ -64,6 +69,7 @@ class AppointmentApiIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        invoiceRepository.deleteAll();
         appointmentRepository.deleteAll();
         patientRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
@@ -143,6 +149,84 @@ class AppointmentApiIntegrationTest {
                 .andExpect(jsonPath("$.data[0].timeSlot").value("09:00:00"))
                 .andExpect(jsonPath("$.data[1].timeSlot").value("10:00:00"))
                 .andExpect(jsonPath("$.data[2].timeSlot").value("11:00:00"));
+    }
+
+    @Test
+    void getAvailableSlots_returnsOperatingHoursSlots() throws Exception {
+        LocalDate futureDate = LocalDate.now().plusDays(2);
+
+        mockMvc.perform(get("/api/appointments/available-slots")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("doctorId", String.valueOf(doctor.getUserId()))
+                        .param("date", futureDate.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data[0]").value("16:00"))
+                .andExpect(jsonPath("$.data[9]").value("20:30"));
+    }
+
+    @Test
+    void completeAppointmentLifecycle_bookingToCheckInToDoctorCompletionAndAutoInvoice() throws Exception {
+        LocalDate futureDate = LocalDate.now().plusDays(1);
+        LocalDateTime slotTime = futureDate.atTime(16, 30);
+
+        // 1. Check available slots before booking
+        mockMvc.perform(get("/api/appointments/available-slots")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("doctorId", String.valueOf(doctor.getUserId()))
+                        .param("date", futureDate.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@ == '16:30')]").exists());
+
+        // 2. Book appointment at 16:30
+        String createResponse = mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(appointmentJson(doctor.getUserId(), patient.getPatientId(), slotTime, "Consultation")))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        long appointmentId = objectMapper.readTree(createResponse).path("data").path("appointmentId").asLong();
+
+        // 3. Verify 16:30 is no longer available
+        mockMvc.perform(get("/api/appointments/available-slots")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("doctorId", String.valueOf(doctor.getUserId()))
+                        .param("date", futureDate.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@ == '16:30')]").doesNotExist());
+
+        // 4. Admin check-in: mark as ARRIVED
+        mockMvc.perform(patch("/api/queue/" + appointmentId + "/status")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ARRIVED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ARRIVED"));
+
+        // 5. Non-doctor (Admin) attempts to mark COMPLETED -> 403 Forbidden
+        mockMvc.perform(patch("/api/queue/" + appointmentId + "/status")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"COMPLETED\"}"))
+                .andExpect(status().isForbidden());
+
+        // 6. Doctor marks COMPLETED -> 200 OK & triggers auto-invoice
+        mockMvc.perform(patch("/api/queue/" + appointmentId + "/status")
+                        .header("Authorization", "Bearer " + doctorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"COMPLETED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        // 7. Verify consultation invoice was automatically generated
+        mockMvc.perform(get("/api/invoices")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("patientId", String.valueOf(patient.getPatientId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].appointmentId").value(appointmentId))
+                .andExpect(jsonPath("$.data.content[0].status").value("UNPAID"))
+                .andExpect(jsonPath("$.data.content[0].total").value(500.0));
     }
 
     private User createUser(String username, String email, Role role) {

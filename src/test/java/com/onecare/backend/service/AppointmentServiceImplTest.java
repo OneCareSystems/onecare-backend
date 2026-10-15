@@ -174,6 +174,99 @@ class AppointmentServiceImplTest {
         assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(1L));
     }
 
+    @Test
+    void cancelAppointment_blocksNoShowAppointment() {
+        User currentUser = new User();
+        currentUser.setUserId(10L);
+        currentUser.setEmail("alice@example.com");
+        currentUser.setRole(Role.PHARMACIST);
+
+        appUserAuthentication(currentUser, "ROLE_PHARMACIST");
+
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+        patient.setEmail("alice@example.com");
+
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+
+        Appointment appointment = new Appointment();
+        appointment.setAppointmentId(2L);
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setAppointmentDate(LocalDate.now().minusDays(1));
+        appointment.setTimeSlot(LocalTime.of(9, 0));
+        appointment.setStatus(AppointmentStatus.NO_SHOW);
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(currentUser));
+        when(appointmentRepository.findById(2L)).thenReturn(Optional.of(appointment));
+        when(patientRepository.findAll()).thenReturn(List.of(patient));
+
+        assertThrows(InvalidAppointmentStatusException.class, () -> appointmentService.cancelAppointment(2L));
+    }
+
+    @Test
+    void getAvailableSlots_returnsSlotsExcludingBooked() {
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+
+        LocalDate futureDate = LocalDate.now().plusDays(3);
+
+        Appointment booked = new Appointment();
+        booked.setAppointmentId(10L);
+        booked.setDoctor(doctor);
+        booked.setAppointmentDate(futureDate);
+        booked.setTimeSlot(LocalTime.of(16, 30));
+        booked.setStatus(AppointmentStatus.SCHEDULED);
+
+        Appointment cancelled = new Appointment();
+        cancelled.setAppointmentId(11L);
+        cancelled.setDoctor(doctor);
+        cancelled.setAppointmentDate(futureDate);
+        cancelled.setTimeSlot(LocalTime.of(17, 0));
+        cancelled.setStatus(AppointmentStatus.CANCELLED);
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findByDoctor_UserIdAndAppointmentDate(7L, futureDate))
+                .thenReturn(List.of(booked, cancelled));
+
+        List<String> available = appointmentService.getAvailableSlots(7L, futureDate);
+
+        // Operating hours: 16:00 to 21:00 (slots: 16:00, 16:30, 17:00, 17:30, 18:00, 18:30, 19:00, 19:30, 20:00, 20:30)
+        // 16:30 is booked, 17:00 is cancelled (so available)
+        assertTrue(available.contains("16:00"));
+        assertFalse(available.contains("16:30"));
+        assertTrue(available.contains("17:00"));
+        assertTrue(available.contains("20:30"));
+        assertEquals(9, available.size()); // 10 total slots - 1 booked = 9
+    }
+
+    @Test
+    void getAvailableSlots_pastDate_returnsEmptyList() {
+        LocalDate pastDate = LocalDate.now().minusDays(1);
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+
+        List<String> available = appointmentService.getAvailableSlots(7L, pastDate);
+
+        assertTrue(available.isEmpty());
+    }
+
+    @Test
+    void getAvailableSlots_nonDoctor_throwsException() {
+        User nonDoctor = new User();
+        nonDoctor.setUserId(8L);
+        nonDoctor.setRole(Role.ADMIN);
+        when(userRepository.findById(8L)).thenReturn(Optional.of(nonDoctor));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> appointmentService.getAvailableSlots(8L, LocalDate.now().plusDays(1)));
+    }
+
     private void appUserAuthentication(User user, String authority) {
         var principal = new AppUserDetailsService.AppUserDetails(
                 user.getUserId(),

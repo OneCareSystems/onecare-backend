@@ -65,4 +65,15 @@ public class AppointmentController {
         return ResponseEntity.ok(new ApiResponse<>(true, "Appointment cancelled successfully", response));
     }
 
+    @Operation(summary = "Get available appointment slots", description = "Return available 30-minute appointment slots for a selected doctor and date")
+    @GetMapping("/available-slots")
+    @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ_ALL + "') or hasAuthority('"
+            + Permission.APPOINTMENT_READ + "')")
+    public ResponseEntity<ApiResponse<List<String>>> getAvailableSlots(
+            @RequestParam Long doctorId,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date) {
+        List<String> slots = appointmentService.getAvailableSlots(doctorId, date);
+        return ResponseEntity.ok(new ApiResponse<>(true, "Available slots retrieved successfully", slots));
+    }
+
 }

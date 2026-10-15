@@ -95,7 +95,7 @@ class PatientServiceImplTest {
     @Test
     void createPatient_duplicateMatch_setsFlag_butStillCreates() {
         when(patientRepository
-            .existsByFullNameIgnoreCaseAndContactNo("Nimal Perera", "0771234567"))
+            .existsByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
                 .thenReturn(true);
         stubSaveAssignsId(102L);
 
@@ -104,6 +104,20 @@ class PatientServiceImplTest {
         assertTrue(response.duplicateSuspected());
         assertEquals(102L, response.patientId());
         verify(patientRepository).save(any(Patient.class)); // registration not blocked
+    }
+
+    @Test
+    void createPatient_omittedBloodGroup_registersSuccessfully() {
+        stubSaveAssignsId(103L);
+        PatientCreateRequest requestWithoutBloodGroup = new PatientCreateRequest(
+                "Kamal Silva", LocalDate.of(1985, 3, 10),
+                "Kandy", "0712345678", "kamal@example.com", null, Gender.MALE);
+
+        PatientResponse response = patientService.createPatient(requestWithoutBloodGroup);
+
+        assertEquals(103L, response.patientId());
+        assertNull(response.bloodGroup());
+        assertEquals("+94 712 345 678", response.contactNo());
     }
 
     // ---------- Search ----------
@@ -133,7 +147,7 @@ class PatientServiceImplTest {
     @Test
     void search_exactPhone_returnsThatPatient() {
         when(patientRepository.findByContactNoAndIsActiveTrue("0771234567"))
-                .thenReturn(Optional.of(activePatient(3L, "Nimal Perera", "0771234567")));
+                .thenReturn(List.of(activePatient(3L, "Nimal Perera", "0771234567")));
 
         List<PatientResponse> results = patientService.searchPatients("0771234567");
 
@@ -141,9 +155,23 @@ class PatientServiceImplTest {
     }
 
     @Test
+    void search_sharedPhoneNumber_returnsAllFamilyMembers() {
+        Patient father = activePatient(10L, "Sunil Perera", "+94 771 234 567");
+        Patient son = activePatient(11L, "Nimal Perera", "+94 771 234 567");
+        when(patientRepository.findByContactNoAndIsActiveTrue("+94 771 234 567"))
+                .thenReturn(List.of(father, son));
+
+        List<PatientResponse> results = patientService.searchPatients("+94 771 234 567");
+
+        assertEquals(2, results.size());
+        assertEquals(10L, results.get(0).patientId());
+        assertEquals(11L, results.get(1).patientId());
+    }
+
+    @Test
     void search_sameRecordMatchedTwice_isNotDuplicatedInResults() {
         Patient p = activePatient(3L, "Nimal Perera", "0771234567");
-        when(patientRepository.findByContactNoAndIsActiveTrue("0771234567")).thenReturn(Optional.of(p));
+        when(patientRepository.findByContactNoAndIsActiveTrue("0771234567")).thenReturn(List.of(p));
         when(patientRepository.searchByName("0771234567")).thenReturn(List.of(p));
 
         assertEquals(1, patientService.searchPatients("0771234567").size());
