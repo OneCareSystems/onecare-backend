@@ -214,6 +214,49 @@ class PublicAppointmentBookingIntegrationTest {
         assertThat(patientRepository.count()).isEqualTo(1);
     }
 
+    // ---------- Clinic grid enforcement ----------
+
+    @Test
+    void bookAppointment_outsideClinicHours_returns400() throws Exception {
+        LocalDateTime beforeOpening = LocalDate.now().plusDays(2).atTime(10, 0);
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Nimal Perera", "0771234567",
+                                LocalDate.of(1990, 5, 12), doctor.getUserId(), beforeOpening, "Male")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value(org.hamcrest.Matchers.containsString("clinic slot")));
+
+        assertThat(appointmentRepository.count()).isZero();
+    }
+
+    @Test
+    void bookAppointment_offGridMinutes_returns400() throws Exception {
+        LocalDateTime insideHoursButOffGrid = LocalDate.now().plusDays(2).atTime(16, 15);
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Nimal Perera", "0771234567",
+                                LocalDate.of(1990, 5, 12), doctor.getUserId(), insideHoursButOffGrid, "Male")))
+                .andExpect(status().isBadRequest());
+
+        assertThat(appointmentRepository.count()).isZero();
+    }
+
+    @Test
+    void bookAppointment_lastSlotOfTheDay_accepted() throws Exception {
+        LocalDateTime lastSlot = LocalDate.now().plusDays(2).atTime(20, 30);
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Nimal Perera", "0771234567",
+                                LocalDate.of(1990, 5, 12), doctor.getUserId(), lastSlot, "Male")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.timeSlot").value("20:30:00"))
+                .andExpect(jsonPath("$.data.status").value("SCHEDULED"));
+    }
+
     // ---------- Validation / security posture ----------
 
     @Test
