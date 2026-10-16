@@ -219,4 +219,70 @@ class PatientServiceImplTest {
                 () -> patientService.updatePatient(999L,
                         new PatientUpdateRequest("A",  null, null, null, null, null)));
     }
+
+    // ---------- Public booking find-or-create (DDP-33 / AC3) ----------
+
+    @Test
+    void findOrCreateForPublicBooking_nameAndNormalizedPhoneMatch_reusesExistingPatient() {
+        Patient existing = activePatient(7L, "Nimal Perera", "+94 771 234 567" );
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .thenReturn(Optional.of(existing));
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12), "Male");
+
+        assertEquals(7L, result.getPatientId()); // same record, not a new one
+        verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_rawFormMatch_reusesExistingPatient() {
+        // Patient stored with the raw (non-normalized) form: second lookup uses
+        // the raw submitted contact number — same dual-form check as DDP-19.
+        Patient existing = activePatient(8L, "Nimal Perera", "0771234567");
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .thenReturn(Optional.empty());
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "0771234567"))
+                .thenReturn(Optional.of(existing));
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12),"Male");
+
+        assertEquals(8L, result.getPatientId());
+        verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_nameMatchesButPhoneDiffers_createsNewPatient() {
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .thenReturn(Optional.empty());
+        stubSaveAssignsId(110L);
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12),"Male");
+
+        assertEquals(110L, result.getPatientId());
+        verify(patientRepository).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_noMatch_createsMinimalActivePatientWithNormalizedPhone() {
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .thenReturn(Optional.empty());
+        stubSaveAssignsId(111L);
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12),"Male");
+
+        assertEquals(111L, result.getPatientId());
+        assertEquals("Nimal Perera", result.getFullName());
+        assertEquals("+94 771 234 567", result.getContactNo());
+        assertEquals(LocalDate.of(1990, 5, 12), result.getDateOfBirth());
+        assertTrue(result.getIsActive());
+    }
 }

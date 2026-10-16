@@ -10,6 +10,7 @@ import com.onecare.backend.entity.Appointment;
 import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.Prescription;
 import com.onecare.backend.enums.AppointmentStatus;
+import com.onecare.backend.enums.Gender;
 import com.onecare.backend.enums.PrescriptionStatus;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.AppointmentRepository;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -86,6 +88,41 @@ public class PatientServiceImpl implements PatientService {
         // TODO(DDP-26): replace with persisted audit event
 
         return PatientResponse.from(saved, duplicateSuspected);
+    }
+
+    @Override
+    public Patient findOrCreateForPublicBooking(String fullName, String rawContactNo, LocalDate dateOfBirth, String gender) {
+
+        String trimmedContactNo = rawContactNo != null ? rawContactNo.trim() : "";
+        String normalizedContactNo = PhoneNumberUtil.isValidSriLankanPhone(trimmedContactNo)
+                ? PhoneNumberUtil.normalizeSriLankanPhone(trimmedContactNo)
+                : trimmedContactNo;
+
+        Patient existing = patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo(fullName, normalizedContactNo)
+                .or(() -> !normalizedContactNo.equals(trimmedContactNo)
+                        ? patientRepository.findFirstByFullNameIgnoreCaseAndContactNo(fullName, trimmedContactNo)
+                        : Optional.empty())
+                .orElse(null);
+
+        if (existing != null) {
+            log.info("Public booking matched existing patient | patientId={} | performedBy=PUBLIC",
+                    existing.getPatientId());
+            return existing;
+        }
+
+        Patient patient = new Patient();
+        patient.setFullName(fullName);
+        patient.setDateOfBirth(dateOfBirth);
+        patient.setContactNo(normalizedContactNo);
+        patient.setGender(Gender.valueOf(gender.trim().toUpperCase()));
+        patient.setIsActive(true);
+
+        Patient saved = patientRepository.save(patient);
+
+        log.info("Public booking registered minimal patient | patientId={} | performedBy=PUBLIC",
+                saved.getPatientId());
+        return saved;
     }
 
     @Override
