@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 class ApiRateLimitFilterTest {
 
     private static final String AUTH_PATH = "/api/auth/forgot-password";
+    private static final String PUBLIC_PATH = "/api/public/appointments";
 
     private ApiRateLimitFilter filter;
     private FilterChain chain;
@@ -131,5 +132,55 @@ class ApiRateLimitFilterTest {
         filter.doFilter(overLimit, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(429);
+    }
+
+    // ---------- Public-booking tier (DDP-33 / AC2) ----------
+
+    @Test
+    void shouldRateLimitPublicBookingPathWithPublicTierLimits() throws Exception {
+        ApiRateLimitFilter twoTier = new ApiRateLimitFilter(true, 10, 60, true, 2, 60);
+
+        for (int i = 0; i < 2; i++) {
+            twoTier.doFilter(request(PUBLIC_PATH, "10.0.0.5"), new MockHttpServletResponse(), chain);
+        }
+        twoTier.doFilter(request(PUBLIC_PATH, "10.0.0.5"), response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(429);
+        assertThat(response.getHeader("Retry-After")).isNotBlank();
+        verify(chain, times(2)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldTrackPublicBookingAndAuthTiersSeparately() throws Exception {
+        ApiRateLimitFilter twoTier = new ApiRateLimitFilter(true, 10, 60, true, 1, 60);
+
+        // Exhaust the public-booking tier for this IP...
+        twoTier.doFilter(request(PUBLIC_PATH, "10.0.0.6"), new MockHttpServletResponse(), chain);
+        twoTier.doFilter(request(PUBLIC_PATH, "10.0.0.6"), response, chain);
+        assertThat(response.getStatus()).isEqualTo(429);
+
+        // ...the same IP still has its untouched auth-tier allowance
+        MockHttpServletResponse authResponse = new MockHttpServletResponse();
+        twoTier.doFilter(request("/api/auth/login", "10.0.0.6"), authResponse, chain);
+        assertThat(authResponse.getStatus()).isEqualTo(200);
+
+        // ...and other public paths are not rate limited at all
+        MockHttpServletResponse otherPublicResponse = new MockHttpServletResponse();
+        twoTier.doFilter(request("/api/patients", "10.0.0.6"), otherPublicResponse, chain);
+        assertThat(otherPublicResponse.getStatus()).isEqualTo(200);
+
+        verify(chain, times(3)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldPassThroughPublicPathsWhenPublicTierDisabled() throws Exception {
+        ApiRateLimitFilter publicTierDisabled = new ApiRateLimitFilter(true, 1, 60, false, 1, 60);
+
+        for (int i = 0; i < 10; i++) {
+            publicTierDisabled.doFilter(request(PUBLIC_PATH, "10.0.0.7"), response, chain);
+        }
+
+        verify(chain, times(10)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        assertThat(response.getStatus()).isEqualTo(200);
     }
 }

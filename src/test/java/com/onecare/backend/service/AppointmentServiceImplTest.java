@@ -566,6 +566,102 @@ class AppointmentServiceImplTest {
                 () -> appointmentService.getAvailableSlots(8L, LocalDate.now().plusDays(1)));
     }
 
+    // ---------- Public booking creation path (DDP-33 / AC1, AC4) ----------
+
+    @Test
+    void createAppointmentForPatient_createsScheduledAppointment_withoutAuthContext() {
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+        patient.setFullName("Nimal Perera");
+        patient.setContactNo("0771234567");
+
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+
+        LocalDateTime requested = LocalDate.now().plusDays(2).atTime(16, 30, 0, 0);
+
+        when(patientRepository.findById(30L)).thenReturn(Optional.of(patient));
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findByDoctor_UserIdAndAppointmentDate(7L, requested.toLocalDate()))
+                .thenReturn(List.of());
+        when(appointmentRepository.saveAndFlush(any(Appointment.class))).thenAnswer(invocation -> {
+            Appointment appointment = invocation.getArgument(0);
+            appointment.setAppointmentId(99L);
+            return appointment;
+        });
+
+        var response = appointmentService.createAppointmentForPatient(30L, 7L, requested, null);
+
+        assertEquals(99L, response.appointmentId());
+        assertEquals(AppointmentStatus.SCHEDULED.name(), response.status());
+        assertNull(response.clinicalNotes()); // public response never exposes clinical notes
+        assertEquals(requested.toLocalDate(), response.appointmentDate());
+        assertEquals(requested.toLocalTime(), response.timeSlot());
+        verify(appointmentRepository).saveAndFlush(any(Appointment.class));
+    }
+
+    @Test
+    void createAppointmentForPatient_slotTaken_throwsSlotConflictWithAlternatives() {
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        User doctor = new User();
+        doctor.setUserId(7L);
+        doctor.setRole(Role.DOCTOR);
+
+        LocalDateTime requested = LocalDate.now().plusDays(2).atTime(16, 30, 0, 0);
+
+        Appointment existing = new Appointment();
+        existing.setAppointmentId(1L);
+        existing.setDoctor(doctor);
+        existing.setPatient(patient);
+        existing.setAppointmentDate(requested.toLocalDate());
+        existing.setTimeSlot(requested.toLocalTime());
+        existing.setStatus(AppointmentStatus.SCHEDULED);
+
+        when(patientRepository.findById(30L)).thenReturn(Optional.of(patient));
+        when(userRepository.findById(7L)).thenReturn(Optional.of(doctor));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(doctor));
+        when(appointmentRepository.findByDoctor_UserIdAndAppointmentDate(7L, requested.toLocalDate()))
+                .thenReturn(List.of(existing));
+
+        var exception = assertThrows(com.onecare.backend.exception.SlotConflictException.class,
+                () -> appointmentService.createAppointmentForPatient(30L, 7L, requested, null));
+
+        assertEquals(requested.toString(), exception.getRequestedSlot());
+        assertFalse(exception.getAlternativeSlots().isEmpty());
+        assertFalse(exception.getAlternativeSlots().contains(requested.toString()));
+        verify(appointmentRepository, never()).saveAndFlush(any(Appointment.class));
+    }
+
+    @Test
+    void createAppointmentForPatient_unknownPatient_throwsNotFound() {
+        when(patientRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> appointmentService.createAppointmentForPatient(
+                        999L, 7L, LocalDate.now().plusDays(1).atTime(16, 30), null));
+    }
+
+    @Test
+    void createAppointmentForPatient_nonDoctorTarget_rejected() {
+        Patient patient = new Patient();
+        patient.setPatientId(30L);
+
+        User nonDoctor = new User();
+        nonDoctor.setUserId(7L);
+        nonDoctor.setRole(Role.ADMIN);
+
+        when(patientRepository.findById(30L)).thenReturn(Optional.of(patient));
+        when(userRepository.findById(7L)).thenReturn(Optional.of(nonDoctor));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> appointmentService.createAppointmentForPatient(
+                        30L, 7L, LocalDate.now().plusDays(1).atTime(16, 30), null));
+    }
+
     private void appUserAuthentication(User user, String... authorities) {
         var granted = java.util.Arrays.stream(authorities)
                 .map(SimpleGrantedAuthority::new)
