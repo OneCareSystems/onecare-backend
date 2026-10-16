@@ -20,6 +20,7 @@ import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
@@ -50,7 +51,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final LocalTime operatingEndTime;
     private final Duration slotDuration;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired 
     public AppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
@@ -82,9 +83,39 @@ public class AppointmentServiceImpl implements AppointmentService {
         User doctor = userRepository.findById(request.doctorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + request.doctorId()));
 
+        Appointment saved = createAppointmentInternal(patient, doctor, request.appointmentDateTime(), request.reason());
+        log.info("Created appointment {} for patient {} with doctor {} at {}",
+                saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), request.appointmentDateTime());
+        return mapAppointment(saved, getCurrentAuthenticatedUser());
+    }
+
+    @Override
+    public AppointmentResponse createAppointmentForPatient(Long patientId, Long doctorId,
+            LocalDateTime appointmentDateTime, String reason) {
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + patientId));
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + doctorId));
+        if (doctor.getRole() != Role.DOCTOR) {
+            throw new IllegalArgumentException("Specified user with id: " + doctorId + " is not a doctor");
+        }
+
+        Appointment saved = createAppointmentInternal(patient, doctor, appointmentDateTime, reason);
+        log.info("Created appointment {} for patient {} with doctor {} at {} (public booking)",
+                saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), appointmentDateTime);
+        // No authenticated caller on this path: unauthenticated-safe mapping, never clinical notes.
+        return AppointmentResponse.from(saved);
+    }
+
+    /**
+     * Shared slot-protected creation behind staff booking (DDP-20) and public
+     * self-booking (DDP-33): doctor row lock -> availability assertion ->
+     * SCHEDULED entity -> save guarded by the unique doctor/date/slot constraint.
+     */
+    private Appointment createAppointmentInternal(Patient patient, User doctor,
+            LocalDateTime requestedStart, String reason) {
         lockDoctor(doctor.getUserId());
 
-        LocalDateTime requestedStart = request.appointmentDateTime();
         LocalDateTime requestedEnd = requestedStart.plus(slotDuration);
         assertDoctorSlotAvailability(doctor.getUserId(), requestedStart, requestedEnd, null);
 
@@ -93,13 +124,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setDoctor(doctor);
         appointment.setAppointmentDate(requestedStart.toLocalDate());
         appointment.setTimeSlot(requestedStart.toLocalTime());
-        appointment.setReason(request.reason());
+        appointment.setReason(reason);
         appointment.setStatus(AppointmentStatus.SCHEDULED);
 
-        Appointment saved = saveWithSlotProtection(appointment, doctor.getUserId(), requestedStart, null);
-        log.info("Created appointment {} for patient {} with doctor {} at {}",
-                saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), requestedStart);
-        return mapAppointment(saved, getCurrentAuthenticatedUser());
+        return saveWithSlotProtection(appointment, doctor.getUserId(), requestedStart, null);
     }
 
     @Override

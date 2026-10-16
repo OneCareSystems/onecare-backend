@@ -6,10 +6,14 @@ import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
 import com.onecare.backend.dto.response.AppointmentResponse;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AppointmentService {
     AppointmentResponse createAppointment(CreateAppointmentRequest request);
+
+    AppointmentResponse createAppointmentForPatient(Long patientId, Long doctorId,
+            LocalDateTime appointmentDateTime, String reason);
 
     /**
      * Appointments scoped to the caller's role, optionally filtered by date and patient:
