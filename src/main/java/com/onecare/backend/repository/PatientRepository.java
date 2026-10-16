@@ -14,7 +14,17 @@ public interface PatientRepository extends JpaRepository<Patient, Long>  {
             String fullName,
             String contactNo
     );
-    
+
+    /**
+     * duplicate check (same name + contact-number
+     * semantics) — used by public self-booking to reuse an existing
+     * patient record instead of creating a duplicate.
+     */
+    Optional<Patient> findFirstByFullNameIgnoreCaseAndContactNo(
+            String fullName,
+            String contactNo
+    );
+
     List<Patient> findByContactNoAndIsActiveTrue(String contactNo);
 
       @Query("SELECT p FROM Patient p WHERE p.isActive = true AND " +
