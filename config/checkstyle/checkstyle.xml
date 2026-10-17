@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!-- ============================================================================== -->
+<!-- OneCare Backend Lint Rules (Checkstyle Configuration)                          -->
+<!-- ============================================================================== -->
+<!-- A deliberately small, high-signal rule set. Every rule is currently kept       -->
+<!-- green on the codebase, and new violations will fail the `lint` CI stage via    -->
+<!-- `mvn checkstyle:check`. Checkstyle acts as the documented substitute for       -->
+<!-- SonarQube.                                                                     -->
+<!-- ============================================================================== -->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="error"/>
+    <property name="fileExtensions" value="java"/>
+
+    <module name="TreeWalker">
+        
+        <!-- ====================================================================== -->
+        <!-- Dead / Duplicated Code & Bug Prevention                                -->
+        <!-- ====================================================================== -->
+        <!-- Flags unused import statements -->
+        <module name="UnusedImports"/>
+        
+        <!-- Flags duplicate/redundant imports -->
+        <module name="RedundantImport"/>
+        
+        <!-- Catches empty statements (e.g., stray semicolons) -->
+        <module name="EmptyStatement"/>
+        
+        <!-- Enforces that classes overriding equals() also override hashCode() -->
+        <module name="EqualsHashCode"/>
+        
+        <!-- Ensures utility or restricted classes are marked final -->
+        <module name="FinalClass"/>
+        
+        <!-- Checks for fall-through in switch statements -->
+        <module name="FallThrough"/>
+        
+        <!-- Requires a default branch in switch statements -->
+        <module name="MissingSwitchDefault"/>
+
+        <!-- ====================================================================== -->
+        <!-- Code Readability & Complexity Constraints                              -->
+        <!-- ====================================================================== -->
+        <!-- Disallows multiple variable declarations on a single line -->
+        <module name="MultipleVariableDeclarations"/>
+        
+        <!-- Restricts code to one statement per line -->
+        <module name="OneStatementPerLine"/>
+        
+        <!-- Requires uppercase 'L' for long integer literals (e.g., 100L vs 100l) -->
+        <module name="UpperEll"/>
+        
+        <!-- Simplifies redundant boolean expressions -->
+        <module name="SimplifyBooleanExpression"/>
+        
+        <!-- Simplifies redundant boolean return statements -->
+        <module name="SimplifyBooleanReturn"/>
+        
+        <!-- Limits maximum nested `if` statement depth to 3 -->
+        <module name="NestedIfDepth">
+            <property name="max" value="3"/>
+        </module>
+        
+        <!-- Enforces a maximum method length limit of 200 lines -->
+        <module name="MethodLength">
+            <property name="max" value="200"/>
+        </module>
+        
+    </module>
+</module>
