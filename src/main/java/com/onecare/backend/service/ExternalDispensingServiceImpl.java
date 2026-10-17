@@ -8,7 +8,6 @@ import com.onecare.backend.dto.response.ExternalDispensingResponse;
 import com.onecare.backend.entity.*;
 import com.onecare.backend.enums.DeliveryMethod;
 import com.onecare.backend.enums.PrescriptionStatus;
-import com.onecare.backend.enums.Role;
 import com.onecare.backend.enums.Status;
 import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.exception.ResourceNotFoundException;
