@@ -8,11 +8,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -45,6 +48,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitTier authTier;
     private final RateLimitTier publicBookingTier;
+    private final List<IpAddressMatcher> trustedProxies;
     private final long maxWindowMillis;
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
 
@@ -55,11 +59,30 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             @Value("${auth.rate-limit.window-seconds:60}") long authWindowSeconds,
             @Value("${public-booking.rate-limit.enabled:true}") boolean publicBookingEnabled,
             @Value("${public-booking.rate-limit.requests-per-minute:5}") int publicBookingRequestsPerWindow,
-            @Value("${public-booking.rate-limit.window-seconds:60}") long publicBookingWindowSeconds) {
+            @Value("${public-booking.rate-limit.window-seconds:60}") long publicBookingWindowSeconds,
+            @Value("${api.rate-limit.trusted-proxies:}") String trustedProxyAddresses) {
         this.authTier = new RateLimitTier("auth", authEnabled, authRequestsPerWindow, authWindowSeconds * 1000L);
         this.publicBookingTier = new RateLimitTier("public-booking", publicBookingEnabled,
                 publicBookingRequestsPerWindow, publicBookingWindowSeconds * 1000L);
+        this.trustedProxies = trustedProxyAddresses.isBlank()
+                ? List.of()
+                : Arrays.stream(trustedProxyAddresses.split(","))
+                        .map(String::trim)
+                        .filter(address -> !address.isEmpty())
+                        .map(IpAddressMatcher::new)
+                        .toList();
         this.maxWindowMillis = Math.max(authTier.windowMillis(), publicBookingTier.windowMillis());
+    }
+
+    public ApiRateLimitFilter(
+            boolean authEnabled,
+            int authRequestsPerWindow,
+            long authWindowSeconds,
+            boolean publicBookingEnabled,
+            int publicBookingRequestsPerWindow,
+            long publicBookingWindowSeconds) {
+        this(authEnabled, authRequestsPerWindow, authWindowSeconds, publicBookingEnabled,
+                publicBookingRequestsPerWindow, publicBookingWindowSeconds, "");
     }
 
     /** Convenience constructor applying the same config to both tiers (tests). */
@@ -123,12 +146,17 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+        if (trustedProxies.stream().noneMatch(proxy -> proxy.matches(remoteAddr))) {
+            return remoteAddr;
+        }
+
         String forwarded = request.getHeader(FORWARDED_FOR);
         if (forwarded != null && !forwarded.isBlank()) {
             int comma = forwarded.indexOf(',');
             return (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
         }
-        return request.getRemoteAddr();
+        return remoteAddr;
     }
 
     private void purgeExpired(long now) {

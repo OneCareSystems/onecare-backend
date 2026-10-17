@@ -122,14 +122,34 @@ class ApiRateLimitFilterTest {
     }
 
     @Test
-    void shouldUseFirstForwardedForIpWhenPresent() throws Exception {
+    void shouldNotAllowRotatingForwardedForToBypassPublicBookingLimit() throws Exception {
+        String remoteIp = "203.0.113.10";
         for (int i = 0; i < 3; i++) {
-            filter.doFilter(request(AUTH_PATH, "10.0.0.1"), new MockHttpServletResponse(), chain);
+            MockHttpServletRequest request = request(PUBLIC_PATH, remoteIp);
+            request.addHeader("X-Forwarded-For", "198.51.100." + (i + 1));
+            filter.doFilter(request, new MockHttpServletResponse(), chain);
+        }
+
+        MockHttpServletRequest rotatedHeader = request(PUBLIC_PATH, remoteIp);
+        rotatedHeader.addHeader("X-Forwarded-For", "198.51.100.99");
+        filter.doFilter(rotatedHeader, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(429);
+    }
+
+    @Test
+    void shouldUseFirstForwardedForIpWhenRequestComesFromTrustedProxy() throws Exception {
+        ApiRateLimitFilter trustedProxyFilter =
+                new ApiRateLimitFilter(true, 3, 60, true, 3, 60, "127.0.0.1");
+        for (int i = 0; i < 3; i++) {
+            MockHttpServletRequest forwardedRequest = request(AUTH_PATH, "127.0.0.1");
+            forwardedRequest.addHeader("X-Forwarded-For", "10.0.0.1");
+            trustedProxyFilter.doFilter(forwardedRequest, new MockHttpServletResponse(), chain);
         }
 
         MockHttpServletRequest overLimit = request(AUTH_PATH, "127.0.0.1");
         overLimit.addHeader("X-Forwarded-For", "10.0.0.1, 172.16.0.1");
-        filter.doFilter(overLimit, response, chain);
+        trustedProxyFilter.doFilter(overLimit, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(429);
     }

@@ -25,7 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "public-booking.rate-limit.enabled=true",
         "public-booking.rate-limit.requests-per-minute=2",
-        "public-booking.rate-limit.window-seconds=60"
+        "public-booking.rate-limit.window-seconds=60",
+        "api.rate-limit.trusted-proxies=127.0.0.1"
 })
 @AutoConfigureMockMvc
 class PublicBookingRateLimitIntegrationTest {
