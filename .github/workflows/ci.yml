@@ -236,8 +236,8 @@ jobs:
         run: ./mvnw $MAVEN_CLI_OPTS clean test
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb?allowPublicKeyRetrieval=true&useSSL=false
-          SPRING_DATASOURCE_USERNAME: ${{ secrets.CI_MYSQL_USER || 'test' }}
-          SPRING_DATASOURCE_PASSWORD: ${{ secrets.CI_MYSQL_PASSWORD || 'test' }}
+          SPRING_DATASOURCE_USERNAME: test
+          SPRING_DATASOURCE_PASSWORD: test
           SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
           SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
           SPRING_JPA_HIBERNATE_DDL_AUTO: validate
