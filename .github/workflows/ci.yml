@@ -209,11 +209,11 @@ jobs:
           - 3306:3306
         env:
           MYSQL_DATABASE: testdb
-          MYSQL_USER: ${{ secrets.CI_MYSQL_USER || 'test' }}
-          MYSQL_PASSWORD: ${{ secrets.CI_MYSQL_PASSWORD || 'test' }}
-          MYSQL_ROOT_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'root' }}
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
         options: >-
-          --health-cmd="mysqladmin ping -uroot -p${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'root' }}"
+          --health-cmd="mysqladmin ping -uroot -proot"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -236,8 +236,8 @@ jobs:
         run: ./mvnw $MAVEN_CLI_OPTS clean test
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb?allowPublicKeyRetrieval=true&useSSL=false
-          SPRING_DATASOURCE_USERNAME: ${{ secrets.CI_MYSQL_USER || 'test' }}
-          SPRING_DATASOURCE_PASSWORD: ${{ secrets.CI_MYSQL_PASSWORD || 'test' }}
+          SPRING_DATASOURCE_USERNAME: test
+          SPRING_DATASOURCE_PASSWORD: test
           SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
           SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
           SPRING_JPA_HIBERNATE_DDL_AUTO: validate
