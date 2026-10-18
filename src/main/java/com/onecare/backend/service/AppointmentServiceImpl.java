@@ -18,6 +18,7 @@ import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
+import com.onecare.backend.util.PhoneNumberUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -150,8 +151,9 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     /**
      * Patient filter, same semantics as the patient search endpoint: partial
-     * case-insensitive name match or exact contact-number match. A blank query
-     * matches everything; an appointment without a linked patient matches nothing.
+     * case-insensitive name match or exact contact-number match in any stored
+     * format (canonical, legacy spaced or as typed). A blank query matches
+     * everything; an appointment without a linked patient matches nothing.
      */
     private static boolean matchesPatientSearch(Patient patient, String query) {
         if (query == null || query.isEmpty()) {
@@ -164,7 +166,8 @@ public class AppointmentServiceImpl implements AppointmentService {
                 && patient.getFullName().toLowerCase().contains(query.toLowerCase())) {
             return true;
         }
-        return query.equals(patient.getContactNo());
+        return patient.getContactNo() != null
+                && PhoneNumberUtil.lookupVariants(query).contains(patient.getContactNo());
     }
 
     /**

@@ -76,7 +76,7 @@ class PublicAppointmentServiceImplTest {
     @Test
     void bookAppointment_createsScheduledAppointment_andTriggersConfirmation() {
         when(patientService.findOrCreateForPublicBooking("Nimal Perera", "0771234567", dateOfBirth ,"Male"))
-                .thenReturn(patient(30L, "+94 771 234 567"));
+                .thenReturn(patient(30L, "+94771234567"));
         when(appointmentService.createAppointmentForPatient(30L, 7L, requestedSlot, null))
                 .thenReturn(bookedAppointment(99L, 30L));
 
@@ -91,7 +91,7 @@ class PublicAppointmentServiceImplTest {
         AppointmentConfirmation confirmation = captor.getValue();
         assertEquals(99L, confirmation.appointmentId());
         assertEquals("Nimal Perera", confirmation.patientFullName());
-        assertEquals("+94 771 234 567", confirmation.patientContactNo());
+        assertEquals("+94771234567", confirmation.patientContactNo());
         assertEquals(requestedSlot.toLocalDate(), confirmation.appointmentDate());
         assertEquals(requestedSlot.toLocalTime(), confirmation.timeSlot());
     }
@@ -99,7 +99,7 @@ class PublicAppointmentServiceImplTest {
     @Test
     void bookAppointment_confirmationFailure_doesNotFailTheBooking() {
         when(patientService.findOrCreateForPublicBooking("Nimal Perera", "0771234567", dateOfBirth,"Male"))
-                .thenReturn(patient(30L, "+94 771 234 567"));
+                .thenReturn(patient(30L, "+94771234567"));
         when(appointmentService.createAppointmentForPatient(30L, 7L, requestedSlot, null))
                 .thenReturn(bookedAppointment(99L, 30L));
         doThrow(new IllegalStateException("SMS provider down"))
@@ -113,7 +113,7 @@ class PublicAppointmentServiceImplTest {
     @Test
     void bookAppointment_slotTaken_propagatesConflictWithoutConfirmation() {
         when(patientService.findOrCreateForPublicBooking("Nimal Perera", "0771234567", dateOfBirth,"Male"))
-                .thenReturn(patient(30L, "+94 771 234 567"));
+                .thenReturn(patient(30L, "+94771234567"));
         when(appointmentService.createAppointmentForPatient(30L, 7L, requestedSlot, null))
                 .thenThrow(new SlotConflictException("Slot taken", requestedSlot.toString(),
                         List.of("2026-10-20T16:00:00")));

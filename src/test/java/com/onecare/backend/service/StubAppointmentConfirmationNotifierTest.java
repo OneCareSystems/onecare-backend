@@ -15,7 +15,7 @@ class StubAppointmentConfirmationNotifierTest {
         StubAppointmentConfirmationNotifier notifier = new StubAppointmentConfirmationNotifier();
 
         assertDoesNotThrow(() -> notifier.sendBookingConfirmation(new AppointmentConfirmation(
-                42L, "Nimal Perera", "+94 771 234 567", "nimal@example.com",
+                42L, "Nimal Perera", "+94771234567", "nimal@example.com",
                 LocalDate.of(2026, 10, 20), LocalTime.of(16, 30))));
     }
 }

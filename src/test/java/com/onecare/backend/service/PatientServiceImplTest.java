@@ -35,6 +35,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PatientServiceImplTest {
 
+    private static final List<String> PHONE_VARIANTS_0771234567 =
+            List.of("+94771234567", "+94 771 234 567", "0771234567");
+
     @Mock
     private PatientRepository patientRepository;
 
@@ -101,7 +104,7 @@ class PatientServiceImplTest {
     @Test
     void createPatient_duplicateMatch_setsFlag_butStillCreates() {
         when(patientRepository
-            .existsByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+            .existsByFullNameIgnoreCaseAndContactNoIn("Nimal Perera", PHONE_VARIANTS_0771234567))
                 .thenReturn(true);
         stubSaveAssignsId(102L);
 
@@ -123,14 +126,14 @@ class PatientServiceImplTest {
 
         assertEquals(103L, response.patientId());
         assertNull(response.bloodGroup());
-        assertEquals("+94 712 345 678", response.contactNo());
+        assertEquals("+94712345678", response.contactNo()); // canonical storage format
     }
 
     // ---------- Search ----------
 
     @Test
     void search_partialName_returnsMatches() {
-        when(patientRepository.search(eq("mal"), any(Pageable.class)))
+        when(patientRepository.search(eq("mal"), anyList(), any(Pageable.class)))
                 .thenReturn(List.of(activePatient(1L, "Nimal Perera", "0771234567")));
 
         List<PatientResponse> results = patientService.findAllPatients("mal", Pageable.unpaged());
@@ -142,18 +145,19 @@ class PatientServiceImplTest {
     @Test
     void search_passesQueryAndPagingToRepository() {
         Pageable pageable = PageRequest.of(1, 5, Sort.by("fullName"));
-        when(patientRepository.search("0771234567", pageable))
+        when(patientRepository.search(eq("0771234567"), anyList(), eq(pageable)))
                 .thenReturn(List.of(activePatient(3L, "Nimal Perera", "0771234567")));
 
         List<PatientResponse> results = patientService.findAllPatients("0771234567", pageable);
 
         assertEquals(1, results.size());
-        verify(patientRepository).search("0771234567", pageable); // one query, no merge/dedupe needed
+        // one query carrying the phone-format variants, no merge/dedupe needed
+        verify(patientRepository).search(eq("0771234567"), anyList(), eq(pageable));
     }
 
     @Test
     void search_exactPhone_returnsThatPatient() {
-        when(patientRepository.findByContactNoAndIsActiveTrue("0771234567"))
+        when(patientRepository.findByContactNoInAndIsActiveTrue(PHONE_VARIANTS_0771234567))
                 .thenReturn(List.of(activePatient(3L, "Nimal Perera", "0771234567")));
 
         List<PatientResponse> results = patientService.searchPatients("0771234567");
@@ -165,7 +169,8 @@ class PatientServiceImplTest {
     void search_sharedPhoneNumber_returnsAllFamilyMembers() {
         Patient father = activePatient(10L, "Sunil Perera", "+94 771 234 567");
         Patient son = activePatient(11L, "Nimal Perera", "+94 771 234 567");
-        when(patientRepository.findByContactNoAndIsActiveTrue("+94 771 234 567"))
+        // legacy spaced rows are matched through the canonical/local variants too
+        when(patientRepository.findByContactNoInAndIsActiveTrue(PHONE_VARIANTS_0771234567))
                 .thenReturn(List.of(father, son));
 
         List<PatientResponse> results = patientService.searchPatients("+94 771 234 567");
@@ -178,7 +183,8 @@ class PatientServiceImplTest {
     @Test
     void search_sameRecordMatchedTwice_isNotDuplicatedInResults() {
         Patient p = activePatient(3L, "Nimal Perera", "0771234567");
-        when(patientRepository.findByContactNoAndIsActiveTrue("0771234567")).thenReturn(List.of(p));
+        when(patientRepository.findByContactNoInAndIsActiveTrue(PHONE_VARIANTS_0771234567))
+                .thenReturn(List.of(p));
         when(patientRepository.searchByName("0771234567")).thenReturn(List.of(p));
 
         assertEquals(1, patientService.searchPatients("0771234567").size());
@@ -192,7 +198,7 @@ class PatientServiceImplTest {
         List<PatientResponse> results = patientService.findAllPatients(null, Pageable.unpaged());
 
         assertEquals(1, results.size());
-        verify(patientRepository, never()).search(any(), any());
+        verify(patientRepository, never()).search(any(), any(), any());
     }
 
     // ---------- Soft deactivation ----------
@@ -225,9 +231,9 @@ class PatientServiceImplTest {
 
     @Test
     void findOrCreateForPublicBooking_nameAndNormalizedPhoneMatch_reusesExistingPatient() {
-        Patient existing = activePatient(7L, "Nimal Perera", "+94 771 234 567" );
+        Patient existing = activePatient(7L, "Nimal Perera", "+94771234567" );
         when(patientRepository
-                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
                 .thenReturn(Optional.of(existing));
 
         Patient result = patientService.findOrCreateForPublicBooking(
@@ -241,7 +247,7 @@ class PatientServiceImplTest {
     void findOrCreateForPublicBooking_localAndInternationalPhoneFormats_resolveToSamePatient() {
         AtomicReference<Patient> persistedPatient = new AtomicReference<>();
         when(patientRepository
-                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
                 .thenAnswer(invocation -> Optional.ofNullable(persistedPatient.get()));
         when(patientRepository
                 .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "0771234567"))
@@ -259,17 +265,17 @@ class PatientServiceImplTest {
                 "Nimal Perera", "+94771234567", LocalDate.of(1990, 5, 12), "Male");
 
         assertSame(localFormatResult, internationalFormatResult);
-        assertEquals("+94 771 234 567", internationalFormatResult.getContactNo());
+        assertEquals("+94771234567", internationalFormatResult.getContactNo()); // canonical format
         verify(patientRepository, times(1)).save(any(Patient.class));
     }
 
     @Test
     void findOrCreateForPublicBooking_rawFormMatch_reusesExistingPatient() {
-        // Patient stored with the raw (non-normalized) form: second lookup uses
+        // Patient stored with the raw (non-normalized) form: the second lookup uses
         // the raw submitted contact number — same dual-form check as DDP-19.
         Patient existing = activePatient(8L, "Nimal Perera", "0771234567");
         when(patientRepository
-                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
                 .thenReturn(Optional.empty());
         when(patientRepository
                 .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "0771234567"))
@@ -284,10 +290,9 @@ class PatientServiceImplTest {
 
     @Test
     void findOrCreateForPublicBooking_equivalentLegacyStoredPhoneFormat_reusesExistingPatient() {
-        Patient existing = activePatient(12L, "Nimal Perera", "0771234567");
-        when(patientRepository
-                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
-                .thenReturn(Optional.empty());
+        // Row persisted before the canonical format was introduced (+94 771 234 567):
+        // neither exact lookup hits, so the by-name fallback normalizes both sides.
+        Patient existing = activePatient(12L, "Nimal Perera", "+94 771 234 567");
         when(patientRepository
                 .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
                 .thenReturn(Optional.empty());
@@ -304,7 +309,7 @@ class PatientServiceImplTest {
     @Test
     void findOrCreateForPublicBooking_nameMatchesButPhoneDiffers_createsNewPatient() {
         when(patientRepository
-                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
                 .thenReturn(Optional.empty());
         stubSaveAssignsId(110L);
 
@@ -318,7 +323,7 @@ class PatientServiceImplTest {
     @Test
     void findOrCreateForPublicBooking_noMatch_createsMinimalActivePatientWithNormalizedPhone() {
         when(patientRepository
-                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
                 .thenReturn(Optional.empty());
         stubSaveAssignsId(111L);
 
@@ -327,7 +332,7 @@ class PatientServiceImplTest {
 
         assertEquals(111L, result.getPatientId());
         assertEquals("Nimal Perera", result.getFullName());
-        assertEquals("+94 771 234 567", result.getContactNo());
+        assertEquals("+94771234567", result.getContactNo()); // canonical storage format
         assertEquals(LocalDate.of(1990, 5, 12), result.getDateOfBirth());
         assertTrue(result.getIsActive());
     }

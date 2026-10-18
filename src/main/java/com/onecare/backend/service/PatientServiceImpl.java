@@ -53,18 +53,13 @@ public class PatientServiceImpl implements PatientService {
     public PatientResponse createPatient(PatientCreateRequest request) {
 
         String rawContactNo = request.contactNo() != null ? request.contactNo().trim() : "";
-        String normalizedContactNo = PhoneNumberUtil.isValidSriLankanPhone(rawContactNo)
-                ? PhoneNumberUtil.normalizeSriLankanPhone(rawContactNo)
-                : rawContactNo;
+        String normalizedContactNo = PhoneNumberUtil.canonicalPhone(rawContactNo);
 
         // AC3: duplicate-suspect check — informational only, never blocks creation.
-        // Requires both matching full name AND contact number.
-        boolean duplicateSuspected = patientRepository
-                .existsByFullNameIgnoreCaseAndContactNo(
-                request.full_name(), normalizedContactNo)
-                || (!normalizedContactNo.equals(rawContactNo)
-                && patientRepository.existsByFullNameIgnoreCaseAndContactNo(
-                request.full_name(), rawContactNo));
+        // Requires both matching full name AND contact number, where the contact
+        // number matches in any stored format (canonical, legacy spaced, as typed).
+        boolean duplicateSuspected = patientRepository.existsByFullNameIgnoreCaseAndContactNoIn(
+                request.full_name(), PhoneNumberUtil.lookupVariants(rawContactNo));
 
         Patient patient = new Patient();
         patient.setFullName(request.full_name());
@@ -94,9 +89,7 @@ public class PatientServiceImpl implements PatientService {
     public Patient findOrCreateForPublicBooking(String fullName, String rawContactNo, LocalDate dateOfBirth, String gender) {
 
         String trimmedContactNo = rawContactNo != null ? rawContactNo.trim() : "";
-        String normalizedContactNo = PhoneNumberUtil.isValidSriLankanPhone(trimmedContactNo)
-                ? PhoneNumberUtil.normalizeSriLankanPhone(trimmedContactNo)
-                : trimmedContactNo;
+        String normalizedContactNo = PhoneNumberUtil.canonicalPhone(trimmedContactNo);
 
         Optional<Patient> existingPatient = patientRepository
                 .findFirstByFullNameIgnoreCaseAndContactNo(fullName, normalizedContactNo);
@@ -147,9 +140,9 @@ public class PatientServiceImpl implements PatientService {
             return List.of(); // AC/negative test: empty search -> 200 []
         }
 
-        // name (partial), contact number (exact) and patient ID (exact) in one
-        // DB query, so page/size/sort apply to the filtered set
-        return patientRepository.search(search, pageable).stream()
+        // name (partial), contact number (exact, in any stored format) and patient ID
+        // (exact) in one DB query, so page/size/sort apply to the filtered set
+        return patientRepository.search(search, PhoneNumberUtil.lookupVariants(search), pageable).stream()
                 .map(PatientResponse::from)
                 .toList();
     }
@@ -178,28 +171,12 @@ public class PatientServiceImpl implements PatientService {
                     .ifPresent(results::add);
         }
 
-        // Exact contact number match as given
-        for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(query)) {
+        // Contact number match in any stored format in one query: canonical
+        // (+94771234567), legacy spaced (+94 771 234 567), as typed, and local
+        // 10-digit (0XXXXXXXXX)
+        for (Patient p : patientRepository.findByContactNoInAndIsActiveTrue(
+                PhoneNumberUtil.lookupVariants(query))) {
             addIfAbsent(results, p);
-        }
-
-        // Contact number match using normalized format (+94 XXX XXX XXX)
-        String normalizedSearch = PhoneNumberUtil.normalizeSriLankanPhone(query);
-        if (normalizedSearch != null && !normalizedSearch.equals(query)) {
-            for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(normalizedSearch)) {
-                addIfAbsent(results, p);
-            }
-        }
-
-        // Contact number match using local 10-digit format (0XXXXXXXXX)
-        String nineDigits = PhoneNumberUtil.extractNineDigits(query);
-        if (nineDigits != null) {
-            String localFormat = "0" + nineDigits;
-            if (!localFormat.equals(query) && !localFormat.equals(normalizedSearch)) {
-                for (Patient p : patientRepository.findByContactNoAndIsActiveTrue(localFormat)) {
-                    addIfAbsent(results, p);
-                }
-            }
         }
 
         // Partial name match (first + last combined)
@@ -260,11 +237,7 @@ public class PatientServiceImpl implements PatientService {
         if (request.full_name() != null) patient.setFullName(request.full_name());
         if (request.address() != null) patient.setAddress(request.address());
         if (request.contactNo() != null) {
-            String raw = request.contactNo().trim();
-            String normalized = PhoneNumberUtil.isValidSriLankanPhone(raw)
-                    ? PhoneNumberUtil.normalizeSriLankanPhone(raw)
-                    : raw;
-            patient.setContactNo(normalized);
+            patient.setContactNo(PhoneNumberUtil.canonicalPhone(request.contactNo()));
         }
         if (request.email() != null) patient.setEmail(request.email());
         if (request.bloodGroup() != null) patient.setBloodGroup(request.bloodGroup());

@@ -125,7 +125,7 @@ class PublicAppointmentBookingIntegrationTest {
         verify(confirmationNotifier).sendBookingConfirmation(captor.capture());
         assertThat(captor.getValue().appointmentId()).isEqualTo(persisted.getAppointmentId());
         assertThat(captor.getValue().patientFullName()).isEqualTo("Nimal Perera");
-        assertThat(captor.getValue().patientContactNo()).isEqualTo("+94 771 234 567");
+        assertThat(captor.getValue().patientContactNo()).isEqualTo("+94771234567"); // canonical format
         assertThat(captor.getValue().appointmentDate()).isEqualTo(slot.toLocalDate());
         assertThat(captor.getValue().timeSlot()).isEqualTo(slot.toLocalTime());
     }
@@ -141,7 +141,7 @@ class PublicAppointmentBookingIntegrationTest {
 
         Patient created = patientRepository.findAll().get(0);
         assertThat(created.getFullName()).isEqualTo("Kamal Silva");
-        assertThat(created.getContactNo()).isEqualTo("+94 712 345 678"); // normalized
+        assertThat(created.getContactNo()).isEqualTo("+94712345678"); // canonical storage format
         assertThat(created.getDateOfBirth()).isEqualTo(LocalDate.of(1985, 3, 10));
         assertThat(created.getIsActive()).isTrue();
     }
@@ -153,7 +153,7 @@ class PublicAppointmentBookingIntegrationTest {
         Patient existing = new Patient();
         existing.setFullName("Nimal Perera");
         existing.setDateOfBirth(LocalDate.of(1990, 5, 12));
-        existing.setContactNo("+94 771 234 567");
+        existing.setContactNo("+94 771 234 567"); // legacy spaced form — persisted canonically
         existing.setGender(Gender.MALE);
         existing.setIsActive(true);
         existing = patientRepository.save(existing);
@@ -182,13 +182,14 @@ class PublicAppointmentBookingIntegrationTest {
         existing.setIsActive(true);
         patientRepository.save(existing);
 
-        Patient existingWithMalformedPhone = new Patient();
-        existingWithMalformedPhone.setFullName("Kamal Silva");
-        existingWithMalformedPhone.setDateOfBirth(LocalDate.of(1985, 3, 10));
-        existingWithMalformedPhone.setContactNo("not-a-phone");
-        existingWithMalformedPhone.setGender(Gender.MALE);
-        existingWithMalformedPhone.setIsActive(true);
-        patientRepository.save(existingWithMalformedPhone);
+        Patient existingOtherPatient = new Patient();
+        existingOtherPatient.setFullName("Kamal Silva");
+        existingOtherPatient.setDateOfBirth(LocalDate.of(1985, 3, 10));
+        // a malformed phone can no longer exist: chk_patient_contact_no rejects it
+        existingOtherPatient.setContactNo("0712345678");
+        existingOtherPatient.setGender(Gender.MALE);
+        existingOtherPatient.setIsActive(true);
+        patientRepository.save(existingOtherPatient);
 
         mockMvc.perform(post(BOOKING_URL)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -219,7 +220,7 @@ class PublicAppointmentBookingIntegrationTest {
         Patient patient = new Patient();
         patient.setFullName("Other Patient");
         patient.setDateOfBirth(LocalDate.of(1980, 1, 1));
-        patient.setContactNo("+94 77 999 888");
+        patient.setContactNo("0779999888");
         patient.setGender(Gender.FEMALE);
         patient.setIsActive(true);
         patient = patientRepository.save(patient);

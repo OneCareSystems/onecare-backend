@@ -15,6 +15,11 @@ public interface PatientRepository extends JpaRepository<Patient, Long>  {
             String contactNo
     );
 
+    boolean existsByFullNameIgnoreCaseAndContactNoIn(
+            String fullName,
+            List<String> contactNos
+    );
+
     /**
      * duplicate check (same name + contact-number
      * semantics) — used by public self-booking to reuse an existing
@@ -27,7 +32,7 @@ public interface PatientRepository extends JpaRepository<Patient, Long>  {
 
     List<Patient> findByFullNameIgnoreCase(String fullName);
 
-    List<Patient> findByContactNoAndIsActiveTrue(String contactNo);
+    List<Patient> findByContactNoInAndIsActiveTrue(List<String> contactNos);
 
       @Query("SELECT p FROM Patient p WHERE p.isActive = true AND " +
        "LOWER(p.fullName) LIKE LOWER(CONCAT('%', :search, '%'))")
@@ -35,12 +40,16 @@ public interface PatientRepository extends JpaRepository<Patient, Long>  {
 
     /**
      * Paginated search over active patients: partial case-insensitive name,
-     * exact contact number, or exact patient ID. Pageable drives the DB
-     * offset/limit and the sort; the count query is skipped (List return type).
+     * exact contact number (in any stored format — canonical, legacy spaced or
+     * as typed, passed in as {@code contactVariants}), or exact patient ID.
+     * Pageable drives the DB offset/limit and the sort; the count query is
+     * skipped (List return type).
      */
     @Query("SELECT p FROM Patient p WHERE p.isActive = true AND (" +
             "LOWER(p.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-            "OR p.contactNo = :search " +
+            "OR p.contactNo IN :contactVariants " +
             "OR CAST(p.patientId AS string) = :search)")
-    List<Patient> search(@Param("search") String search, Pageable pageable);
+    List<Patient> search(@Param("search") String search,
+                         @Param("contactVariants") List<String> contactVariants,
+                         Pageable pageable);
 }
