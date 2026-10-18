@@ -25,6 +25,8 @@ public interface PatientRepository extends JpaRepository<Patient, Long>  {
             String contactNo
     );
 
+    List<Patient> findByFullNameIgnoreCase(String fullName);
+
     List<Patient> findByContactNoAndIsActiveTrue(String contactNo);
 
       @Query("SELECT p FROM Patient p WHERE p.isActive = true AND " +

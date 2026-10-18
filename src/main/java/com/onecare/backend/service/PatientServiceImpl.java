@@ -98,12 +98,20 @@ public class PatientServiceImpl implements PatientService {
                 ? PhoneNumberUtil.normalizeSriLankanPhone(trimmedContactNo)
                 : trimmedContactNo;
 
-        Patient existing = patientRepository
-                .findFirstByFullNameIgnoreCaseAndContactNo(fullName, normalizedContactNo)
-                .or(() -> !normalizedContactNo.equals(trimmedContactNo)
-                        ? patientRepository.findFirstByFullNameIgnoreCaseAndContactNo(fullName, trimmedContactNo)
-                        : Optional.empty())
-                .orElse(null);
+        Optional<Patient> existingPatient = patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo(fullName, normalizedContactNo);
+        if (existingPatient.isEmpty() && !normalizedContactNo.equals(trimmedContactNo)) {
+            existingPatient = patientRepository
+                    .findFirstByFullNameIgnoreCaseAndContactNo(fullName, trimmedContactNo);
+        }
+        if (existingPatient.isEmpty() && PhoneNumberUtil.isValidSriLankanPhone(trimmedContactNo)) {
+            existingPatient = patientRepository.findByFullNameIgnoreCase(fullName).stream()
+                    .filter(patient -> PhoneNumberUtil.isValidSriLankanPhone(patient.getContactNo()))
+                    .filter(patient -> normalizedContactNo.equals(
+                            PhoneNumberUtil.normalizeSriLankanPhone(patient.getContactNo())))
+                    .findFirst();
+        }
+        Patient existing = existingPatient.orElse(null);
 
         if (existing != null) {
             log.info("Public booking matched existing patient | patientId={} | performedBy=PUBLIC",
@@ -293,4 +301,3 @@ public class PatientServiceImpl implements PatientService {
 
 
     
-

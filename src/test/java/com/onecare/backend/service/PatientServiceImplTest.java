@@ -283,6 +283,25 @@ class PatientServiceImplTest {
     }
 
     @Test
+    void findOrCreateForPublicBooking_equivalentLegacyStoredPhoneFormat_reusesExistingPatient() {
+        Patient existing = activePatient(12L, "Nimal Perera", "0771234567");
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .thenReturn(Optional.empty());
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
+                .thenReturn(Optional.empty());
+        when(patientRepository.findByFullNameIgnoreCase("Nimal Perera"))
+                .thenReturn(List.of(existing));
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "+94771234567", LocalDate.of(1990, 5, 12), "Male");
+
+        assertEquals(12L, result.getPatientId());
+        verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
     void findOrCreateForPublicBooking_nameMatchesButPhoneDiffers_createsNewPatient() {
         when(patientRepository
                 .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
