@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -234,6 +235,32 @@ class PatientServiceImplTest {
 
         assertEquals(7L, result.getPatientId()); // same record, not a new one
         verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_localAndInternationalPhoneFormats_resolveToSamePatient() {
+        AtomicReference<Patient> persistedPatient = new AtomicReference<>();
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94 771 234 567"))
+                .thenAnswer(invocation -> Optional.ofNullable(persistedPatient.get()));
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "0771234567"))
+                .thenReturn(Optional.empty());
+        when(patientRepository.save(any(Patient.class))).thenAnswer(invocation -> {
+            Patient patient = invocation.getArgument(0);
+            patient.setPatientId(9L);
+            persistedPatient.set(patient);
+            return patient;
+        });
+
+        Patient localFormatResult = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12), "Male");
+        Patient internationalFormatResult = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "+94771234567", LocalDate.of(1990, 5, 12), "Male");
+
+        assertSame(localFormatResult, internationalFormatResult);
+        assertEquals("+94 771 234 567", internationalFormatResult.getContactNo());
+        verify(patientRepository, times(1)).save(any(Patient.class));
     }
 
     @Test

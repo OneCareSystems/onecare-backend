@@ -67,7 +67,7 @@ CREATE TABLE patients (
 
     CONSTRAINT pk_patients PRIMARY KEY (patient_id),
     CONSTRAINT chk_patient_contact_no
-        CHECK (contact_no REGEXP '^[+]947[0-9]{8}$')
+        CHECK (contact_no REGEXP '^[+]94 7[0-9]{2} [0-9]{3} [0-9]{3}$')
 );
 
 -- 3. medicines
