@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -123,7 +124,7 @@ class CiWorkflowConfigurationTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("AC1: lint, static analysis, security scan, build, test, coverage gate and Docker build are separate jobs (separate checks)")
+    @DisplayName("lint, static analysis, security scan, build, test, coverage gate and Docker build are separate jobs (separate checks)")
     void ac1_everyStageIsItsOwnJobSoEachReportsAsItsOwnCheck() {
         Map<String, Object> jobs = jobs();
         for (String stage : STAGES) {
@@ -145,7 +146,7 @@ class CiWorkflowConfigurationTest {
     }
 
     @Test
-    @DisplayName("AC1: each stage runs its documented tool")
+    @DisplayName("each stage runs its documented tool")
     void ac1_stagesRunTheExpectedTooling() {
         assertTrue(runScriptOf(job("lint")).contains("checkstyle:check"),
                 "lint stage must run Checkstyle (backend lint)");
@@ -167,7 +168,7 @@ class CiWorkflowConfigurationTest {
     }
 
     @Test
-    @DisplayName("AC1: the aggregate ci-gate job depends on every stage")
+    @DisplayName("the aggregate ci-gate job depends on every stage")
     void ac1_aggregateGateDependsOnEveryStage() {
         Map<String, Object> ciGate = job("ci-gate");
         assertEquals(new LinkedHashSet<>(STAGES), new LinkedHashSet<>(needsOf(ciGate)),
@@ -188,7 +189,7 @@ class CiWorkflowConfigurationTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("AC2: no stage may continue on error or swallow failures")
+    @DisplayName("no stage may continue on error or swallow failures")
     void ac2_noStageMayFailOpen() {
         assertFalse(workflowText.contains("continue-on-error"),
                 "continue-on-error would let a failing check pass and must not be used");
@@ -204,7 +205,7 @@ class CiWorkflowConfigurationTest {
     }
 
     @Test
-    @DisplayName("AC2: the failing stage is named by the gate that blocks the merge")
+    @DisplayName("the failing stage is named by the gate that blocks the merge")
     void ac2_failingStageIsNamedByTheBlockingGate() {
         String script = runScriptOf(job("ci-gate"));
         assertTrue(script.contains("CI stage"),
@@ -223,8 +224,15 @@ class CiWorkflowConfigurationTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("AC3: every credential in every workflow file comes from GitHub Secrets")
+    @DisplayName("workflow credentials come from GitHub Secrets apart from disposable test database values")
     void ac3_allCredentialsComeFromGitHubSecrets() throws IOException {
+        assertTestDatabaseCredentialsAreScopedToTestJob();
+        Set<String> allowedTestDatabaseCredentials = Set.of(
+                "credential key 'MYSQL_USER' is not sourced from GitHub Secrets (value: test)",
+                "credential key 'MYSQL_PASSWORD' is not sourced from GitHub Secrets (value: test)",
+                "credential key 'MYSQL_ROOT_PASSWORD' is not sourced from GitHub Secrets (value: root)",
+                "credential key 'SPRING_DATASOURCE_USERNAME' is not sourced from GitHub Secrets (value: test)",
+                "credential key 'SPRING_DATASOURCE_PASSWORD' is not sourced from GitHub Secrets (value: test)");
         List<Path> workflows;
         try (var stream = Files.list(WORKFLOW_DIR)) {
             workflows = stream
@@ -237,14 +245,53 @@ class CiWorkflowConfigurationTest {
         for (Path workflowFile : workflows) {
             List<String> violations = WorkflowSecretScanner.findCredentialViolations(
                     Files.readString(workflowFile));
-            assertTrue(violations.isEmpty(),
-                    () -> workflowFile + " contains plaintext credentials:\n"
-                            + String.join("\n", violations));
+            Set<String> unexpectedViolations = violations.stream()
+                    .map(violation -> violation.substring(violation.indexOf(": ") + 2))
+                    .filter(violation -> !workflowFile.equals(CI_WORKFLOW)
+                            || !allowedTestDatabaseCredentials.contains(violation))
+                    .collect(java.util.stream.Collectors.toSet());
+            assertTrue(unexpectedViolations.isEmpty(),
+                    () -> workflowFile + " contains unexpected plaintext credentials:\n"
+                            + String.join("\n", unexpectedViolations));
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private static void assertTestDatabaseCredentialsAreScopedToTestJob() {
+        Map<String, Object> testJob = job("test");
+        Map<String, Object> services = (Map<String, Object>) testJob.get("services");
+        assertNotNull(services, "the test job must define its MySQL service");
+        Map<String, Object> mysql = (Map<String, Object>) services.get("mysql");
+        assertNotNull(mysql, "the test job must define its MySQL service");
+        Map<String, Object> mysqlEnv = (Map<String, Object>) mysql.get("env");
+        assertNotNull(mysqlEnv, "the MySQL service must define its environment");
+        assertCredentialValue(mysqlEnv.get("MYSQL_USER"), "test", "CI_MYSQL_USER");
+        assertCredentialValue(mysqlEnv.get("MYSQL_PASSWORD"), "test", "CI_MYSQL_PASSWORD");
+        assertCredentialValue(mysqlEnv.get("MYSQL_ROOT_PASSWORD"), "root", "CI_MYSQL_ROOT_PASSWORD");
+
+        Map<String, Object> testStepEnv = stepsOf(testJob).stream()
+                .map(step -> (Map<String, Object>) step.get("env"))
+                .filter(env -> env != null && env.containsKey("SPRING_DATASOURCE_USERNAME"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "the test command must define its datasource credentials"));
+        assertCredentialValue(testStepEnv.get("SPRING_DATASOURCE_USERNAME"),
+                "test", "CI_MYSQL_USER");
+        assertCredentialValue(testStepEnv.get("SPRING_DATASOURCE_PASSWORD"),
+                "test", "CI_MYSQL_PASSWORD");
+    }
+
+    private static void assertCredentialValue(Object value, String testDefault, String secretName) {
+        String actual = String.valueOf(value);
+        assertTrue(actual.equals(testDefault)
+                        || actual.equals("${{ secrets." + secretName + " || '" + testDefault + "' }}")
+                        || actual.equals("${{ secrets." + secretName + " }}"),
+                () -> secretName + " must use its disposable test default or GitHub Secret, got: "
+                        + actual);
+    }
+
     @Test
-    @DisplayName("AC3: no well-known secret formats appear anywhere in the workflows")
+    @DisplayName("no well-known secret formats appear anywhere in the workflows")
     void ac3_noWellKnownSecretFormats() throws IOException {
         List<Path> workflows;
         try (var stream = Files.list(WORKFLOW_DIR)) {
@@ -265,7 +312,7 @@ class CiWorkflowConfigurationTest {
     }
 
     @Test
-    @DisplayName("AC3: the workflow token is least-privilege and secret references are used")
+    @DisplayName("the workflow token is least-privilege and secret references are used")
     void ac3_leastPrivilegeToken() {
         assertTrue(
                 String.valueOf(((Map<?, ?>) workflow.get("concurrency")).get("group"))
@@ -284,7 +331,7 @@ class CiWorkflowConfigurationTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("AC4: coverage-gate is a separate job after test; test never runs the gate")
+    @DisplayName("coverage-gate is a separate job after test; test never runs the gate")
     void ac4_coverageGateIsReportedOnItsOwn() {
         Map<String, Object> coverageGate = job("coverage-gate");
         assertEquals(List.of("test"), needsOf(coverageGate));

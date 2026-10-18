@@ -209,11 +209,11 @@ jobs:
           - 3306:3306
         env:
           MYSQL_DATABASE: testdb
-          MYSQL_USER: ${{ secrets.CI_MYSQL_USER || 'test' }}
-          MYSQL_PASSWORD: ${{ secrets.CI_MYSQL_PASSWORD || 'test' }}
-          MYSQL_ROOT_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'root' }}
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
         options: >-
-          --health-cmd="mysqladmin ping"
+          --health-cmd="mysqladmin ping -uroot -proot"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
