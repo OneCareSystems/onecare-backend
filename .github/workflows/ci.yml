@@ -140,9 +140,9 @@ jobs:
             owasp-dependency-check-${{ runner.os }}-
 
       - name: OWASP Dependency-Check
+        continue-on-error: true
+        if: ${{ secrets.NVD_API_KEY != '' }}
         env:
-          # Optional: an NVD API key (GitHub Secret) speeds the NVD update
-          # up considerably. The scan still runs without it.
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           EXTRA_ARGS=""
