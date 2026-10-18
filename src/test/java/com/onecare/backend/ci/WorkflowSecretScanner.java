@@ -87,6 +87,9 @@ public final class WorkflowSecretScanner {
             // `secret_key`, `private_key`, ...
             return false;
         }
+        if (tokens.contains("key") && tokens.contains("present")) {
+            return false;
+        }
         boolean apiStyle = tokens.contains("api") && tokens.contains("key");
         boolean tokenStyle = tokens.stream().anyMatch(CREDENTIAL_TOKENS::contains);
         return apiStyle || tokenStyle;
