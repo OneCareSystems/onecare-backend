@@ -172,6 +172,46 @@ class PublicAppointmentBookingIntegrationTest {
         assertThat(persisted.getPatient().getPatientId()).isEqualTo(existing.getPatientId());
     }
 
+    @Test
+    void bookAppointment_invalidPatientFields_return400BeforeMatchingExistingPatients() throws Exception {
+        Patient existing = new Patient();
+        existing.setFullName("Nimal Perera");
+        existing.setDateOfBirth(LocalDate.of(1990, 5, 12));
+        existing.setContactNo("+94 771 234 567");
+        existing.setGender(Gender.MALE);
+        existing.setIsActive(true);
+        patientRepository.save(existing);
+
+        Patient existingWithMalformedPhone = new Patient();
+        existingWithMalformedPhone.setFullName("Kamal Silva");
+        existingWithMalformedPhone.setDateOfBirth(LocalDate.of(1985, 3, 10));
+        existingWithMalformedPhone.setContactNo("not-a-phone");
+        existingWithMalformedPhone.setGender(Gender.MALE);
+        existingWithMalformedPhone.setIsActive(true);
+        patientRepository.save(existingWithMalformedPhone);
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Nimal Perera", "0771234567",
+                                LocalDate.of(1990, 5, 12), doctor.getUserId(), slot, "")))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Nimal Perera", "0771234567",
+                                LocalDate.now().plusDays(1), doctor.getUserId(), slot, "Male")))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Kamal Silva", "not-a-phone",
+                                LocalDate.of(1985, 3, 10), doctor.getUserId(), slot, "Male")))
+                .andExpect(status().isBadRequest());
+
+        assertThat(patientRepository.count()).isEqualTo(2);
+        assertThat(appointmentRepository.count()).isZero();
+    }
+
     // ---------- AC4: slot taken between page-load and submission ----------
 
     @Test

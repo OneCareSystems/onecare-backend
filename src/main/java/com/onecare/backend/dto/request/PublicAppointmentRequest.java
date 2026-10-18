@@ -3,6 +3,8 @@ package com.onecare.backend.dto.request;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
@@ -22,12 +24,18 @@ public record PublicAppointmentRequest(
 
         @NotBlank(message = "Contact number is required")
         @Size(max = 20)
+        @Pattern(
+                regexp = "^[\\s\\-()]*(?:(?:\\+94|0094|94|0)[\\s\\-()]*)?[1-9](?:[\\s\\-()]*\\d){8}[\\s\\-()]*$",
+                message = "Contact number must be a valid Sri Lankan phone number")
         String contactNo,
 
         @NotNull(message = "Date of birth is required")
+        @PastOrPresent(message = "Date of birth cannot be in the future")
         LocalDate dateOfBirth,
 
-        @NotNull(message = "Gender is required")
+        @NotBlank(message = "Gender is required")
+        @Pattern(regexp = "(?i)\\s*(MALE|FEMALE|OTHER)\\s*",
+                message = "Gender must be Male, Female, or Other")
         String gender,
 
         @NotNull(message = "Doctor ID is required")
