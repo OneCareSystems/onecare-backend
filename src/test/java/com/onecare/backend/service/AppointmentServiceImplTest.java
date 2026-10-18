@@ -7,6 +7,7 @@ import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.enums.Role;
+import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.AppointmentRepository;
@@ -657,7 +658,7 @@ class AppointmentServiceImplTest {
         when(patientRepository.findById(30L)).thenReturn(Optional.of(patient));
         when(userRepository.findById(7L)).thenReturn(Optional.of(nonDoctor));
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(BusinessRuleException.class,
                 () -> appointmentService.createAppointmentForPatient(
                         30L, 7L, LocalDate.now().plusDays(1).atTime(16, 30), null));
     }
