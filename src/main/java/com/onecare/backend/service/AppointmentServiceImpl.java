@@ -96,8 +96,9 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + patientId));
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + doctorId));
-        if (doctor.getRole() != Role.DOCTOR) {
-            throw new IllegalArgumentException("Specified user with id: " + doctorId + " is not a doctor");
+        if (doctor.getRole() != Role.DOCTOR || !Boolean.TRUE.equals(doctor.getIsActive())) {
+            throw new BusinessRuleException(
+                    "Specified user with id: " + doctorId + " is not an active doctor");
         }
 
         Appointment saved = createAppointmentInternal(patient, doctor, appointmentDateTime, reason);

@@ -317,6 +317,21 @@ class PublicAppointmentBookingIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void bookAppointment_inactiveDoctor_returns400WithoutPersistingPatientOrAppointment() throws Exception {
+        doctor.setIsActive(false);
+        userRepository.save(doctor);
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Nimal Perera", "0771234567",
+                                LocalDate.of(1990, 5, 12), doctor.getUserId(), slot, "Male")))
+                .andExpect(status().isBadRequest());
+
+        assertThat(patientRepository.count()).isZero();
+        assertThat(appointmentRepository.count()).isZero();
+    }
+
     private String bookingJson(String fullName, String contactNo, LocalDate dateOfBirth,
             Long doctorId, LocalDateTime appointmentDateTime, String gender) {
         return """
