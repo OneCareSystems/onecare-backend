@@ -49,7 +49,8 @@ Configure the repository so the merge is blocked until CI passes:
 
 ## Secrets inventory
 
-The workflow contains **no credential literals**. Configure these repository secrets
+The workflow contains **no production credential literals**. The MySQL fallbacks are disposable
+test-container values only. Configure these repository secrets
 (Settings → Secrets and variables → Actions):
 
 | Secret                   | Used by       | Required | Purpose                                                     |
@@ -65,9 +66,9 @@ The workflow contains **no credential literals**. Configure these repository sec
 
 Notes:
 
-* The MySQL service containers are **ephemeral per run** — the defaults exist only so the
-  workflow parses and runs before the secrets are configured; set the `CI_MYSQL_*` secrets to
-  real values for shared environments.
+* The MySQL service containers are **ephemeral per run**. The workflow reads the optional
+  `CI_MYSQL_*` secrets in the service and test-process environments, with disposable defaults
+  for runs where those secrets are unavailable (for example, forked pull requests).
 * `NVD_API_KEY` is optional: the OWASP Dependency-Check step runs without it (only slower).
 * GitHub's native secret scanning and push protection should be enabled in repository
   settings; they complement the `gitleaks` step.
