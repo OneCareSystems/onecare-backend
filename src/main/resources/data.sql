@@ -21,9 +21,9 @@ VALUES
 INSERT INTO patients
     (patient_id, full_name, date_of_birth, address, contact_no, email, blood_group, gender, created_at, updated_at)
 VALUES
-    (1, 'Kasun Fernando', '1990-05-14', '12 Lake Road, Colombo', '0771234567', 'kasun.f@example.test', 'O+', 'MALE', NOW(), NOW()),
-    (2, 'Nimasha Perera', '1985-11-02', '45 Temple Lane, Kandy', '0779876543', 'nimasha.p@example.test', 'A+', 'FEMALE', NOW(), NOW()),
-    (3, 'Ruwan Silva', '2001-02-20', '78 Galle Road, Galle', '0712223344', 'ruwan.s@example.test', 'B+', 'MALE', NOW(), NOW());
+    (1, 'Kasun Fernando', '1990-05-14', '12 Lake Road, Colombo', '+94771234567', 'kasun.f@example.test', 'O+', 'MALE', NOW(), NOW()),
+    (2, 'Nimasha Perera', '1985-11-02', '45 Temple Lane, Kandy', '+94779876543', 'nimasha.p@example.test', 'A+', 'FEMALE', NOW(), NOW()),
+    (3, 'Ruwan Silva', '2001-02-20', '78 Galle Road, Galle', '+94712223344', 'ruwan.s@example.test', 'B+', 'MALE', NOW(), NOW());
 -- ---------------------------------------------------------------------
 -- 3. MEDICINES  (AC4)
 -- ---------------------------------------------------------------------
@@ -179,15 +179,15 @@ INSERT IGNORE INTO patients
      blood_group, gender, created_at, updated_at)
 VALUES
     (4, 'Amaya Jayasinghe', '1995-03-18', '10 Park Road, Colombo',
-     '0700000004', 'amaya.j@example.test', 'A-', 'FEMALE', NOW(), NOW()),
+     '+94700000004', 'amaya.j@example.test', 'A-', 'FEMALE', NOW(), NOW()),
     (5, 'Tharindu Wijesinghe', '1988-07-22', '22 Hill Street, Kandy',
-     '0700000005', 'tharindu.w@example.test', 'B+', 'MALE', NOW(), NOW()),
+     '+94700000005', 'tharindu.w@example.test', 'B+', 'MALE', NOW(), NOW()),
     (6, 'Ishara Gunawardena', '1978-09-11', '15 Beach Road, Galle',
-     '0700000006', 'ishara.g@example.test', 'O-', 'FEMALE', NOW(), NOW()),
+     '+94700000006', 'ishara.g@example.test', 'O-', 'FEMALE', NOW(), NOW()),
     (7, 'Nethmi Bandara', '2003-12-05', '8 Garden Lane, Kurunegala',
-     '0700000007', 'nethmi.b@example.test', 'AB+', 'FEMALE', NOW(), NOW()),
+     '+94700000007', 'nethmi.b@example.test', 'AB+', 'FEMALE', NOW(), NOW()),
     (8, 'Dilan Madushanka', '1969-04-27', '30 Station Road, Matara',
-     '0700000008', 'dilan.m@example.test', 'O+', 'MALE', NOW(), NOW());
+     '+94700000008', 'dilan.m@example.test', 'O+', 'MALE', NOW(), NOW());
 
 
 -- =====================================================================
