@@ -42,6 +42,15 @@ public final class Permission {
     public static final String AUDIT_READ_ALL = "AUDIT_READ_ALL";
     public static final String REPORT_GENERATE = "REPORT_GENERATE";
 
+    public static final String SCHEDULE_READ = "SCHEDULE_READ";
+    public static final String SCHEDULE_MANAGE = "SCHEDULE_MANAGE";
+
+    public static final String ROLE_PERMISSION_READ = "ROLE_PERMISSION_READ";
+    public static final String ROLE_PERMISSION_UPDATE = "ROLE_PERMISSION_UPDATE";
+
+    public static final String SYSTEM_BACKUP = "SYSTEM_BACKUP";
+    public static final String SYSTEM_RESTORE = "SYSTEM_RESTORE";
+
     public static final String INVOICE_CREATE = "INVOICE_CREATE";
     public static final String INVOICE_READ = "INVOICE_READ";
     public static final String INVOICE_UPDATE = "INVOICE_UPDATE";
