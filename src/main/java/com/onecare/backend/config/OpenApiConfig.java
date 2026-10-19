@@ -21,7 +21,8 @@ public class OpenApiConfig {
      */
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/forgot-password",
-            "/api/auth/reset-password");
+            "/api/auth/reset-password",
+            "/api/public/appointments");
 
     /**
      * Prefixes guarded by hasAnyRole rules in SecurityConfig — the only
@@ -63,7 +64,8 @@ public class OpenApiConfig {
      * - 400 on every operation that accepts a request body (@Valid)
      * - 401 on every operation except permitAll paths
      * - 403 on role-protected operations (SecurityConfig hasAnyRole)
-     * - 429 on /api/* (ApiRateLimitFilter: auth tier on /api/auth/*, general tier elsewhere)
+     * - 429 on /api/* (ApiRateLimitFilter: auth tier on /api/auth/*,
+     *   public-booking tier on /api/public/*)
      */
     @Bean
     public GlobalOpenApiCustomizer defaultResponsesCustomizer() {

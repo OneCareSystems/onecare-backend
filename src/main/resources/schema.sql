@@ -68,7 +68,9 @@ CREATE TABLE patients (
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    CONSTRAINT pk_patients PRIMARY KEY (patient_id)
+    CONSTRAINT pk_patients PRIMARY KEY (patient_id),
+    CONSTRAINT chk_patient_contact_no
+        CHECK (contact_no REGEXP '^[+]947[0-9]{8}$')
 );
 
 -- 3. medicines

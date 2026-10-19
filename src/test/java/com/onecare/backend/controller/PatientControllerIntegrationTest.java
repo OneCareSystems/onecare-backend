@@ -125,9 +125,10 @@ class PatientControllerIntegrationTest {
     void search_byExactPhone_returnsList() throws Exception {
         savePatient("Nimal Perera", "0771111222");
 
+        // searched by local 10-digit form, stored (and returned) canonically
         mockMvc.perform(get("/api/patients").param("search", "0771111222").with(as(Role.ADMIN)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].contactNo").value("0771111222"));
+                .andExpect(jsonPath("$.data[0].contactNo").value("+94771111222"));
     }
 
     @Test
