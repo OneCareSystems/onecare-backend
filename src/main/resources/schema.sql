@@ -248,7 +248,7 @@ CREATE TABLE payments (
 -- user_id is nullable: failed logins with an unknown username are still audited
 CREATE TABLE audit_log (
     log_id      BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id     BIGINT       NOT NULL,
+    user_id     BIGINT       NULL,
     action      VARCHAR(100) NOT NULL,
     timestamp   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ip_address  VARCHAR(45)  NULL,

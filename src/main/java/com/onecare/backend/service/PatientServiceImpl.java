@@ -209,6 +209,7 @@ public class PatientServiceImpl implements PatientService {
     }
 
     @Override
+    
     public PatientResponse updatePatient(Long id, PatientUpdateRequest request) {
 
         Patient patient = findPatientByIdInternal(id);
