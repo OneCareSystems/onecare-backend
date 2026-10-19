@@ -18,8 +18,10 @@ import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
+import com.onecare.backend.util.PhoneNumberUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
@@ -50,7 +52,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final LocalTime operatingEndTime;
     private final Duration slotDuration;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired 
     public AppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
@@ -82,9 +84,43 @@ public class AppointmentServiceImpl implements AppointmentService {
         User doctor = userRepository.findById(request.doctorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + request.doctorId()));
 
+        Appointment saved = createAppointmentInternal(patient, doctor, request.appointmentDateTime(), request.reason());
+        log.info("Created appointment {} for patient {} with doctor {} at {}",
+                saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), request.appointmentDateTime());
+        return mapAppointment(saved, getCurrentAuthenticatedUser());
+    }
+
+    @Override
+    public AppointmentResponse createAppointmentForPatient(Long patientId, Long doctorId,
+            LocalDateTime appointmentDateTime, String reason) {
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found with id: " + patientId));
+        User doctor = userRepository.findById(doctorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + doctorId));
+        if (doctor.getRole() != Role.DOCTOR || !Boolean.TRUE.equals(doctor.getIsActive())) {
+            throw new BusinessRuleException(
+                    "Specified user with id: " + doctorId + " is not an active doctor");
+        }
+
+        Appointment saved = createAppointmentInternal(patient, doctor, appointmentDateTime, reason);
+        log.info("Created appointment {} for patient {} with doctor {} at {} (public booking)",
+                saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), appointmentDateTime);
+        // No authenticated caller on this path: unauthenticated-safe mapping, never clinical notes.
+        return AppointmentResponse.from(saved);
+    }
+
+    /**
+     * Shared slot-protected creation behind staff booking (DDP-20) and public
+     * self-booking (DDP-33): clinic-grid assertion -> doctor row lock ->
+     * availability assertion -> SCHEDULED entity -> save guarded by the unique
+     * doctor/date/slot constraint.
+     */
+    private Appointment createAppointmentInternal(Patient patient, User doctor,
+            LocalDateTime requestedStart, String reason) {
+        assertWithinOperatingHours(requestedStart);
+
         lockDoctor(doctor.getUserId());
 
-        LocalDateTime requestedStart = request.appointmentDateTime();
         LocalDateTime requestedEnd = requestedStart.plus(slotDuration);
         assertDoctorSlotAvailability(doctor.getUserId(), requestedStart, requestedEnd, null);
 
@@ -93,13 +129,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setDoctor(doctor);
         appointment.setAppointmentDate(requestedStart.toLocalDate());
         appointment.setTimeSlot(requestedStart.toLocalTime());
-        appointment.setReason(request.reason());
+        appointment.setReason(reason);
         appointment.setStatus(AppointmentStatus.SCHEDULED);
 
-        Appointment saved = saveWithSlotProtection(appointment, doctor.getUserId(), requestedStart, null);
-        log.info("Created appointment {} for patient {} with doctor {} at {}",
-                saved.getAppointmentId(), patient.getPatientId(), doctor.getUserId(), requestedStart);
-        return mapAppointment(saved, getCurrentAuthenticatedUser());
+        return saveWithSlotProtection(appointment, doctor.getUserId(), requestedStart, null);
     }
 
     @Override
@@ -118,8 +151,9 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     /**
      * Patient filter, same semantics as the patient search endpoint: partial
-     * case-insensitive name match or exact contact-number match. A blank query
-     * matches everything; an appointment without a linked patient matches nothing.
+     * case-insensitive name match or exact contact-number match in any stored
+     * format (canonical, legacy spaced or as typed). A blank query matches
+     * everything; an appointment without a linked patient matches nothing.
      */
     private static boolean matchesPatientSearch(Patient patient, String query) {
         if (query == null || query.isEmpty()) {
@@ -132,7 +166,8 @@ public class AppointmentServiceImpl implements AppointmentService {
                 && patient.getFullName().toLowerCase().contains(query.toLowerCase())) {
             return true;
         }
-        return query.equals(patient.getContactNo());
+        return patient.getContactNo() != null
+                && PhoneNumberUtil.lookupVariants(query).contains(patient.getContactNo());
     }
 
     /**
@@ -277,6 +312,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         if (request.appointmentDateTime() != null) {
+            // rescheduling lands on the same clinic grid as booking
+            assertWithinOperatingHours(newDateTime);
             assertDoctorSlotAvailability(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
             appointment.setAppointmentDate(newDateTime.toLocalDate());
             appointment.setTimeSlot(newDateTime.toLocalTime());
@@ -386,6 +423,32 @@ public class AppointmentServiceImpl implements AppointmentService {
                     "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: " + requestedStart,
                     requestedStart.toString(),
                     alternatives);
+        }
+    }
+
+    /**
+     * Booking and rescheduling must land on the clinic slot grid: at or after
+     * operating start, ending at or before operating end, and aligned to the
+     * slot duration (e.g. 16:00, 16:30, ... 20:30 with the default 16:00-21:00
+     * / 30-minute config). Off-grid or out-of-hours times are rejected with
+     * 400 instead of silently creating appointments that the availability
+     * display (getAvailableSlots / alternative slots) never shows.
+     */
+    private void assertWithinOperatingHours(LocalDateTime requestedStart) {
+        LocalTime start = requestedStart.toLocalTime();
+        boolean withinHours = !start.isBefore(operatingStartTime)
+                && !start.plus(slotDuration).isAfter(operatingEndTime);
+
+        long offsetSeconds = Duration.between(operatingStartTime, start).getSeconds();
+        boolean alignedToGrid = offsetSeconds >= 0
+                && offsetSeconds % slotDuration.toSeconds() == 0
+                && start.getNano() == 0;
+
+        if (!withinHours || !alignedToGrid) {
+            throw new BusinessRuleException(String.format(
+                    "Appointment time must be a clinic slot between %s and %s, aligned to %d-minute "
+                            + "intervals (requested: %s)",
+                    operatingStartTime, operatingEndTime, slotDuration.toMinutes(), requestedStart));
         }
     }
 
