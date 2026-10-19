@@ -79,7 +79,7 @@ class AppointmentConcurrencyIntegrationTest {
         patient.setIsActive(true);
         patient = patientRepository.save(patient);
 
-        LocalDateTime slot = LocalDateTime.now().plusDays(1).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime slot = LocalDateTime.now().plusDays(1).withHour(16).withMinute(30).withSecond(0).withNano(0);
         CreateAppointmentRequest request = new CreateAppointmentRequest(doctor.getUserId(), patient.getPatientId(), slot, "checkup");
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
