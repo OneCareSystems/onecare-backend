@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -66,6 +67,11 @@ public class SecurityConfig {
                                 "/swagger-ui.html")
                         .permitAll()
                         .requestMatchers("/api/users/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/doctors/*/schedule")
+                            .hasAnyRole("SUPER_ADMIN", "DOCTOR")
+                        .requestMatchers("/api/doctors/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/roles/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/system/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/patients/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
                         .requestMatchers("/api/medicines/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST")
                         .requestMatchers("/api/prescriptions/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR", "PHARMACIST")
