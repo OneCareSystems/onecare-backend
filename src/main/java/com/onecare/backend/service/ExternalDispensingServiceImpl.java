@@ -206,7 +206,7 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
 
         Optional<User> actor = resolveCurrentUser();
         if (actor.isPresent()) {
-            recordAudit(actor.get(), "EXTERNAL_DISPENSING_CREATED",
+            recordAudit(actor.get(), "EXTERNAL_DISPENSING_CREATED", "ExternalDispensing",
                     String.valueOf(saved.getDispenseId()),
                     "Created pending external dispensing event");
         }
