@@ -71,6 +71,15 @@ spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
 ```
 
+### Rate-limit proxy trust
+
+The rate limiter uses the direct remote address unless the request comes from
+a configured trusted proxy. Set `API_RATE_LIMIT_TRUSTED_PROXIES` to a
+comma-separated list of proxy IP addresses or CIDR ranges to allow those
+proxies' `X-Forwarded-For` values. Leave it unset when the application is
+directly exposed, and configure trusted proxies to replace caller-supplied
+forwarded addresses with a verified client IP.
+
 ---
 
 ## Project Structure
@@ -150,4 +159,3 @@ CI workflow location:
 ```bash
 ./mvnw clean verify
 ```
-
