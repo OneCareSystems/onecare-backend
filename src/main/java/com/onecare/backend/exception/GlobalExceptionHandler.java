@@ -115,6 +115,30 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
+    /** Overlapping doctor-schedule slots (UC4 alt flow): 400, conflicting ranges in data. */
+    @ExceptionHandler(com.onecare.backend.exception.TimeSlotConflictException.class)
+    public ResponseEntity<ApiResponse<?>> handleTimeSlotConflict(
+            com.onecare.backend.exception.TimeSlotConflictException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage(), exception.getConflictingSlots());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    /** BR004-BR006 violation on a permission change: 422, nothing persisted (AC5). */
+    @ExceptionHandler(com.onecare.backend.exception.PermissionRuleViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handlePermissionRuleViolation(
+            com.onecare.backend.exception.PermissionRuleViolationException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /** Restore without confirm=true (UC5, AC4): 400, no data touched. */
+    @ExceptionHandler(com.onecare.backend.exception.RestoreConfirmationRequiredException.class)
+    public ResponseEntity<ApiResponse<?>> handleRestoreConfirmationRequired(
+            com.onecare.backend.exception.RestoreConfirmationRequiredException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
 
