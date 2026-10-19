@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.MedicineRequest;
 import com.onecare.backend.dto.request.StockUpdateRequest;
 import com.onecare.backend.dto.response.MedicineResponse;
@@ -23,13 +24,16 @@ public class MedicineServiceImpl implements MedicineService {
     private static final int NEAR_EXPIRY_DAYS = 30;
 
     private final MedicineRepository medicineRepository;
+    private final AuditService auditService;
 
-    public MedicineServiceImpl(MedicineRepository medicineRepository) {
+    public MedicineServiceImpl(MedicineRepository medicineRepository, AuditService auditService) {
         this.medicineRepository = medicineRepository;
+        this.auditService = auditService;
     }
 
     @Override
     @Transactional
+    @Audited(action = "MEDICINE_CREATE", module = "MEDICINE")
     public MedicineResponse createMedicine(MedicineRequest request) {
 
         Medicine medicine = new Medicine();
@@ -72,11 +76,11 @@ public class MedicineServiceImpl implements MedicineService {
     public List<MedicineResponse> findAllMedicines(String search) {
 
         if (search == null) {
-            return medicineRepository.findAll()
-                    .stream()
-                    .map(this::mapToResponse)
-                    .toList();
-        }
+        return medicineRepository.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
 
         if (search.isBlank()) {
             return List.of(); // AC/negative test: empty search -> 200 []
@@ -103,6 +107,7 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     @Transactional
+    @Audited(action = "MEDICINE_UPDATE", module = "MEDICINE")
     public MedicineResponse updateMedicine(
             Long id,
             MedicineRequest request
@@ -143,6 +148,7 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     @Transactional
+    @Audited(action = "MEDICINE_DELETE", module = "MEDICINE")
     public void deleteMedicine(Long id) {
 
         Medicine medicine = findMedicine(id);
@@ -157,6 +163,7 @@ public class MedicineServiceImpl implements MedicineService {
 
     @Override
     @Transactional
+    @Audited(action = "MEDICINE_STOCK_UPDATE", module = "MEDICINE")
     public MedicineResponse updateStock(
             Long id,
             StockUpdateRequest request
@@ -270,6 +277,14 @@ public class MedicineServiceImpl implements MedicineService {
 
         if (!expiredMedicines.isEmpty()) {
             medicineRepository.saveAll(expiredMedicines);
+
+            auditService.record(
+                    null,
+                    "MEDICINE_QUARANTINE",
+                    "MEDICINE",
+                    null,
+                    "Quarantined " + expiredMedicines.size() + " expired medicine(s)",
+                    null);
         }
     }
 

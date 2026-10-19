@@ -114,6 +114,7 @@ CREATE TABLE prescriptions (
     doctor_id       BIGINT   NOT NULL,
     patient_id      BIGINT   NOT NULL,
     date            DATE     NOT NULL,
+    clinical_notes  VARCHAR(2000) NULL,
     status          ENUM('ISSUED','DISPENSED','CANCELLED') NOT NULL DEFAULT 'ISSUED',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -244,6 +245,7 @@ CREATE TABLE payments (
 );
 
 -- 9. audit_log (needs: users) — LAST
+-- user_id is nullable: failed logins with an unknown username are still audited
 CREATE TABLE audit_log (
     log_id      BIGINT       NOT NULL AUTO_INCREMENT,
     user_id     BIGINT       NOT NULL,

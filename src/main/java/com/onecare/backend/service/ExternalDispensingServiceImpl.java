@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.CreateExternalDispensingRequest;
 import com.onecare.backend.dto.request.ExternalDispensingItemRequest;
 import com.onecare.backend.dto.request.StockUpdateRequest;
@@ -13,6 +14,7 @@ import com.onecare.backend.enums.Status;
 import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.*;
+import com.onecare.backend.security.ClientIpResolver;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,7 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_MARK_EXTERNAL", module = "PRESCRIPTION")
     public ExternalDispensingResponse markPrescriptionExternal(Long prescriptionId) {
 
         Prescription prescription = prescriptionRepository.findById(prescriptionId)

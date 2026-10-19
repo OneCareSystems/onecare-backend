@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.PatientCreateRequest;
 import com.onecare.backend.dto.request.PatientUpdateRequest;
 import com.onecare.backend.dto.response.PatientResponse;
@@ -48,6 +49,7 @@ public class PatientServiceImpl implements PatientService {
     }
 
      @Override
+    @Audited(action = "PATIENT_CREATE", module = "PATIENT")
     public PatientResponse createPatient(PatientCreateRequest request) {
 
         String rawContactNo = request.contactNo() != null ? request.contactNo().trim() : "";
@@ -83,7 +85,6 @@ public class PatientServiceImpl implements PatientService {
                 "Patient registered | patientId={} | performedBy={} | duplicateSuspected={}",
                 saved.getPatientId(), performedBy, duplicateSuspected
         );
-        // TODO(DDP-26): replace with persisted audit event
 
         return PatientResponse.from(saved, duplicateSuspected);
     }
@@ -93,10 +94,10 @@ public class PatientServiceImpl implements PatientService {
     public List<PatientResponse> findAllPatients(String search, Pageable pageable) {
 
         if (search == null) {
-            return patientRepository.findAll(pageable)
-                    .map(PatientResponse::from)
-                    .getContent();
-        }
+        return patientRepository.findAll(pageable)
+                .map(PatientResponse::from)
+                .getContent();
+    }
 
         if (search.isBlank()) {
             return List.of(); // AC/negative test: empty search -> 200 []
@@ -229,12 +230,12 @@ public class PatientServiceImpl implements PatientService {
 
         String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
         log.info("Patient {} updated by {}", saved.getPatientId(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
 
         return PatientResponse.from(saved);
     }
 
     @Override
+    @Audited(action = "PATIENT_DEACTIVATE", module = "PATIENT")
     public void deactivatePatient(Long id) {
 
         Patient patient = findPatientByIdInternal(id);
@@ -244,7 +245,6 @@ public class PatientServiceImpl implements PatientService {
 
         String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
         log.info("Patient {} deactivated by {}", patient.getPatientId(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
     }
 
     private Patient findPatientByIdInternal(Long id) {

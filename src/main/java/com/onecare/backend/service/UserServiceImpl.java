@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.AssignRoleRequest;
 import com.onecare.backend.dto.request.UserCreateRequest;
 import com.onecare.backend.dto.request.UserUpdateRequest;
@@ -8,6 +9,7 @@ import com.onecare.backend.entity.User;
 import com.onecare.backend.exception.DuplicateUserException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.security.ClientIpResolver;
 import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
@@ -31,10 +33,13 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
 
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                           AuditService auditService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
     }
 
     @Override
@@ -65,6 +70,14 @@ public class UserServiceImpl implements UserService {
                     failedAttempts,
                     updatedUser.getLockedUntil()
             );
+
+            auditService.record(
+                    updatedUser,
+                    "ACCOUNT_LOCKED",
+                    "AUTH",
+                    String.valueOf(updatedUser.getUserId()),
+                    "Account locked after " + failedAttempts + " failed login attempts",
+                    ClientIpResolver.resolveCurrentRequest());
         }
 
         return accountLocked;
@@ -89,6 +102,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @PreAuthorize("hasAuthority('" + Permission.USER_ROLE_ASSIGN + "')")
+    @Audited(action = "ACCOUNT_UNLOCKED", module = "USER")
     public UserResponse unlockAccount(Long id) {
 
         User user = findUserByIdInternal(id);
@@ -143,6 +157,7 @@ public class UserServiceImpl implements UserService {
     // =====================================================================
 
     @Override
+    @Audited(action = "USER_CREATE", module = "USER")
     public UserResponse createUser(UserCreateRequest request) {
 
         if (userRepository.existsByUsername(request.username())
@@ -162,7 +177,6 @@ public class UserServiceImpl implements UserService {
 
         String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
         log.info("User {} created by {}", saved.getUsername(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
 
         return toResponse(saved);
     }
@@ -180,6 +194,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Audited(action = "USER_UPDATE", module = "USER")
     public UserResponse updateUser(Long id, UserUpdateRequest request) {
 
         User user = findUserByIdInternal(id);
@@ -198,13 +213,13 @@ public class UserServiceImpl implements UserService {
 
         String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
         log.info("User {} updated by {}", saved.getUsername(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
 
         return toResponse(saved);
     }
 
     @Override
     @PreAuthorize("hasAuthority('" + Permission.USER_ROLE_ASSIGN + "')")
+    @Audited(action = "ROLE_ASSIGNED", module = "USER")
     public UserResponse assignRoleToUser(Long id, AssignRoleRequest request) {
 
         User user = findUserByIdInternal(id);
@@ -219,12 +234,12 @@ public class UserServiceImpl implements UserService {
                 saved.getRole(),
                 performedBy
         );
-        // TODO(DDP-26): replace with persisted audit event
 
         return toResponse(saved);
     }
 
     @Override
+    @Audited(action = "USER_DEACTIVATE", module = "USER")
     public void deactivateUser(Long id) {
 
         User user = findUserByIdInternal(id);
@@ -234,7 +249,6 @@ public class UserServiceImpl implements UserService {
 
         String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
         log.info("User {} deactivated by {}", user.getUsername(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
     }
 
     private User findUserByIdInternal(Long id) {

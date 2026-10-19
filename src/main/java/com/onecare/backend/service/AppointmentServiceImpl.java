@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.CreateAppointmentRequest;
 import com.onecare.backend.dto.request.UpdateAppointmentRequest;
 import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
@@ -51,7 +52,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final Duration slotDuration;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public AppointmentServiceImpl(
+    public AppointmentServiceImpl (
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
             UserRepository userRepository,
@@ -75,6 +76,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    @Audited(action = "APPOINTMENT_CREATE", module = "APPOINTMENT")
     public AppointmentResponse createAppointment(CreateAppointmentRequest request) {
         validateCreateRequest(request);
 
@@ -194,32 +196,31 @@ public class AppointmentServiceImpl implements AppointmentService {
      * - everyone else: only their own (email-matched) patient profile
      */
     private List<Appointment> findVisibleAppointments(User currentUser) {
-        Role currentRole = currentUser.getRole();
+    Role currentRole = currentUser.getRole();
 
-        if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
-            return appointmentRepository.findAll();
-        }
-
-        if (currentRole == Role.DOCTOR) {
-            return appointmentRepository.findAll().stream()
-                    .filter(appointment -> appointment.getDoctor() != null
-                            && appointment.getDoctor().getUserId().equals(currentUser.getUserId()))
-                    .toList();
-        }
-
-        // TODO(patient-login): Patient visibility validation cannot be tested until
-        // patient login functionality is implemented. There is no patient role or
-        // patient credential yet, so these lines are commented out.
-        // Patient selfPatient = resolveSelfPatient(currentUser);
-        // return appointmentRepository.findAll().stream()
-        //         .filter(appointment -> appointment.getPatient() != null
-        //                 && appointment.getPatient().getPatientId().equals(selfPatient.getPatientId()))
-        //         .toList();
-        
-        return new ArrayList<>();
+    if (currentRole == Role.SUPER_ADMIN || currentRole == Role.ADMIN) {
+        return appointmentRepository.findAll();
     }
 
+    if (currentRole == Role.DOCTOR) {
+        return appointmentRepository.findAll().stream()
+                .filter(appointment -> appointment.getDoctor() != null
+                        && appointment.getDoctor().getUserId()
+                                .equals(currentUser.getUserId()))
+                .toList();
+    }
+
+    Patient selfPatient = resolveSelfPatient(currentUser);
+
+    return appointmentRepository.findAll().stream()
+            .filter(appointment -> appointment.getPatient() != null
+                    && appointment.getPatient().getPatientId()
+                            .equals(selfPatient.getPatientId()))
+            .toList();
+}
+
     @Override
+    @Audited(action = "APPOINTMENT_UPDATE", module = "APPOINTMENT")
     public AppointmentResponse updateAppointment(Long appointmentId, UpdateAppointmentRequest request) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -267,12 +268,10 @@ public class AppointmentServiceImpl implements AppointmentService {
             } else if (currentRole == Role.DOCTOR) {
                 throw new AccessDeniedException("Doctors are not allowed to reassign patient ownership");
             } else {
-                // TODO(patient-login): Patient ownership validation cannot be tested until
-                // patient login functionality is implemented.
-                // Patient selfPatient = resolveSelfPatient(currentUser);
-                // if (!request.patientId().equals(selfPatient.getPatientId())) {
-                //     throw new AccessDeniedException("Patients can only update their own appointment record");
-                // }
+                Patient selfPatient = resolveSelfPatient(currentUser);
+                if (!request.patientId().equals(selfPatient.getPatientId())) {
+                    throw new AccessDeniedException("Patients can only update their own appointment record");
+                }
             }
         }
 
@@ -300,6 +299,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    @Audited(action = "APPOINTMENT_CANCEL", module = "APPOINTMENT")
     public AppointmentResponse cancelAppointment(Long appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + appointmentId));
@@ -520,20 +520,11 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new AccessDeniedException("Doctors can only manage their own appointments");
         }
 
-        // TODO(patient-login): Patient ownership validation cannot be tested until
-        // patient login functionality is implemented. There is no patient role or
-        // patient credential yet, so a real caller can never resolve to a patient
-        // profile through resolveSelfPatient() and this check is unreachable in an
-        // automated test. The lines below are commented out for now and must be
-        // restored (and covered by tests) once patient login is available.
-        //
-        // Patient selfPatient = resolveSelfPatient(currentUser);
-        // if (appointment.getPatient() == null
-        //         || !appointment.getPatient().getPatientId().equals(selfPatient.getPatientId())) {
-        //     throw new AccessDeniedException("Patients can only manage their own appointments");
-        // }
-        throw new AccessDeniedException(
-                "Access denied: insufficient permissions to manage appointments");
+        Patient selfPatient = resolveSelfPatient(currentUser);
+        if (appointment.getPatient() == null
+                || !appointment.getPatient().getPatientId().equals(selfPatient.getPatientId())) {
+            throw new AccessDeniedException("Patients can only manage their own appointments");
+        }
     }
 
     private Patient resolveTrustedPatient(Long requestedPatientId) {

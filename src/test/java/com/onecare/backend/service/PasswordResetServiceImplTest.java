@@ -52,6 +52,9 @@ class PasswordResetServiceImplTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private AuditService auditService;
+
     // Same parameters as SecurityConfig.passwordEncoder() — must stay in sync
     private final PasswordEncoder passwordEncoder = new Argon2PasswordEncoder(16, 32, 1, 65536, 2);
 
@@ -65,6 +68,7 @@ class PasswordResetServiceImplTest {
                 userRepository,
                 emailService,
                 passwordEncoder,
+                auditService,
                 EXPIRATION_MINUTES);
         user = new User();
         user.setUserId(1L);

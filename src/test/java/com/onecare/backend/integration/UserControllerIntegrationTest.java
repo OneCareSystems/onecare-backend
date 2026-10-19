@@ -1,5 +1,6 @@
 package com.onecare.backend.integration;
 
+import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.service.EmailService;
@@ -27,6 +28,8 @@ public class UserControllerIntegrationTest {
 
     @Autowired PasswordResetTokenRepository passwordResetTokenRepository;
 
+    @Autowired AuditLogRepository auditLogRepository;
+
     @MockitoBean
     EmailService emailService;
 
@@ -36,6 +39,8 @@ public class UserControllerIntegrationTest {
     @BeforeEach
     void setUp() {
         passwordResetTokenRepository.deleteAll();
+        // committed audit rows (own transaction) would block user deletion via FK
+        auditLogRepository.deleteAll();
         userRepository.deleteAll();
     }
 
