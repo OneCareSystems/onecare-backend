@@ -12,6 +12,9 @@ DROP TABLE IF EXISTS appointments;
 DROP TABLE IF EXISTS medicines;
 DROP TABLE IF EXISTS patients;
 DROP TABLE IF EXISTS password_reset_tokens;
+DROP TABLE IF EXISTS backup_metadata;
+DROP TABLE IF EXISTS doctor_schedules;
+DROP TABLE IF EXISTS role_permissions;
 DROP TABLE IF EXISTS users;
 
 -- CREATE ORDER: parents first, children last
@@ -263,3 +266,39 @@ ALTER TABLE external_dispensing
     ADD CONSTRAINT fk_ext_disp_audit_log
     FOREIGN KEY (audit_log_id)
     REFERENCES audit_log(log_id);
+
+-- 10. role_permissions (FR003, UC3) — configurable role permission sets
+CREATE TABLE role_permissions (
+    id         BIGINT       NOT NULL AUTO_INCREMENT,
+    role       ENUM('SUPER_ADMIN','ADMIN','DOCTOR','PHARMACIST') NOT NULL,
+    permission VARCHAR(100) NOT NULL,
+
+    CONSTRAINT pk_role_permissions    PRIMARY KEY (id),
+    CONSTRAINT uq_role_permission     UNIQUE (role, permission)
+);
+
+-- 11. doctor_schedules (FR009, UC4) — needs: users
+CREATE TABLE doctor_schedules (
+    schedule_id BIGINT NOT NULL AUTO_INCREMENT,
+    doctor_id   BIGINT NOT NULL,
+    day_of_week ENUM('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY') NOT NULL,
+    start_time  TIME   NOT NULL,
+    end_time    TIME   NOT NULL,
+
+    CONSTRAINT pk_doctor_schedules  PRIMARY KEY (schedule_id),
+    CONSTRAINT uq_doctor_schedule   UNIQUE (doctor_id, day_of_week, start_time, end_time),
+    CONSTRAINT fk_schedule_doctor   FOREIGN KEY (doctor_id) REFERENCES users(user_id)
+);
+
+-- 12. backup_metadata (FR010, UC5) — encrypted payload lives on disk
+CREATE TABLE backup_metadata (
+    backup_id  BIGINT       NOT NULL AUTO_INCREMENT,
+    created_at DATETIME     NOT NULL,
+    filename   VARCHAR(255) NOT NULL,
+    size_bytes BIGINT       NOT NULL,
+    checksum   VARCHAR(64)  NOT NULL,
+    created_by BIGINT       NULL,
+
+    CONSTRAINT pk_backup_metadata PRIMARY KEY (backup_id),
+    CONSTRAINT uq_backup_filename  UNIQUE (filename)
+);
