@@ -39,8 +39,6 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -477,28 +475,15 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     private void assertDoctorSlotAvailability(Long doctorId, LocalDateTime requestedStart, LocalDateTime requestedEnd,
             Long excludeAppointmentId) {
-        for (Appointment existing : appointmentRepository.findByDoctor_UserIdAndAppointmentDate(doctorId,
-                requestedStart.toLocalDate())) {
-            if (excludeAppointmentId != null && existing.getAppointmentId() != null
-                    && existing.getAppointmentId().equals(excludeAppointmentId)) {
-                continue;
-            }
-
-            if (existing.getStatus() == AppointmentStatus.CANCELLED || existing.getStatus() == AppointmentStatus.NO_SHOW) {
-                continue;
-            }
-
-            LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
-            LocalDateTime existingEnd = existingStart.plus(slotDuration);
-            boolean overlaps = requestedStart.isBefore(existingEnd) && existingStart.isBefore(requestedEnd);
-            if (overlaps) {
-                throw new SlotConflictException(
-                        "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: "
-                                + requestedStart,
-                        requestedStart.toString(),
-                        findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart, requestedEnd,
-                                excludeAppointmentId));
-            }
+        List<Appointment> appointments = appointmentRepository.findByDoctor_UserIdAndAppointmentDate(
+                doctorId, requestedStart.toLocalDate());
+        if (hasAppointmentOverlap(appointments, requestedStart, requestedEnd, excludeAppointmentId)) {
+            throw new SlotConflictException(
+                    "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: "
+                            + requestedStart,
+                    requestedStart.toString(),
+                    findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart, requestedEnd,
+                            excludeAppointmentId));
         }
     }
 
@@ -546,22 +531,25 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     private boolean freeOfAppointments(Long doctorId, LocalDate appointmentDate, LocalDateTime candidateStart,
             LocalDateTime candidateEnd, Long excludeAppointmentId) {
-        for (Appointment existing : appointmentRepository.findByDoctor_UserIdAndAppointmentDate(doctorId,
-                appointmentDate)) {
-            if (excludeAppointmentId != null && existing.getAppointmentId() != null
-                    && existing.getAppointmentId().equals(excludeAppointmentId)) {
-                continue;
-            }
-            if (existing.getStatus() == AppointmentStatus.CANCELLED || existing.getStatus() == AppointmentStatus.NO_SHOW) {
-                continue;
-            }
-            LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
-            LocalDateTime existingEnd = existingStart.plus(slotDuration);
-            if (candidateStart.isBefore(existingEnd) && existingStart.isBefore(candidateEnd)) {
-                return false;
-            }
-        }
-        return true;
+        List<Appointment> appointments = appointmentRepository.findByDoctor_UserIdAndAppointmentDate(
+                doctorId, appointmentDate);
+        return !hasAppointmentOverlap(appointments, candidateStart, candidateEnd, excludeAppointmentId);
+    }
+
+    private boolean hasAppointmentOverlap(List<Appointment> appointments, LocalDateTime candidateStart,
+            LocalDateTime candidateEnd, Long excludeAppointmentId) {
+        return appointments.stream()
+                .filter(appointment -> excludeAppointmentId == null
+                        || appointment.getAppointmentId() == null
+                        || !appointment.getAppointmentId().equals(excludeAppointmentId))
+                .filter(appointment -> appointment.getStatus() != AppointmentStatus.CANCELLED
+                        && appointment.getStatus() != AppointmentStatus.NO_SHOW)
+                .anyMatch(appointment -> {
+                    LocalDateTime existingStart =
+                            LocalDateTime.of(appointment.getAppointmentDate(), appointment.getTimeSlot());
+                    LocalDateTime existingEnd = existingStart.plus(slotDuration);
+                    return candidateStart.isBefore(existingEnd) && existingStart.isBefore(candidateEnd);
+                });
     }
 
     @Override
@@ -587,12 +575,6 @@ public class AppointmentServiceImpl implements AppointmentService {
         List<Appointment> existingAppointments = appointmentRepository
                 .findByDoctor_UserIdAndAppointmentDate(doctorId, date);
 
-        Set<LocalTime> bookedSlots = existingAppointments.stream()
-                .filter(a -> a.getStatus() != AppointmentStatus.CANCELLED
-                        && a.getStatus() != AppointmentStatus.NO_SHOW)
-                .map(Appointment::getTimeSlot)
-                .collect(Collectors.toSet());
-
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
         List<String> availableSlots = new ArrayList<>();
 
@@ -610,7 +592,8 @@ public class AppointmentServiceImpl implements AppointmentService {
                     LocalTime candidateTime = candidate.toLocalTime();
                     boolean isPast = date.isEqual(LocalDate.now())
                             && !candidate.isAfter(LocalDateTime.now());
-                    if (!isPast && !bookedSlots.contains(candidateTime)) {
+                    if (!isPast && !hasAppointmentOverlap(
+                            existingAppointments, candidate, candidate.plus(slotDuration), null)) {
                         availableSlots.add(candidateTime.format(formatter));
                     }
                     candidate = candidate.plus(slotDuration);
@@ -628,7 +611,8 @@ public class AppointmentServiceImpl implements AppointmentService {
             boolean isPast = date.isEqual(LocalDate.now())
                     && !candidate.isAfter(LocalDateTime.now());
 
-            if (!isPast && !bookedSlots.contains(candidateTime)) {
+            if (!isPast && !hasAppointmentOverlap(
+                    existingAppointments, candidate, candidate.plus(slotDuration), null)) {
                 availableSlots.add(candidateTime.format(formatter));
             }
             candidate = candidate.plus(slotDuration);

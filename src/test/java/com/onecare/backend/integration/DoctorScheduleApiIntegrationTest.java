@@ -2,8 +2,10 @@ package com.onecare.backend.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onecare.backend.entity.Appointment;
 import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.User;
+import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.enums.Gender;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.AppointmentRepository;
@@ -28,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -345,6 +348,45 @@ class DoctorScheduleApiIntegrationTest {
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0]").value("23:00"));
+    }
+
+    @Test
+    void availableSlots_excludesPartialOverlapWithExistingAppointment() throws Exception {
+        mockMvc.perform(put("/api/doctors/" + doctor.getUserId() + "/schedule")
+                        .header("Authorization", "Bearer " + superAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "days": [
+                                    {"dayOfWeek": "MONDAY", "timeSlots": [{"start": "16:15", "end": "17:15"}]},
+                                    {"dayOfWeek": "TUESDAY", "timeSlots": []},
+                                    {"dayOfWeek": "WEDNESDAY", "timeSlots": []},
+                                    {"dayOfWeek": "THURSDAY", "timeSlots": []},
+                                    {"dayOfWeek": "FRIDAY", "timeSlots": []},
+                                    {"dayOfWeek": "SATURDAY", "timeSlots": []},
+                                    {"dayOfWeek": "SUNDAY", "timeSlots": []}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        Patient patient = createSchedulePatient();
+        Appointment existing = new Appointment();
+        existing.setDoctor(doctor);
+        existing.setPatient(patient);
+        existing.setAppointmentDate(nextMonday);
+        existing.setTimeSlot(LocalTime.of(16, 0));
+        existing.setStatus(AppointmentStatus.SCHEDULED);
+        appointmentRepository.saveAndFlush(existing);
+
+        mockMvc.perform(get("/api/appointments/available-slots")
+                        .param("doctorId", String.valueOf(doctor.getUserId()))
+                        .param("date", nextMonday.toString())
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0]").value("16:45"));
     }
 
     @Test
