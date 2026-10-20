@@ -39,6 +39,20 @@ public class SecurityConfig {
     @Value("${frontend.allowed-origins}")
     String allowedOrigins;
 
+    /**
+     * Argon2 cost parameters. The defaults are production strength; tests lower
+     * them (src/test/resources/application.properties) so the per-test user
+     * creation and login hashing does not dominate suite runtime.
+     */
+    @Value("${app.security.argon2.parallelism:1}")
+    int argon2Parallelism;
+
+    @Value("${app.security.argon2.memory-kb:65536}")
+    int argon2MemoryKb;
+
+    @Value("${app.security.argon2.iterations:2}")
+    int argon2Iterations;
+
     public SecurityConfig(JwtAuthFilter jwtAuthFilter, AppUserDetailsService userDetailsService,
             ApiRateLimitFilter apiRateLimitFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
@@ -135,11 +149,11 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new Argon2PasswordEncoder(
-                16,     // salt length
-                32,     // hash length
-                1,      // parallelism
-                65536,  // memory in KB
-                2       // iterations
+                16,                 // salt length
+                32,                 // hash length
+                argon2Parallelism,  // parallelism
+                argon2MemoryKb,     // memory in KB
+                argon2Iterations    // iterations
         );
     }
 

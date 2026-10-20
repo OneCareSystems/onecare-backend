@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.AuditLogRepository;
+import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.SystemSettingRepository;
 import com.onecare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,11 +55,14 @@ class SystemSettingsApiIntegrationTest {
     private String superAdminToken;
     private String adminToken;
 
+    @Autowired private PasswordResetTokenRepository passwordResetTokenRepository;
+
     @BeforeEach
     void setUp() throws Exception {
         systemSettingRepository.deleteAll();
         auditLogRepository.deleteAll();
-        userRepository.deleteAll();
+        passwordResetTokenRepository.deleteAll();   // <-- child first
+        userRepository.deleteAll();                 // <-- then parent
 
         createUser("set-superadmin", "set-superadmin@onecare.com", Role.SUPER_ADMIN);
         createUser("set-admin", "set-admin@onecare.com", Role.ADMIN);

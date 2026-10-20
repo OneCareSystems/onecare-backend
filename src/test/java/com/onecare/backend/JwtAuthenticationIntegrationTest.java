@@ -42,6 +42,14 @@ import java.util.concurrent.TimeUnit;
 @AutoConfigureMockMvc
 @Transactional 
 @ActiveProfiles("test")
+// Keep this class hashing at true production strength so the hardcoded
+// m=65536,t=2,p=1 assertion below stays meaningful; other test classes use the
+// cheaper Argon2 cost from src/test/resources/application.properties.
+@org.springframework.test.context.TestPropertySource(properties = {
+        "app.security.argon2.parallelism=1",
+        "app.security.argon2.memory-kb=65536",
+        "app.security.argon2.iterations=2"
+})
 class JwtAuthenticationIntegrationTest {
         @MockitoBean
 private JavaMailSender javaMailSender;
