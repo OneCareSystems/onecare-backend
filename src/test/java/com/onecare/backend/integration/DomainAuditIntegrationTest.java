@@ -83,7 +83,7 @@ class DomainAuditIntegrationTest {
                 "Audit Trail",
                 LocalDate.of(1990, 1, 1),
                 "1 Test Street",
-                "0900000001",
+                "0771234567",
                 "audit-trail@example.com",
                 "O+",
                 Gender.OTHER

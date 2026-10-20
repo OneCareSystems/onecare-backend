@@ -8,6 +8,7 @@ import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.repository.AppointmentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +51,8 @@ class AuthAuditIntegrationTest {
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
-    
+    @Autowired
+    private AppointmentRepository appointmentRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -59,6 +61,7 @@ class AuthAuditIntegrationTest {
     void setUp() {
         // audit rows are committed in their own transaction and must be
         // removed before users (audit_log.user_id FK) can be cleared
+        appointmentRepository.deleteAll();
         auditLogRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
         userRepository.deleteAll();
