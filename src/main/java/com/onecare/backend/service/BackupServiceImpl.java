@@ -169,8 +169,7 @@ public class BackupServiceImpl implements BackupService {
 
     @Override
     public List<BackupResponse> listBackups() {
-        return backupMetadataRepository.findAll().stream()
-                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+        return backupMetadataRepository.findAllByOrderByCreatedAtDescBackupIdDesc().stream()
                 .map(BackupServiceImpl::toResponse)
                 .toList();
     }

@@ -112,10 +112,12 @@ class BackupServiceImplTest {
                 "a.backup", 10L, "sum", 1L);
         BackupMetadata newer = new BackupMetadata(2L, java.time.LocalDateTime.of(2026, 2, 1, 10, 0),
                 "b.backup", 20L, "sum", 1L);
-        when(backupMetadataRepository.findAll()).thenReturn(List.of(older, newer));
+        when(backupMetadataRepository.findAllByOrderByCreatedAtDescBackupIdDesc())
+                .thenReturn(List.of(newer, older));
 
         List<BackupResponse> backups = backupService.listBackups();
 
+        verify(backupMetadataRepository).findAllByOrderByCreatedAtDescBackupIdDesc();
         assertEquals(2, backups.size());
         assertEquals(2L, backups.get(0).backupId(), "newest first");
         assertNotNull(backups.get(0).createdAt());

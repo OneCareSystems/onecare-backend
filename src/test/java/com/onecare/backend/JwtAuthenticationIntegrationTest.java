@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
+import com.onecare.backend.config.TestRedisConfiguration;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.JwtService;
 import io.jsonwebtoken.Jwts;
@@ -72,11 +73,16 @@ private JavaMailSender javaMailSender;
     @Autowired
     private TokenBlacklistService tokenBlacklistService;
 
+    @Autowired
+    private TestRedisConfiguration testRedisConfiguration;
+
     @Value("${jwt.secret}")
     private String jwtSecret;
 
     @BeforeEach
     void setupUser() {
+        testRedisConfiguration.clearInMemoryStore();
+
         User user = userRepository.findByUsername("doctor1").orElseGet(User::new);
         user.setUsername("doctor1");
         user.setEmail("doctor1@onecare.com");

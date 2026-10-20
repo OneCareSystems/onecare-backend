@@ -2,12 +2,14 @@ package com.onecare.backend.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.onecare.backend.entity.BackupMetadata;
 import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Gender;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.AuditLogRepository;
+import com.onecare.backend.repository.BackupMetadataRepository;
 import com.onecare.backend.repository.DoctorScheduleRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
@@ -23,6 +25,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -62,6 +66,9 @@ class BackupRestoreApiIntegrationTest {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private BackupMetadataRepository backupMetadataRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -122,6 +129,23 @@ class BackupRestoreApiIntegrationTest {
         assertThat(new String(content, java.nio.charset.StandardCharsets.UTF_8))
                 .doesNotContain("patients", "encrypted-but-readable marker")
                 .as("backup file must not be plaintext JSON");
+    }
+
+    @Test
+    void listBackups_withEqualTimestamps_returnsHighestBackupIdFirst() throws Exception {
+        LocalDateTime sharedTimestamp = LocalDateTime.of(2099, 1, 1, 0, 0);
+        BackupMetadata olderBackup = createBackupMetadata("tie-break-older.backup", sharedTimestamp);
+        BackupMetadata newerBackup = createBackupMetadata("tie-break-newer.backup", sharedTimestamp);
+
+        try {
+            mockMvc.perform(get("/api/system/backups")
+                            .header("Authorization", "Bearer " + superAdminToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[0].backupId").value(newerBackup.getBackupId()));
+        } finally {
+            backupMetadataRepository.deleteAllById(
+                    List.of(olderBackup.getBackupId(), newerBackup.getBackupId()));
+        }
     }
 
     @Test
@@ -212,6 +236,15 @@ class BackupRestoreApiIntegrationTest {
 
         JsonNode body = objectMapper.readTree(responseBody);
         return body.get("data").get("backupId").asLong();
+    }
+
+    private BackupMetadata createBackupMetadata(String filename, LocalDateTime createdAt) {
+        BackupMetadata backup = new BackupMetadata();
+        backup.setCreatedAt(createdAt);
+        backup.setFilename(filename);
+        backup.setSizeBytes(1L);
+        backup.setChecksum("0".repeat(64));
+        return backupMetadataRepository.save(backup);
     }
 
     private Patient createPatient(String fullName) {
