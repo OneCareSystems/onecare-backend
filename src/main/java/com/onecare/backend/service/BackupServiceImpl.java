@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -96,6 +97,7 @@ public class BackupServiceImpl implements BackupService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final TransactionTemplate snapshotTransactionTemplate;
     private final Path storageDir;
     private final String encryptionKeyBase64;
 
@@ -115,6 +117,10 @@ public class BackupServiceImpl implements BackupService {
         this.auditLogRepository = auditLogRepository;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.snapshotTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.snapshotTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.snapshotTransactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        this.snapshotTransactionTemplate.setReadOnly(true);
         this.storageDir = Paths.get(storageDir);
         this.encryptionKeyBase64 = encryptionKeyBase64;
     }
@@ -261,11 +267,13 @@ public class BackupServiceImpl implements BackupService {
     }
 
     private Map<String, Object> exportTables() {
-        Map<String, Object> tables = new LinkedHashMap<>();
-        for (String table : TABLES_CHILD_FIRST) {
-            tables.put(table, normalizeRows(jdbcTemplate.queryForList("SELECT * FROM " + table)));
-        }
-        return tables;
+        return snapshotTransactionTemplate.execute(status -> {
+            Map<String, Object> tables = new LinkedHashMap<>();
+            for (String table : TABLES_CHILD_FIRST) {
+                tables.put(table, normalizeRows(jdbcTemplate.queryForList("SELECT * FROM " + table)));
+            }
+            return tables;
+        });
     }
 
     /**

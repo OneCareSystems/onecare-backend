@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.nio.charset.StandardCharsets;
@@ -36,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -107,6 +110,28 @@ class BackupServiceImplTest {
     }
 
     @Test
+    void createBackup_readsAllTablesInRepeatableReadTransaction() throws Exception {
+        stubEmptyExport();
+        when(backupMetadataRepository.save(any(BackupMetadata.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        backupService.createBackup();
+
+        ArgumentCaptor<TransactionDefinition> definitionCaptor =
+                ArgumentCaptor.forClass(TransactionDefinition.class);
+        verify(transactionManager).getTransaction(definitionCaptor.capture());
+        TransactionDefinition definition = definitionCaptor.getValue();
+        assertEquals(TransactionDefinition.ISOLATION_REPEATABLE_READ, definition.getIsolationLevel());
+        assertEquals(TransactionDefinition.PROPAGATION_REQUIRES_NEW, definition.getPropagationBehavior());
+        assertTrue(definition.isReadOnly());
+
+        var transactionOrder = inOrder(transactionManager, jdbcTemplate);
+        transactionOrder.verify(transactionManager).getTransaction(any(TransactionDefinition.class));
+        transactionOrder.verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).queryForList(anyString());
+        transactionOrder.verify(transactionManager).commit(any());
+    }
+
+    @Test
     void listBackups_returnsNewestFirstWithTimestamps() {
         BackupMetadata older = new BackupMetadata(1L, java.time.LocalDateTime.of(2026, 1, 1, 10, 0),
                 "a.backup", 10L, "sum", 1L);
@@ -162,6 +187,7 @@ class BackupServiceImplTest {
         verify(backupMetadataRepository).save(savedCaptor.capture());
         when(backupMetadataRepository.findById(1L)).thenReturn(Optional.of(savedCaptor.getValue()));
 
+        clearInvocations(transactionManager);
         Map<String, Integer> restored = backupService.restore(new RestoreRequest(1L, true), null);
 
         assertNotNull(restored);
