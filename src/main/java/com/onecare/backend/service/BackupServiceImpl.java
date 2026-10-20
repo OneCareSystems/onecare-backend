@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 
 /**
  * Full-data backup and restore.
@@ -59,10 +60,11 @@ import java.util.TreeMap;
 public class BackupServiceImpl implements BackupService {
 
     private static final Logger log = LoggerFactory.getLogger(BackupServiceImpl.class);
-    private static final DateTimeFormatter FILE_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
+    
     private static final String FILE_PREFIX = "onecare-backup-";
     private static final String FILE_SUFFIX = ".backup";
-
+    private static final DateTimeFormatter FILE_STAMP =
+            DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssSSS");   // add millis
     /**
      * Exported tables in FK-safe DELETE order (children first). The restore
      * inserts them in reverse. backup_metadata is intentionally excluded so
@@ -139,9 +141,12 @@ public class BackupServiceImpl implements BackupService {
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to serialize backup payload", exception);
         }
-
+        
         LocalDateTime createdAt = LocalDateTime.now();
-        String filename = FILE_PREFIX + createdAt.format(FILE_STAMP) + FILE_SUFFIX;
+        String filename = FILE_PREFIX
+                + createdAt.format(FILE_STAMP)
+                + "-" + UUID.randomUUID().toString().substring(0, 8)
+                + FILE_SUFFIX;
         Path file = storageDir.resolve(filename);
         try {
             Files.write(file, encrypted);
