@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.ForgotPasswordRequest;
 import com.onecare.backend.dto.request.LoginRequest;
 import com.onecare.backend.dto.request.RefreshRequest;
@@ -50,10 +51,11 @@ public class AuthServiceImpl implements AuthService {
                 this.jwtService = jwtService;
                 this.userService = userService;
                 this.passwordResetService = passwordResetService;
-                this.tokenBlacklistService = tokenBlacklistService;
+                 this.tokenBlacklistService = tokenBlacklistService;
         }
 
         @Override
+        @Audited(action = "LOGIN", module = "AUTH")
         public AuthResponse login(LoginRequest request) {
 
                 User user = userRepository.findByUsername(request.username())
@@ -128,6 +130,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         @Override
+        @Audited(action = "TOKEN_REFRESH", module = "AUTH")
         public AuthResponse refresh(RefreshRequest request) {
 
                 String refreshToken = request.refreshToken();

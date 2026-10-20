@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.CreatePrescriptionRequest;
 import com.onecare.backend.dto.request.PrescriptionItemRequest;
 import com.onecare.backend.dto.request.UpdatePrescriptionRequest;
@@ -21,6 +22,7 @@ import com.onecare.backend.repository.MedicineRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_CREATE", module = "PRESCRIPTION")
     public PrescriptionResponse createPrescription(CreatePrescriptionRequest request) {
 
         // 1. Doctor: always the authenticated user, persisted role must be DOCTOR
@@ -118,6 +121,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setAppointment(appointment);
         prescription.setDate(LocalDate.now());
         prescription.setStatus(PrescriptionStatus.ISSUED);
+        // prescription.setClinicalNotes(request.clinicalNotes());
 
         populateItems(prescription, request.items(), medicines);
 
@@ -129,7 +133,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         log.info("Prescription created | prescriptionId={} | patientId={} | doctorId={} | items={} | performedBy={}",
                 saved.getPrescriptionId(), patient.getPatientId(),
                 doctor.getUserId(), saved.getItems().size(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
 
         return PrescriptionResponse.from(saved);
     }
@@ -144,8 +147,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 ? prescriptionRepository.findAll()
                 : prescriptionRepository.findByStatus(filter);
 
-        // PrescriptionResponse has no clinicalNotes field — clinical notes
-        // live on the Appointment entity and are never exposed here
+        // PrescriptionResponse has no clinicalNotes field — nothing to strip here
         return prescriptions.stream()
                 .map(PrescriptionResponse::from)
                 .toList();
@@ -170,10 +172,14 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
 
+        // boolean includeClinicalNotes =
+        //         SecurityUtil.hasPermission(Permission.PRESCRIPTION_READ_CLINICAL_NOTES);
+
         return PrescriptionDetailResponse.from(prescription);
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_UPDATE", module = "PRESCRIPTION")
     public PrescriptionResponse updatePrescription(Long id, UpdatePrescriptionRequest request) {
 
         // 1. Doctor: always the authenticated user, persisted role must be DOCTOR
@@ -199,8 +205,12 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         //    so a rejected request leaves the prescription exactly as it was
         Map<Long, Medicine> medicines = loadAndValidateMedicines(request.items());
 
-        // 6. Replace content: items are swapped as a whole
+        // 6. Replace content: notes only when provided; items are swapped as a whole
         //    (orphanRemoval deletes the old lines on save)
+        // if (request.clinicalNotes() != null) {
+        //     prescription.setClinicalNotes(request.clinicalNotes());
+        // }
+
         prescription.getItems().clear();
         populateItems(prescription, request.items(), medicines);
 
@@ -210,12 +220,12 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         log.info("Prescription updated | prescriptionId={} | doctorId={} | items={} | performedBy={}",
                 saved.getPrescriptionId(), doctor.getUserId(),
                 saved.getItems().size(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
 
         return PrescriptionResponse.from(saved);
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_CANCEL", module = "PRESCRIPTION")
     public void cancelPrescription(Long id) {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
@@ -236,7 +246,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
         log.info("Prescription cancelled | prescriptionId={} | performedBy={}", id, performedBy);
-        // TODO(DDP-26): replace with persisted audit event
     }
 
     /**

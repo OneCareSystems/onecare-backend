@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
+import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,9 @@ class RbacAccessControlTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -52,6 +56,9 @@ class RbacAccessControlTest {
     @BeforeEach
     void setupUsers() throws Exception {
         passwordResetTokenRepository.deleteAll();
+        // audit rows are written in their own committed transaction and would
+        // otherwise block the user deletion via the audit_log.user_id FK
+        auditLogRepository.deleteAll();
         userRepository.deleteAll();
 
         String passwordHash = passwordEncoder.encode(TEST_PASSWORD);
@@ -172,6 +179,7 @@ class RbacAccessControlTest {
         assertAllowed("/api/patients", superAdminToken);
         assertAllowed("/api/medicines", superAdminToken);
         assertAllowed("/api/prescriptions", superAdminToken);
+        assertAllowed("/api/audit-logs", superAdminToken);
 //        assertAllowed("/api/appointments", superAdminToken);
 //        assertAllowed("/api/audit", superAdminToken);
     }
@@ -182,6 +190,7 @@ class RbacAccessControlTest {
         assertAllowed("/api/users", adminToken);
         assertAllowed("/api/patients", adminToken);
         assertAllowed("/api/medicines", adminToken);
+        assertAllowed("/api/audit-logs", adminToken);
 //        assertAllowed("/api/prescriptions", adminToken);
 //        assertAllowed("/api/appointments", adminToken);
 //        assertAllowed("/api/audit", adminToken);
@@ -201,6 +210,7 @@ class RbacAccessControlTest {
 //        assertAllowed("/api/appointments", doctorToken);
 
         assertForbidden("/api/audit", doctorToken);
+        assertForbidden("/api/audit-logs", doctorToken);
     }
 
     @Test
@@ -217,6 +227,7 @@ class RbacAccessControlTest {
         assertForbidden("/api/appointments", pharmacistToken);
 
         assertForbidden("/api/audit", pharmacistToken);
+        assertForbidden("/api/audit-logs", pharmacistToken);
     }
 
     @Test
@@ -229,7 +240,8 @@ class RbacAccessControlTest {
                 "/api/medicines",
                 "/api/prescriptions",
                 "/api/appointments",
-                "/api/audit"
+                "/api/audit",
+                "/api/audit-logs"
         };
 
         for (String endpoint : protectedEndpoints) {

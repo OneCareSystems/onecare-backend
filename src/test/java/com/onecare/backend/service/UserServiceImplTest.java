@@ -37,7 +37,7 @@ class UserServiceImplTest {
         userRepository = mock(UserRepository.class);
 
         passwordEncoder = mock(PasswordEncoder.class);
-        userService = new UserServiceImpl(userRepository, passwordEncoder);
+        userService = new UserServiceImpl(userRepository, passwordEncoder, mock(AuditService.class));
 
         user = new User();
         user.setUserId(3L);
