@@ -44,11 +44,13 @@ class AuthAuditIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+      @Autowired
+    private AuditLogRepository auditLogRepository;
+
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
-    @Autowired
-    private AuditLogRepository auditLogRepository;
+    
 
     @Autowired
     private PasswordEncoder passwordEncoder;
