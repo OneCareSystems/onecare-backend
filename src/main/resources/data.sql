@@ -335,3 +335,16 @@ VALUES
     (8, 5, 8, 6, 5),
     (9, 6, 10, 9, 10),
     (10, 7, 12, 6, 5);
+
+-- =====================================================================
+-- 17. SYSTEM SETTINGS
+-- Runtime-configurable settings; updated via the System Settings API.
+-- =====================================================================
+
+INSERT IGNORE INTO system_settings
+    (setting_key, setting_value, description, updated_at)
+VALUES
+    ('BACKUP_SCHEDULE_DAY_OF_MONTH', '28',
+     'Day of month for automatic monthly backup at end of day (1-31)', NOW()),
+    ('CONSULTATION_FEE', '500.00',
+     'Standard consultation fee amount', NOW());

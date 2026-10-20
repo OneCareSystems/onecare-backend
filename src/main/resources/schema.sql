@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS medicines;
 DROP TABLE IF EXISTS patients;
 DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS backup_metadata;
+DROP TABLE IF EXISTS system_settings;
 DROP TABLE IF EXISTS doctor_schedules;
 DROP TABLE IF EXISTS role_permissions;
 DROP TABLE IF EXISTS users;
@@ -303,4 +304,14 @@ CREATE TABLE backup_metadata (
 
     CONSTRAINT pk_backup_metadata PRIMARY KEY (backup_id),
     CONSTRAINT uq_backup_filename  UNIQUE (filename)
+);
+
+-- 13. system_settings — runtime-configurable key/value settings (Super Admin)
+CREATE TABLE system_settings (
+    setting_key   VARCHAR(100) NOT NULL,
+    setting_value VARCHAR(255) NOT NULL,
+    description   VARCHAR(255) NULL,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT pk_system_settings PRIMARY KEY (setting_key)
 );
