@@ -9,7 +9,10 @@ import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.DoctorScheduleRepository;
+import com.onecare.backend.repository.ExternalDispensingRepository;
 import com.onecare.backend.repository.PatientRepository;
+import com.onecare.backend.repository.PrescriptionItemRepository;
+import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +71,16 @@ class DoctorScheduleApiIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired 
+    private PrescriptionRepository prescriptionRepository;
+    
+    @Autowired 
+    private PrescriptionItemRepository prescriptionItemRepository;
+    
+    @Autowired 
+    private ExternalDispensingRepository externalDispensingRepository;
+
+
     private String superAdminToken;
     private String doctorToken;
     private String adminToken;
@@ -76,6 +89,11 @@ class DoctorScheduleApiIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         auditLogRepository.deleteAll();
+
+        externalDispensingRepository.deleteAll();
+        prescriptionItemRepository.deleteAll();
+        prescriptionRepository.deleteAll();
+        
         doctorScheduleRepository.deleteAll();
         appointmentRepository.deleteAll();
         patientRepository.deleteAll();
