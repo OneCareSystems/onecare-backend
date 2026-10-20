@@ -457,8 +457,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         LocalTime start = requestedStart.toLocalTime();
+        LocalDateTime requestedEnd = requestedStart.plus(slotDuration);
+        LocalDateTime operatingEnd = LocalDateTime.of(requestedStart.toLocalDate(), operatingEndTime);
         boolean withinHours = !start.isBefore(operatingStartTime)
-                && !start.plus(slotDuration).isAfter(operatingEndTime);
+                && !requestedEnd.isAfter(operatingEnd);
 
         long offsetSeconds = Duration.between(operatingStartTime, start).getSeconds();
         boolean alignedToGrid = offsetSeconds >= 0
@@ -510,7 +512,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (!windows.isEmpty() && hasAnySchedule(doctorId)) {
             for (DoctorSchedule window : windows) {
                 LocalDateTime candidate = LocalDateTime.of(appointmentDate, window.getStartTime());
-                while (!candidate.toLocalTime().plus(slotDuration).isAfter(window.getEndTime())
+                LocalDateTime windowEnd = LocalDateTime.of(appointmentDate, window.getEndTime());
+                while (!candidate.plus(slotDuration).isAfter(windowEnd)
                         && alternatives.size() < 5) {
                     LocalDateTime candidateEnd = candidate.plus(slotDuration);
                     if (freeOfAppointments(doctorId, appointmentDate, candidate, candidateEnd, excludeAppointmentId)
@@ -527,8 +530,9 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         LocalDateTime candidate = LocalDateTime.of(appointmentDate, operatingStartTime);
+        LocalDateTime operatingEnd = LocalDateTime.of(appointmentDate, operatingEndTime);
 
-        while (!candidate.toLocalTime().plus(slotDuration).isAfter(operatingEndTime) && alternatives.size() < 5) {
+        while (!candidate.plus(slotDuration).isAfter(operatingEnd) && alternatives.size() < 5) {
             LocalDateTime candidateEnd = candidate.plus(slotDuration);
             if (freeOfAppointments(doctorId, appointmentDate, candidate, candidateEnd, excludeAppointmentId)
                     && !candidate.equals(requestedStart)) {
@@ -600,12 +604,14 @@ public class AppointmentServiceImpl implements AppointmentService {
                 return List.of(); // non-working day
             }
             for (DoctorSchedule window : windows) {
-                LocalTime candidate = window.getStartTime();
-                while (!candidate.plus(slotDuration).isAfter(window.getEndTime())) {
+                LocalDateTime candidate = LocalDateTime.of(date, window.getStartTime());
+                LocalDateTime windowEnd = LocalDateTime.of(date, window.getEndTime());
+                while (!candidate.plus(slotDuration).isAfter(windowEnd)) {
+                    LocalTime candidateTime = candidate.toLocalTime();
                     boolean isPast = date.isEqual(LocalDate.now())
-                            && !LocalDateTime.of(date, candidate).isAfter(LocalDateTime.now());
-                    if (!isPast && !bookedSlots.contains(candidate)) {
-                        availableSlots.add(candidate.format(formatter));
+                            && !candidate.isAfter(LocalDateTime.now());
+                    if (!isPast && !bookedSlots.contains(candidateTime)) {
+                        availableSlots.add(candidateTime.format(formatter));
                     }
                     candidate = candidate.plus(slotDuration);
                 }
@@ -614,14 +620,16 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         // Fallback: clinic-wide operating hours until a schedule is configured
-        LocalTime candidate = operatingStartTime;
+        LocalDateTime candidate = LocalDateTime.of(date, operatingStartTime);
+        LocalDateTime operatingEnd = LocalDateTime.of(date, operatingEndTime);
 
-        while (!candidate.plus(slotDuration).isAfter(operatingEndTime)) {
+        while (!candidate.plus(slotDuration).isAfter(operatingEnd)) {
+            LocalTime candidateTime = candidate.toLocalTime();
             boolean isPast = date.isEqual(LocalDate.now())
-                    && !LocalDateTime.of(date, candidate).isAfter(LocalDateTime.now());
+                    && !candidate.isAfter(LocalDateTime.now());
 
-            if (!isPast && !bookedSlots.contains(candidate)) {
-                availableSlots.add(candidate.format(formatter));
+            if (!isPast && !bookedSlots.contains(candidateTime)) {
+                availableSlots.add(candidateTime.format(formatter));
             }
             candidate = candidate.plus(slotDuration);
         }

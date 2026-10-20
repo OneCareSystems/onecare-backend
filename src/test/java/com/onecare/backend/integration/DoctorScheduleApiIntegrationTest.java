@@ -317,6 +317,37 @@ class DoctorScheduleApiIntegrationTest {
     }
 
     @Test
+    void availableSlots_nearMidnightStopAtScheduleEnd() throws Exception {
+        mockMvc.perform(put("/api/doctors/" + doctor.getUserId() + "/schedule")
+                        .header("Authorization", "Bearer " + superAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "days": [
+                                    {"dayOfWeek": "MONDAY", "timeSlots": [{"start": "23:00", "end": "23:59"}]},
+                                    {"dayOfWeek": "TUESDAY", "timeSlots": []},
+                                    {"dayOfWeek": "WEDNESDAY", "timeSlots": []},
+                                    {"dayOfWeek": "THURSDAY", "timeSlots": []},
+                                    {"dayOfWeek": "FRIDAY", "timeSlots": []},
+                                    {"dayOfWeek": "SATURDAY", "timeSlots": []},
+                                    {"dayOfWeek": "SUNDAY", "timeSlots": []}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        mockMvc.perform(get("/api/appointments/available-slots")
+                        .param("doctorId", String.valueOf(doctor.getUserId()))
+                        .param("date", nextMonday.toString())
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0]").value("23:00"));
+    }
+
+    @Test
     void availableSlots_onNonWorkingDay_areEmpty() throws Exception {
         saveValidSchedule();
 
