@@ -52,7 +52,7 @@ CREATE TABLE password_reset_tokens (
 
     CONSTRAINT pk_password_reset_tokens PRIMARY KEY (id),
     CONSTRAINT uq_prt_token_hash        UNIQUE (token_hash),
-    CONSTRAINT fk_prt_user              FOREIGN KEY (user_id) REFERENCES users(user_id)
+    CONSTRAINT fk_prt_user              FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 -- 2. patients
