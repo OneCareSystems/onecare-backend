@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.AppointmentStatusRequest;
 import com.onecare.backend.dto.request.GenerateInvoiceRequest;
 import com.onecare.backend.dto.response.AppointmentResponse;
@@ -106,6 +107,7 @@ public class QueueServiceImpl implements QueueService {
     }
 
     @Override
+    @Audited(action = "QUEUE_STATUS_UPDATE", module = "QUEUE")
     public AppointmentResponse updateQueueStatus(Long appointmentId, AppointmentStatusRequest request) {
         if (request == null || request.status() == null) {
             throw new InvalidAppointmentStatusException("Status is required");
@@ -117,8 +119,7 @@ public class QueueServiceImpl implements QueueService {
         AppointmentStatus currentStatus = appointment.getStatus();
         AppointmentStatus requestedStatus = request.status();
 
-        // Terminal states cannot be changed
-        if (currentStatus == AppointmentStatus.CANCELLED && requestedStatus != AppointmentStatus.CANCELLED) {
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED && requestedStatus != AppointmentStatus.CANCELLED) {
             throw new InvalidAppointmentStatusException("Cancelled appointments cannot be changed to another status");
         }
 

@@ -13,6 +13,7 @@ import com.onecare.backend.enums.PaymentMethod;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.repository.AppointmentRepository;
+import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.InvoiceRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
@@ -67,6 +68,9 @@ class InvoicePaymentConcurrencyIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+
     private User admin;
 
     // Only rows THIS class created — wholesale deleteAll(users) would hit
@@ -92,6 +96,8 @@ class InvoicePaymentConcurrencyIntegrationTest {
         invoiceRepository.deleteAll();
         appointmentRepository.deleteAll(createdAppointments);
         patientRepository.deleteAll(createdPatients);
+        // committed audit rows (own transaction) would block user deletion via FK
+        auditLogRepository.deleteAll();
         userRepository.deleteAll(createdUsers);
         createdUsers.clear();
         createdPatients.clear();

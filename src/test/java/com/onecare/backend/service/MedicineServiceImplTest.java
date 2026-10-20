@@ -30,6 +30,9 @@ class MedicineServiceImplTest {
     @Mock
     private MedicineRepository medicineRepository;
 
+    @Mock
+    private AuditService auditService;
+
     @InjectMocks
     private MedicineServiceImpl medicineService;
 

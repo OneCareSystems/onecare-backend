@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.CreateExternalDispensingRequest;
 import com.onecare.backend.dto.request.ExternalDispensingItemRequest;
 import com.onecare.backend.dto.request.StockUpdateRequest;
@@ -13,6 +14,7 @@ import com.onecare.backend.enums.Status;
 import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.*;
+import com.onecare.backend.security.ClientIpResolver;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,7 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_MARK_EXTERNAL", module = "PRESCRIPTION")
     public ExternalDispensingResponse markPrescriptionExternal(Long prescriptionId) {
 
         Prescription prescription = prescriptionRepository.findById(prescriptionId)
@@ -102,6 +105,10 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
     }
 
     @Override
+    @Audited(
+    action = "EXTERNAL_DISPENSING_CREATED",
+    module = "ExternalDispensing"
+)
     public ExternalDispensingResponse createExternalDispensing(CreateExternalDispensingRequest request) {
         if (request == null) {
             throw new BusinessRuleException("External dispensing request is required");
@@ -201,12 +208,12 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
         event.setItems(items);
         ExternalDispensing saved = externalDispensingRepository.save(event);
 
-        Optional<User> actor = resolveCurrentUser();
-        if (actor.isPresent()) {
-            recordAudit(actor.get(), "EXTERNAL_DISPENSING_CREATED", "ExternalDispensing",
-                    String.valueOf(saved.getDispenseId()),
-                    "Created pending external dispensing event");
-        }
+        // Optional<User> actor = resolveCurrentUser();
+        // if (actor.isPresent()) {
+        //     recordAudit(actor.get(), "EXTERNAL_DISPENSING_CREATED", "ExternalDispensing",
+        //             String.valueOf(saved.getDispenseId()),
+        //             "Created pending external dispensing event");
+        // }
 
         log.info("External dispensing created | dispenseId={} | patientId={} | prescriptionId={} | items={}",
                 saved.getDispenseId(), patientId, prescription != null ? prescription.getPrescriptionId() : null,
@@ -215,6 +222,10 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
     }
 
     @Override
+    @Audited(
+    action = "EXTERNAL_DISPENSING_VERIFIED",
+    module = "ExternalDispensing"
+)
     public ExternalDispensingResponse verifyExternalDispensing(Long dispenseId,
             VerifyExternalDispensingRequest request) {
         ExternalDispensing event = findByIdInternal(dispenseId);
@@ -236,17 +247,21 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
 
         ExternalDispensing saved = externalDispensingRepository.save(event);
 
-        Optional<User> actor = resolveCurrentUser();
-        if (actor.isPresent()) {
-            recordAudit(actor.get(), "EXTERNAL_DISPENSING_VERIFIED", "ExternalDispensing",
-                    String.valueOf(saved.getDispenseId()),
-                    "External dispensing identity verification completed");
-        }
+        // Optional<User> actor = resolveCurrentUser();
+        // if (actor.isPresent()) {
+        //     recordAudit(actor.get(), "EXTERNAL_DISPENSING_VERIFIED", "ExternalDispensing",
+        //             String.valueOf(saved.getDispenseId()),
+        //             "External dispensing identity verification completed");
+        // }
 
         return ExternalDispensingResponse.from(saved);
     }
 
     @Override
+    @Audited(
+    action = "EXTERNAL_DISPENSING_VERIFIED",
+    module = "ExternalDispensing"
+)
     public ExternalDispensingResponse completeExternalDispensing(Long dispenseId) {
         ExternalDispensing event = findByIdInternal(dispenseId);
         if (event.getStatus() == Status.DISPENSED) {
@@ -311,12 +326,12 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
         event.setVerificationStatus("VERIFIED");
         event = externalDispensingRepository.save(event);
 
-        Optional<User> actor = resolveCurrentUser();
-        if (actor.isPresent()) {
-            recordAudit(actor.get(), "EXTERNAL_DISPENSING_COMPLETED", "ExternalDispensing",
-                    String.valueOf(event.getDispenseId()),
-                    "External dispensing completed and stock decremented");
-        }
+        // Optional<User> actor = resolveCurrentUser();
+        // if (actor.isPresent()) {
+        //     recordAudit(actor.get(), "EXTERNAL_DISPENSING_COMPLETED", "ExternalDispensing",
+        //             String.valueOf(event.getDispenseId()),
+        //             "External dispensing completed and stock decremented");
+        // }
 
         log.info("External dispensing completed | dispenseId={} | prescriptionId={} | stockUpdated={}",
                 event.getDispenseId(),

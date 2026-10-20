@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.GenerateInvoiceRequest;
 import com.onecare.backend.dto.request.RecordPaymentRequest;
 import com.onecare.backend.dto.request.UpdateInvoiceLineRequest;
@@ -96,6 +97,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     // ------------------------------------------------------------------
 
     @Override
+    @Audited(action = "INVOICE_GENERATE", module = "INVOICE")
     public InvoiceResponse generateInvoice(GenerateInvoiceRequest request) {
 
         boolean hasAppointment = request != null && request.appointmentId() != null;
@@ -163,7 +165,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                 saved.getInvoiceId(), saved.getInvoiceNumber(),
                 appointment.getPatient().getPatientId(), appointment.getAppointmentId(),
                 saved.getTotal(), saved.getItems().size(), billedBy.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }
@@ -231,7 +232,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                 saved.getInvoiceId(), saved.getInvoiceNumber(), event.getDispenseId(),
                 invoice.getPatient() != null ? invoice.getPatient().getPatientId() : null,
                 saved.getTotal(), saved.getItems().size(), billedBy.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }
@@ -377,6 +377,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     // ------------------------------------------------------------------
 
     @Override
+    @Audited(action = "INVOICE_LINES_UPDATE", module = "INVOICE")
     public InvoiceResponse updateInvoiceLines(Long id, UpdateInvoiceRequest request) {
 
         User editor = resolveAuthenticatedUser();
@@ -456,7 +457,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                         + "| lines={} | performedBy={}",
                 saved.getInvoiceId(), saved.getInvoiceNumber(), saved.getTotal(),
                 saved.getItems().size(), editor.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }
@@ -466,6 +466,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     // ------------------------------------------------------------------
 
     @Override
+    @Audited(action = "PAYMENT_RECORD", module = "INVOICE")
     public InvoiceResponse recordPayment(Long id, RecordPaymentRequest request) {
 
         User cashier = resolveAuthenticatedUser();
@@ -526,7 +527,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                 saved.getInvoiceId(), saved.getInvoiceNumber(), payment.getAmount(),
                 saved.getAmountPaid(), saved.getOutstandingBalance(), saved.getStatus(),
                 cashier.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }

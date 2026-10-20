@@ -48,7 +48,7 @@ class ExternalDispensingServiceImplTest {
     private UserRepository userRepository;
 
     @Mock
-    private AuditLogRepository auditLogRepository;
+    private AuditService auditService;
 
     @Mock
     private MedicineService medicineService;
