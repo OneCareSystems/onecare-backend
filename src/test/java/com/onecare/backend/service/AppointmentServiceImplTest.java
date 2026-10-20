@@ -541,7 +541,9 @@ class AppointmentServiceImplTest {
         assertTrue(available.contains("16:00"));
         assertFalse(available.contains("16:30"));
         assertTrue(available.contains("17:00"));
+        // default window without a schedule: 16:00-21:00 -> last slot 20:30
         assertTrue(available.contains("20:30"));
+        assertFalse(available.contains("21:00"));
         assertEquals(9, available.size());
     }
 

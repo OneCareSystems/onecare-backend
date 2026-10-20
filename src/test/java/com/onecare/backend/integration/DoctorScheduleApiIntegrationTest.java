@@ -104,10 +104,11 @@ class DoctorScheduleApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "workingDays": ["MONDAY"],
-                                  "timeSlots": [
-                                    {"start": "09:00", "end": "12:00"},
-                                    {"start": "11:00", "end": "13:00"}
+                                  "days": [
+                                    {"dayOfWeek": "MONDAY", "timeSlots": [
+                                      {"start": "09:00", "end": "12:00"},
+                                      {"start": "11:00", "end": "13:00"}
+                                    ]}
                                   ]
                                 }
                                 """))
@@ -128,9 +129,80 @@ class DoctorScheduleApiIntegrationTest {
                         .header("Authorization", "Bearer " + superAdminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.doctorId").value(doctor.getUserId()))
-                .andExpect(jsonPath("$.data.workingDays[0]").value("MONDAY"))
-                .andExpect(jsonPath("$.data.timeSlots[0].start").value("09:00"))
-                .andExpect(jsonPath("$.data.timeSlots[0].end").value("12:00"));
+                .andExpect(jsonPath("$.data.days.length()").value(7))
+                .andExpect(jsonPath("$.data.days[0].dayOfWeek").value("MONDAY"))
+                .andExpect(jsonPath("$.data.days[0].timeSlots[0].start").value("09:00"))
+                .andExpect(jsonPath("$.data.days[0].timeSlots[0].end").value("12:00"));
+    }
+
+    @Test
+    void getSchedule_activeDoctorWithoutSchedule_returnsDefaultDailyWindow() throws Exception {
+        // no schedule saved: an active doctor automatically works 4 PM - 9 PM
+        // on every day of the week instead of showing as empty
+        mockMvc.perform(get("/api/doctors/" + doctor.getUserId() + "/schedule")
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.days.length()").value(7))
+                .andExpect(jsonPath("$.data.days[0].dayOfWeek").value("MONDAY"))
+                .andExpect(jsonPath("$.data.days[0].timeSlots[0].start").value("16:00"))
+                .andExpect(jsonPath("$.data.days[0].timeSlots[0].end").value("21:00"))
+                .andExpect(jsonPath("$.data.days[6].dayOfWeek").value("SUNDAY"))
+                .andExpect(jsonPath("$.data.days[6].timeSlots[0].start").value("16:00"))
+                .andExpect(jsonPath("$.data.days[6].timeSlots[0].end").value("21:00"));
+    }
+
+    @Test
+    void bookingWithoutConfiguredSchedule_usesDefaultDailyWindow() throws Exception {
+        // no custom schedule: the clinic default (16:00-21:00 daily) governs
+        Patient patient = createSchedulePatient();
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+
+        // inside the default window -> created
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"doctorId": %d, "patientId": %d, "appointmentDateTime": "%s", "reason": "Checkup"}
+                                """.formatted(doctor.getUserId(), patient.getPatientId(), nextMonday.atTime(16, 30))))
+                .andExpect(status().isCreated());
+
+        // outside it -> rejected
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"doctorId": %d, "patientId": %d, "appointmentDateTime": "%s", "reason": "Checkup"}
+                                """.formatted(doctor.getUserId(), patient.getPatientId(), nextMonday.atTime(9, 0))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void bookingAfterDefaultScheduleProvisioning_followsMaterialisedRows() throws Exception {
+        // reading the schedule materialises the default 4 PM - 9 PM week...
+        mockMvc.perform(get("/api/doctors/" + doctor.getUserId() + "/schedule")
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk());
+
+        Patient patient = createSchedulePatient();
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+
+        // ...so bookings now run through the real schedule: inside works,
+        // outside the window is a schedule conflict (409 with alternatives)
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"doctorId": %d, "patientId": %d, "appointmentDateTime": "%s", "reason": "Checkup"}
+                                """.formatted(doctor.getUserId(), patient.getPatientId(), nextMonday.atTime(17, 0))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"doctorId": %d, "patientId": %d, "appointmentDateTime": "%s", "reason": "Checkup"}
+                                """.formatted(doctor.getUserId(), patient.getPatientId(), nextMonday.atTime(9, 0))))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -260,10 +332,18 @@ class DoctorScheduleApiIntegrationTest {
     }
 
     private String validScheduleJson() {
+        // weekly contract: all seven days, an empty timeSlots list = day off
         return """
                 {
-                  "workingDays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
-                  "timeSlots": [{"start": "09:00", "end": "12:00"}]
+                  "days": [
+                    {"dayOfWeek": "MONDAY",    "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "TUESDAY",   "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "WEDNESDAY", "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "THURSDAY",  "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "FRIDAY",    "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "SATURDAY",  "timeSlots": []},
+                    {"dayOfWeek": "SUNDAY",    "timeSlots": []}
+                  ]
                 }
                 """;
     }

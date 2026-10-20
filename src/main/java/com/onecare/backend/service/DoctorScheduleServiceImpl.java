@@ -25,6 +25,7 @@ import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,24 +51,63 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
     private final DoctorScheduleRepository doctorScheduleRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
+    private final LocalTime defaultStartTime;
+    private final LocalTime defaultEndTime;
 
     public DoctorScheduleServiceImpl(DoctorScheduleRepository doctorScheduleRepository,
             UserRepository userRepository,
-            AuditLogRepository auditLogRepository) {
+            AuditLogRepository auditLogRepository,
+            @Value("${clinic.operating-hours.start-time:16:00}")
+            String defaultStartTimeStr,
+            @Value("${clinic.operating-hours.end-time:21:00}")
+            String defaultEndTimeStr) {
         this.doctorScheduleRepository = doctorScheduleRepository;
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
+        this.defaultStartTime = LocalTime.parse(defaultStartTimeStr);
+        this.defaultEndTime = LocalTime.parse(defaultEndTimeStr);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public DoctorScheduleResponse getSchedule(Long doctorId) {
         User doctor = findDoctor(doctorId);
         assertCanRead(doctor);
 
+        provisionDefaultScheduleIfNeeded(doctor);
+
         List<DoctorSchedule> rows = doctorScheduleRepository
                 .findByDoctorUserIdOrderByStartTimeAsc(doctor.getUserId());
         return toResponse(doctor.getUserId(), rows);
+    }
+
+    /**
+     * An active doctor without any configured schedule automatically works the
+     * default window (4 PM - 9 PM, from clinic.operating-hours.*) every day of
+     * the week, so their time is bookable instead of showing as empty. The
+     * rows are materialised once; a Super Admin's explicit save later replaces
+     * them. Inactive doctors and doctors with an existing schedule are left
+     * untouched.
+     */
+    private void provisionDefaultScheduleIfNeeded(User doctor) {
+        if (doctor.getRole() != Role.DOCTOR || !Boolean.TRUE.equals(doctor.getIsActive())) {
+            return;
+        }
+        if (!doctorScheduleRepository.findByDoctorUserIdOrderByStartTimeAsc(doctor.getUserId()).isEmpty()) {
+            return;
+        }
+
+        for (DayOfWeek day : DayOfWeek.values()) {
+            DoctorSchedule row = new DoctorSchedule();
+            row.setDoctor(doctor);
+            row.setDayOfWeek(day);
+            row.setStartTime(defaultStartTime);
+            row.setEndTime(defaultEndTime);
+            doctorScheduleRepository.save(row);
+        }
+        log.info(
+                "Provisioned default schedule {}-{} (all days) for active doctor {} without a configured schedule",
+                defaultStartTime, defaultEndTime, doctor.getUserId());
     }
 
     @Override
