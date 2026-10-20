@@ -315,11 +315,15 @@ public class AppointmentServiceImpl implements AppointmentService {
             }
         }
 
-        if (request.appointmentDateTime() != null) {
-            // rescheduling lands on the same time grid as booking
+        if (request.doctorId() != null || request.appointmentDateTime() != null) {
+            // Reassignment and rescheduling both require validation against
+            // the effective doctor's booking rules and the effective time.
             assertWithinOperatingHours(doctorId, newDateTime);
             assertDoctorSlotAvailability(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
             assertWithinWorkingHours(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
+        }
+
+        if (request.appointmentDateTime() != null) {
             appointment.setAppointmentDate(newDateTime.toLocalDate());
             appointment.setTimeSlot(newDateTime.toLocalTime());
         }

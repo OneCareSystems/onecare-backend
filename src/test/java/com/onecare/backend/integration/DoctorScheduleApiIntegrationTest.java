@@ -433,6 +433,51 @@ class DoctorScheduleApiIntegrationTest {
     }
 
     @Test
+    void changingDoctorWithoutChangingTime_validatesNewDoctorsSchedule() throws Exception {
+        User otherDoctor = createUser("sched-reassigned-doctor", "sched-reassigned@onecare.com", Role.DOCTOR);
+        String schedule = """
+                {
+                  "days": [
+                    {"dayOfWeek": "MONDAY", "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "TUESDAY", "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "WEDNESDAY", "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "THURSDAY", "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "FRIDAY", "timeSlots": [{"start": "09:00", "end": "12:00"}]},
+                    {"dayOfWeek": "SATURDAY", "timeSlots": []},
+                    {"dayOfWeek": "SUNDAY", "timeSlots": []}
+                  ]
+                }
+                """;
+        mockMvc.perform(put("/api/doctors/" + otherDoctor.getUserId() + "/schedule")
+                        .header("Authorization", "Bearer " + superAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(schedule))
+                .andExpect(status().isOk());
+
+        Patient patient = createSchedulePatient();
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        Appointment appointment = new Appointment();
+        appointment.setDoctor(doctor);
+        appointment.setPatient(patient);
+        appointment.setAppointmentDate(nextMonday);
+        appointment.setTimeSlot(LocalTime.of(16, 0));
+        appointment.setStatus(AppointmentStatus.SCHEDULED);
+        appointmentRepository.saveAndFlush(appointment);
+
+        mockMvc.perform(put("/api/appointments/" + appointment.getAppointmentId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"doctorId": %d}
+                                """.formatted(otherDoctor.getUserId())))
+                .andExpect(status().isConflict());
+
+        Appointment unchanged = appointmentRepository.findById(appointment.getAppointmentId()).orElseThrow();
+        assertThat(unchanged.getDoctor().getUserId()).isEqualTo(doctor.getUserId());
+        assertThat(unchanged.getTimeSlot()).isEqualTo(LocalTime.of(16, 0));
+    }
+
+    @Test
     void bookingInsideScheduleButOffGrid_returns400() throws Exception {
         // The doctor's schedule (09:00-12:00) sits outside the clinic-hours
         // stub (16:00-21:00), so it must govern booking entirely: 09:00 is
