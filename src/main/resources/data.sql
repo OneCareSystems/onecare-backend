@@ -4,7 +4,7 @@ VALUES
     (1, 'superadmin', 'superadmin@onecare.test',
      '$argon2id$v=19$m=65536,t=2,p=1$jlsjtJFalPPdu3LS0fRTyA$6S/XFulvNuWNoqpIEX2+uHDESgQ1s7XfUSh5BX3yLo0',
      'SUPER_ADMIN', TRUE, 0, NOW(), NOW()),
-    (2, 'admin', 'admin@onecare.test',
+    (2, 'admin', 'vipusrihar@gmail.com',
      '$argon2id$v=19$m=65536,t=2,p=1$jlsjtJFalPPdu3LS0fRTyA$6S/XFulvNuWNoqpIEX2+uHDESgQ1s7XfUSh5BX3yLo0',
      'ADMIN', TRUE, 0, NOW(), NOW()),
      (3, 'Dr.Kuruparan', 'kuruparanv@gmail.com',

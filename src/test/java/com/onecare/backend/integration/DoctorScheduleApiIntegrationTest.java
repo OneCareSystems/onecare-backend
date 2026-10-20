@@ -194,13 +194,7 @@ class DoctorScheduleApiIntegrationTest {
     void bookingOutsideWorkingHours_isRejectedWithConflict() throws Exception {
         saveValidSchedule();
 
-        Patient patient = new Patient();
-        patient.setFullName("Schedule Test Patient");
-        patient.setDateOfBirth(LocalDate.of(1990, 1, 1));
-        patient.setContactNo("0771234567");
-        patient.setGender(Gender.MALE);
-        patient.setIsActive(true);
-        patientRepository.save(patient);
+        Patient patient = createSchedulePatient();
 
         // next Monday 16:00 is inside the clinic-hours stub but NOT inside the
         // doctor's configured 09:00-12:00 schedule -> must be rejected
@@ -223,6 +217,38 @@ class DoctorScheduleApiIntegrationTest {
                                 {"doctorId": %d, "patientId": %d, "appointmentDateTime": "%s", "reason": "Checkup"}
                                 """.formatted(doctor.getUserId(), patient.getPatientId(), nextMonday.atTime(9, 0))))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void bookingInsideScheduleButOffGrid_returns400() throws Exception {
+        // The doctor's schedule (09:00-12:00) sits outside the clinic-hours
+        // stub (16:00-21:00), so it must govern booking entirely: 09:00 is
+        // bookable, but an off-grid time inside the window never appears in
+        // available-slots and must not be silently bookable either.
+        saveValidSchedule();
+
+        Patient patient = createSchedulePatient();
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"doctorId": %d, "patientId": %d, "appointmentDateTime": "%s", "reason": "Checkup"}
+                                """.formatted(doctor.getUserId(), patient.getPatientId(), nextMonday.atTime(9, 15))))
+                .andExpect(status().isBadRequest());
+
+        assertThat(appointmentRepository.count()).isZero();
+    }
+
+    private Patient createSchedulePatient() {
+        Patient patient = new Patient();
+        patient.setFullName("Schedule Test Patient");
+        patient.setDateOfBirth(LocalDate.of(1990, 1, 1));
+        patient.setContactNo("0771234567");
+        patient.setGender(Gender.MALE);
+        patient.setIsActive(true);
+        return patientRepository.save(patient);
     }
 
     private void saveValidSchedule() throws Exception {

@@ -123,7 +123,7 @@ public class AppointmentServiceImpl implements AppointmentService {
      */
     private Appointment createAppointmentInternal(Patient patient, User doctor,
             LocalDateTime requestedStart, String reason) {
-        assertWithinOperatingHours(requestedStart);
+        assertWithinOperatingHours(doctor.getUserId(), requestedStart);
 
         lockDoctor(doctor.getUserId());
 
@@ -319,8 +319,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         if (request.appointmentDateTime() != null) {
-            // rescheduling lands on the same clinic grid as booking
-            assertWithinOperatingHours(newDateTime);
+            // rescheduling lands on the same time grid as booking
+            assertWithinOperatingHours(doctorId, newDateTime);
             assertDoctorSlotAvailability(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
             assertWithinWorkingHours(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
             appointment.setAppointmentDate(newDateTime.toLocalDate());
@@ -435,14 +435,27 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     /**
-     * Booking and rescheduling must land on the clinic slot grid: at or after
-     * operating start, ending at or before operating end, and aligned to the
-     * slot duration (e.g. 16:00, 16:30, ... 20:30 with the default 16:00-21:00
-     * / 30-minute config). Off-grid or out-of-hours times are rejected with
-     * 400 instead of silently creating appointments that the availability
-     * display (getAvailableSlots / alternative slots) never shows.
+     * Booking and rescheduling must land on the slot grid of the time source
+     * that governs the doctor, so an appointment is never silently created
+     * that the availability display (getAvailableSlots / alternative slots)
+     * never shows.
+     *
+     * <p>A doctor with a configured schedule (DDP-20 rework) is governed by
+     * it: their working windows may sit outside the clinic-wide operating
+     * hours (e.g. a 09:00-12:00 schedule when the clinic-hours default starts
+     * at 16:00), and the schedule is exactly what availability offers. The
+     * clinic gate is therefore skipped for them and the window + grid checks
+     * in {@link #assertWithinWorkingHours} apply instead. Doctors without a
+     * schedule keep the clinic-wide fallback: at or after operating start,
+     * ending at or before operating end, aligned to the slot duration (e.g.
+     * 16:00, 16:30, ... 20:30 with the default 16:00-21:00 / 30-minute
+     * config). Off-grid or out-of-hours times are rejected with 400.
      */
-    private void assertWithinOperatingHours(LocalDateTime requestedStart) {
+    private void assertWithinOperatingHours(Long doctorId, LocalDateTime requestedStart) {
+        if (doctorScheduleRepository != null && hasAnySchedule(doctorId)) {
+            return; // the configured schedule is authoritative (DDP-20 rework)
+        }
+
         LocalTime start = requestedStart.toLocalTime();
         boolean withinHours = !start.isBefore(operatingStartTime)
                 && !start.plus(slotDuration).isAfter(operatingEndTime);
@@ -632,8 +645,9 @@ public class AppointmentServiceImpl implements AppointmentService {
     /**
      * Booking must use real availability (FR009): when the doctor has a
      * configured schedule, the requested slot must fall inside a working
-     * window of that day; a non-working day is rejected outright. Doctors
-     * without a schedule keep the clinic-hours fallback.
+     * window of that day AND on that window's slot grid; a non-working day
+     * is rejected outright. Doctors without a schedule keep the clinic-hours
+     * fallback (enforced by {@link #assertWithinOperatingHours}).
      */
     private void assertWithinWorkingHours(Long doctorId, LocalDateTime requestedStart, LocalDateTime requestedEnd,
             Long excludeAppointmentId) {
@@ -659,6 +673,29 @@ public class AppointmentServiceImpl implements AppointmentService {
                     requestedStart.toString(),
                     findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart, requestedEnd,
                             excludeAppointmentId));
+        }
+
+        // On-grid inside the covering window: availability and alternatives are
+        // generated at window-start + n x slotDuration, so an off-grid time
+        // (e.g. 09:15 in a 09:00-12:00 window) is never offered and must not
+        // be bookable either — rejected with 400 like the clinic-grid gate.
+        boolean onGrid = windows.stream().anyMatch(window -> {
+            boolean covers = !requestedStart.toLocalTime().isBefore(window.getStartTime())
+                    && !requestedEnd.toLocalTime().isAfter(window.getEndTime());
+            if (!covers) {
+                return false;
+            }
+            long offsetSeconds =
+                    Duration.between(window.getStartTime(), requestedStart.toLocalTime()).getSeconds();
+            return offsetSeconds >= 0
+                    && offsetSeconds % slotDuration.toSeconds() == 0
+                    && requestedStart.getNano() == 0;
+        });
+        if (!onGrid) {
+            throw new BusinessRuleException(String.format(
+                    "Appointment time must be aligned to %d-minute slots inside the doctor's working window "
+                            + "(requested: %s)",
+                    slotDuration.toMinutes(), requestedStart));
         }
     }
 
