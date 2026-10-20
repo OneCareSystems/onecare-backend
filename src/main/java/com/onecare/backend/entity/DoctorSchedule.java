@@ -20,8 +20,8 @@ import java.time.DayOfWeek;
 import java.time.LocalTime;
 
 /**
- * One working window of a doctor's weekly schedule (FR009): a doctor has one
- * row per working day and time slot, e.g. MONDAY 09:00-12:00.
+ * One working window or explicit day-off marker in a doctor's weekly schedule
+ * (FR009). Unavailable rows have {@code available=false} and no time window.
  */
 @Data
 @NoArgsConstructor
@@ -45,9 +45,12 @@ public class DoctorSchedule {
     @Column(name = "day_of_week", nullable = false, length = 10)
     private DayOfWeek dayOfWeek;
 
-    @Column(name = "start_time", nullable = false)
+    @Column(name = "start_time")
     private LocalTime startTime;
 
-    @Column(name = "end_time", nullable = false)
+    @Column(name = "end_time")
     private LocalTime endTime;
+
+    @Column(name = "available", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")
+    private boolean available = true;
 }

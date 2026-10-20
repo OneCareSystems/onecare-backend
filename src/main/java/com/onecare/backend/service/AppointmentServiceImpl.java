@@ -639,7 +639,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (doctorScheduleRepository == null) {
             return List.of();
         }
-        return doctorScheduleRepository.findByDoctorUserIdAndDayOfWeekOrderByStartTimeAsc(doctorId, dayOfWeek);
+        return doctorScheduleRepository.findByDoctorUserIdAndDayOfWeekOrderByStartTimeAsc(doctorId, dayOfWeek)
+                .stream()
+                .filter(DoctorSchedule::isAvailable)
+                .toList();
     }
 
     /**

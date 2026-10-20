@@ -287,8 +287,9 @@ CREATE TABLE doctor_schedules (
     schedule_id BIGINT NOT NULL AUTO_INCREMENT,
     doctor_id   BIGINT NOT NULL,
     day_of_week ENUM('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY') NOT NULL,
-    start_time  TIME   NOT NULL,
-    end_time    TIME   NOT NULL,
+    start_time  TIME   NULL,
+    end_time    TIME   NULL,
+    available   BOOLEAN NOT NULL DEFAULT TRUE,
 
     CONSTRAINT pk_doctor_schedules  PRIMARY KEY (schedule_id),
     CONSTRAINT uq_doctor_schedule   UNIQUE (doctor_id, day_of_week, start_time, end_time),

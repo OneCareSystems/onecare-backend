@@ -103,6 +103,7 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
             row.setDayOfWeek(day);
             row.setStartTime(defaultStartTime);
             row.setEndTime(defaultEndTime);
+            row.setAvailable(true);
             doctorScheduleRepository.save(row);
         }
         log.info(
@@ -165,13 +166,22 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
         List<DoctorSchedule> saved = new ArrayList<>();
 
         for (DayOfWeek day : DayOfWeek.values()) {
-            for (TimeSlotRequest slot : slotsByDay.get(day)) {
+            List<TimeSlotRequest> slots = slotsByDay.get(day);
+            if (slots.isEmpty()) {
+                DoctorSchedule row = new DoctorSchedule();
+                row.setDoctor(doctor);
+                row.setDayOfWeek(day);
+                row.setAvailable(false);
+                saved.add(doctorScheduleRepository.save(row));
+                continue;
+            }
+            for (TimeSlotRequest slot : slots) {
                 DoctorSchedule row = new DoctorSchedule();
                 row.setDoctor(doctor);
                 row.setDayOfWeek(day);
                 row.setStartTime(LocalTime.parse(slot.start(), TIME_FORMAT));
                 row.setEndTime(LocalTime.parse(slot.end(), TIME_FORMAT));
-
+                row.setAvailable(true);
                 saved.add(doctorScheduleRepository.save(row));
             }
         }
@@ -274,6 +284,9 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
         }
 
         for (DoctorSchedule row : rows) {
+            if (!row.isAvailable()) {
+                continue;
+            }
             slotsByDay.get(row.getDayOfWeek()).add(
                     new ScheduleConflictResponse.TimeSlotRange(
                             row.getStartTime().format(TIME_FORMAT),

@@ -170,6 +170,56 @@ class DoctorScheduleApiIntegrationTest {
     }
 
     @Test
+    void allDaysOff_remainsConfiguredAndDoesNotFallBackToClinicHours() throws Exception {
+        mockMvc.perform(put("/api/doctors/" + doctor.getUserId() + "/schedule")
+                        .header("Authorization", "Bearer " + superAdminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "days": [
+                                    {"dayOfWeek": "MONDAY", "timeSlots": []},
+                                    {"dayOfWeek": "TUESDAY", "timeSlots": []},
+                                    {"dayOfWeek": "WEDNESDAY", "timeSlots": []},
+                                    {"dayOfWeek": "THURSDAY", "timeSlots": []},
+                                    {"dayOfWeek": "FRIDAY", "timeSlots": []},
+                                    {"dayOfWeek": "SATURDAY", "timeSlots": []},
+                                    {"dayOfWeek": "SUNDAY", "timeSlots": []}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        assertThat(doctorScheduleRepository.findAll())
+                .hasSize(7)
+                .allMatch(schedule -> !schedule.isAvailable());
+
+        mockMvc.perform(get("/api/doctors/" + doctor.getUserId() + "/schedule")
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.days.length()").value(7))
+                .andExpect(jsonPath("$.data.days[0].timeSlots").isEmpty())
+                .andExpect(jsonPath("$.data.days[6].timeSlots").isEmpty());
+
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        mockMvc.perform(get("/api/appointments/available-slots")
+                        .param("doctorId", String.valueOf(doctor.getUserId()))
+                        .param("date", nextMonday.toString())
+                        .header("Authorization", "Bearer " + superAdminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+
+        Patient patient = createSchedulePatient();
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"doctorId": %d, "patientId": %d, "appointmentDateTime": "%s", "reason": "Checkup"}
+                                """.formatted(doctor.getUserId(), patient.getPatientId(),
+                                nextMonday.atTime(16, 0))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void bookingWithoutConfiguredSchedule_usesDefaultDailyWindow() throws Exception {
         // no custom schedule: the clinic default (16:00-21:00 daily) governs
         Patient patient = createSchedulePatient();

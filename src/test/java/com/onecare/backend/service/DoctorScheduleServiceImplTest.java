@@ -141,7 +141,7 @@ class DoctorScheduleServiceImplTest {
 
         verify(doctorScheduleRepository).deleteByDoctorUserId(1L);
         ArgumentCaptor<DoctorSchedule> captor = ArgumentCaptor.forClass(DoctorSchedule.class);
-        verify(doctorScheduleRepository, org.mockito.Mockito.times(4)).save(captor.capture());
+        verify(doctorScheduleRepository, org.mockito.Mockito.times(9)).save(captor.capture());
         // the response always represents the whole week...
         assertEquals(7, response.days().size());
         // ...with slots only on the configured working days
@@ -152,6 +152,36 @@ class DoctorScheduleServiceImplTest {
         assertTrue(slotsFor(response, DayOfWeek.SUNDAY).isEmpty());
         assertTrue(captor.getAllValues().stream()
                 .allMatch(row -> row.getDoctor().getUserId().equals(1L)));
+        assertEquals(4, captor.getAllValues().stream().filter(DoctorSchedule::isAvailable).count());
+        assertEquals(5, captor.getAllValues().stream().filter(row -> !row.isAvailable()).count());
+        assertTrue(captor.getAllValues().stream()
+                .filter(row -> !row.isAvailable())
+                .allMatch(row -> row.getStartTime() == null && row.getEndTime() == null));
+    }
+
+    @Test
+    void saveSchedule_allDaysOff_persistsExplicitUnavailableRows() {
+        when(userRepository.findById(1L)).thenReturn(java.util.Optional.of(doctor));
+        when(doctorScheduleRepository.save(any(DoctorSchedule.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        DoctorScheduleRequest request = new DoctorScheduleRequest(List.of(
+                day(DayOfWeek.MONDAY),
+                day(DayOfWeek.TUESDAY),
+                day(DayOfWeek.WEDNESDAY),
+                day(DayOfWeek.THURSDAY),
+                day(DayOfWeek.FRIDAY),
+                day(DayOfWeek.SATURDAY),
+                day(DayOfWeek.SUNDAY)));
+
+        DoctorScheduleResponse response = doctorScheduleService.saveSchedule(1L, request);
+
+        ArgumentCaptor<DoctorSchedule> captor = ArgumentCaptor.forClass(DoctorSchedule.class);
+        verify(doctorScheduleRepository, org.mockito.Mockito.times(7)).save(captor.capture());
+        assertTrue(captor.getAllValues().stream().noneMatch(DoctorSchedule::isAvailable));
+        assertTrue(captor.getAllValues().stream()
+                .allMatch(row -> row.getStartTime() == null && row.getEndTime() == null));
+        assertTrue(response.days().stream().allMatch(day -> day.timeSlots().isEmpty()));
     }
 
     @Test
