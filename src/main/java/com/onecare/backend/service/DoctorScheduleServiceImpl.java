@@ -1,7 +1,15 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.dto.request.DayScheduleRequest;
 import com.onecare.backend.dto.request.DoctorScheduleRequest;
 import com.onecare.backend.dto.request.TimeSlotRequest;
+import com.onecare.backend.dto.response.DayScheduleResponse;
+
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
+
 import com.onecare.backend.dto.response.DoctorScheduleResponse;
 import com.onecare.backend.dto.response.ScheduleConflictResponse;
 import com.onecare.backend.entity.AuditLog;
@@ -64,34 +72,80 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
 
     @Override
     @Transactional
-    public DoctorScheduleResponse saveSchedule(Long doctorId, DoctorScheduleRequest request) {
+    public DoctorScheduleResponse saveSchedule(
+            Long doctorId,
+            DoctorScheduleRequest request
+    ) {
         User doctor = findDoctor(doctorId);
 
-        List<TimeSlotRequest> sortedSlots = validateAndSortSlots(request.timeSlots());
+        if (request.days() == null || request.days().isEmpty()) {
+            throw new BusinessRuleException(
+                    "The weekly schedule must include all seven days");
+        }
 
-        // Replace semantics: flush the removal of the previous schedule first
-        // so the immediately-flushed inserts cannot collide with old rows.
+        Map<DayOfWeek, List<TimeSlotRequest>> slotsByDay =
+                new EnumMap<>(DayOfWeek.class);
+
+        for (DayScheduleRequest dayRequest : request.days()) {
+            if (dayRequest == null || dayRequest.dayOfWeek() == null) {
+                throw new BusinessRuleException(
+                        "Every schedule entry must specify a day of the week");
+            }
+
+            if (slotsByDay.containsKey(dayRequest.dayOfWeek())) {
+                throw new BusinessRuleException(
+                        "Duplicate schedule entry for " + dayRequest.dayOfWeek());
+            }
+
+            if (dayRequest.timeSlots() == null) {
+                throw new BusinessRuleException(
+                        "Time slots are required for " + dayRequest.dayOfWeek()
+                                + "; use an empty list for a day off");
+            }
+
+            slotsByDay.put(
+                    dayRequest.dayOfWeek(),
+                    validateAndSortSlots(dayRequest.timeSlots())
+            );
+        }
+
+        Set<DayOfWeek> missingDays = EnumSet.allOf(DayOfWeek.class);
+        missingDays.removeAll(slotsByDay.keySet());
+
+        if (!missingDays.isEmpty()) {
+            throw new BusinessRuleException(
+                    "Include every day in the weekly schedule. Missing: "
+                            + missingDays);
+        }
+
+        // Replace the previous schedule inside the same transaction.
         doctorScheduleRepository.deleteByDoctorUserId(doctor.getUserId());
         doctorScheduleRepository.flush();
 
         List<DoctorSchedule> saved = new ArrayList<>();
-        for (DayOfWeek day : request.workingDays().stream().distinct().sorted().toList()) {
-            for (TimeSlotRequest slot : sortedSlots) {
+
+        for (DayOfWeek day : DayOfWeek.values()) {
+            for (TimeSlotRequest slot : slotsByDay.get(day)) {
                 DoctorSchedule row = new DoctorSchedule();
                 row.setDoctor(doctor);
                 row.setDayOfWeek(day);
                 row.setStartTime(LocalTime.parse(slot.start(), TIME_FORMAT));
                 row.setEndTime(LocalTime.parse(slot.end(), TIME_FORMAT));
+
                 saved.add(doctorScheduleRepository.save(row));
             }
         }
 
         writeAudit(doctor);
-        log.info("Saved schedule for doctor {} with {} working day(s) and {} slot(s)",
-                doctor.getUserId(), request.workingDays().size(), sortedSlots.size());
+
+        log.info(
+                "Saved weekly schedule for doctor {} with {} configured time slot(s)",
+                doctor.getUserId(),
+                saved.size()
+        );
+
         return toResponse(doctor.getUserId(), saved);
     }
-
     /**
      * UC4 alt flow: slots are sorted and every adjacent pair checked, which
      * detects any overlap among intervals. Duplicates therefore surface as
@@ -168,19 +222,36 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
                 });
     }
 
-    private DoctorScheduleResponse toResponse(Long doctorId, List<DoctorSchedule> rows) {
-        List<DayOfWeek> workingDays = rows.stream()
-                .map(DoctorSchedule::getDayOfWeek)
-                .distinct()
-                .sorted()
+    private DoctorScheduleResponse toResponse(
+            Long doctorId,
+            List<DoctorSchedule> rows
+    ) {
+        Map<DayOfWeek, List<ScheduleConflictResponse.TimeSlotRange>> slotsByDay =
+                new EnumMap<>(DayOfWeek.class);
+
+        for (DayOfWeek day : DayOfWeek.values()) {
+            slotsByDay.put(day, new ArrayList<>());
+        }
+
+        for (DoctorSchedule row : rows) {
+            slotsByDay.get(row.getDayOfWeek()).add(
+                    new ScheduleConflictResponse.TimeSlotRange(
+                            row.getStartTime().format(TIME_FORMAT),
+                            row.getEndTime().format(TIME_FORMAT)
+                    )
+            );
+        }
+
+        List<DayScheduleResponse> days = List.of(DayOfWeek.values()).stream()
+                .map(day -> new DayScheduleResponse(
+                        day,
+                        slotsByDay.get(day).stream()
+                                .sorted(Comparator.comparing(
+                                        ScheduleConflictResponse.TimeSlotRange::start))
+                                .toList()
+                ))
                 .toList();
-        List<ScheduleConflictResponse.TimeSlotRange> timeSlots = rows.stream()
-                .map(row -> new ScheduleConflictResponse.TimeSlotRange(
-                        row.getStartTime().format(TIME_FORMAT),
-                        row.getEndTime().format(TIME_FORMAT)))
-                .distinct()
-                .sorted(Comparator.comparing(ScheduleConflictResponse.TimeSlotRange::start))
-                .toList();
-        return new DoctorScheduleResponse(doctorId, workingDays, timeSlots);
+
+        return new DoctorScheduleResponse(doctorId, days);
     }
 }
