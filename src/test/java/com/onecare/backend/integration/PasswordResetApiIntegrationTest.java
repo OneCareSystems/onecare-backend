@@ -6,6 +6,7 @@ import com.onecare.backend.exception.EmailSendException;
 import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,12 +50,15 @@ class PasswordResetApiIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private AppointmentRepository appointmentRepository;
 
     @MockitoBean
     private EmailService emailService;
 
     @BeforeEach
     void setUp() {
+        appointmentRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
         // committed audit rows (own transaction) would block user deletion via FK
         auditLogRepository.deleteAll();
