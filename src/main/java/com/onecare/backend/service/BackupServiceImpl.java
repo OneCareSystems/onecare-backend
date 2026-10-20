@@ -83,7 +83,8 @@ public class BackupServiceImpl implements BackupService {
             "audit_log",
             "doctor_schedules",
             "users",
-            "role_permissions");
+            "role_permissions",
+            "system_settings");
 
     private static final int PAYLOAD_VERSION = 1;
 
