@@ -1,6 +1,8 @@
 package com.onecare.backend.security;
 
+import com.onecare.backend.entity.RolePermissionEntity;
 import com.onecare.backend.entity.User;
+import com.onecare.backend.repository.RolePermissionEntityRepository;
 import com.onecare.backend.repository.UserRepository;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -18,9 +20,12 @@ import java.util.Set;
 public class AppUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final RolePermissionEntityRepository rolePermissionEntityRepository;
 
-    public AppUserDetailsService(UserRepository userRepository) {
+    public AppUserDetailsService(UserRepository userRepository,
+            RolePermissionEntityRepository rolePermissionEntityRepository) {
         this.userRepository = userRepository;
+        this.rolePermissionEntityRepository = rolePermissionEntityRepository;
     }
 
     @Override
@@ -41,9 +46,17 @@ public class AppUserDetailsService implements UserDetailsService {
         // Role authority
         authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
 
-        // Permission authorities
-        RolePermission.getPermissions(user.getRole())
-                .forEach(permission ->
+        // Permission authorities: configurable per role (FR003). Falls back to
+        // the static defaults while a role has no persisted rows.
+        Set<String> permissions = rolePermissionEntityRepository.findByRole(user.getRole()).stream()
+                .map(RolePermissionEntity::getPermission)
+                .collect(java.util.stream.Collectors.toSet());
+
+        if (permissions.isEmpty()) {
+            permissions = RolePermission.getPermissions(user.getRole());
+        }
+
+        permissions.forEach(permission ->
                         authorities.add(
                                 new SimpleGrantedAuthority(permission)
                         )

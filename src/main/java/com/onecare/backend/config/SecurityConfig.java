@@ -59,11 +59,22 @@ public class SecurityConfig {
     @Value("${frontend.allowed-origins}")
     private String allowedOrigins;
 
-    public SecurityConfig(
-            JwtAuthFilter jwtAuthFilter,
-            AppUserDetailsService userDetailsService,
-            ApiRateLimitFilter apiRateLimitFilter
-    ) {
+    /**
+     * Argon2 cost parameters. The defaults are production strength; tests lower
+     * them (src/test/resources/application.properties) so the per-test user
+     * creation and login hashing does not dominate suite runtime.
+     */
+    @Value("${app.security.argon2.parallelism:1}")
+    int argon2Parallelism;
+
+    @Value("${app.security.argon2.memory-kb:65536}")
+    int argon2MemoryKb;
+
+    @Value("${app.security.argon2.iterations:2}")
+    int argon2Iterations;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, AppUserDetailsService userDetailsService,
+            ApiRateLimitFilter apiRateLimitFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
         this.apiRateLimitFilter = apiRateLimitFilter;
@@ -118,133 +129,33 @@ public class SecurityConfig {
                                 "/api/auth/reset-password",
                                 "/api/public/**",
                                 "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html"
-                        )
+                                "/swagger-ui/**")
                         .permitAll()
-
-                       
-
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/chatbot/query"
                         )
-                        .permitAll()
-
-                       
-
-                        .requestMatchers(
-                                "/api/chatbot/knowledge-base",
-                                "/api/chatbot/knowledge-base/**"
-                        )
-                        .hasAnyRole(
-                                "DOCTOR",
-                                "SUPER_ADMIN"
-                        )
-
-                        
-                        .requestMatchers(
-                                "/api/users/**"
-                        )
-                        .hasAnyRole(
-                                "SUPER_ADMIN",
-                                "ADMIN"
-                        )
-
-                       
-                        .requestMatchers(
-                                "/api/patients/**"
-                        )
-                        .hasAnyRole(
-                                "SUPER_ADMIN",
-                                "ADMIN",
-                                "DOCTOR"
-                        )
-
-                       
-                        .requestMatchers(
-                                "/api/medicines/**"
-                        )
-                        .hasAnyRole(
-                                "SUPER_ADMIN",
-                                "ADMIN",
-                                "PHARMACIST"
-                        )
-
-                       
-                        .requestMatchers(
-                                "/api/prescriptions/**"
-                        )
-                        .hasAnyRole(
-                                "SUPER_ADMIN",
-                                "ADMIN",
-                                "DOCTOR",
-                                "PHARMACIST"
-                        )
-
-                        
-                        .requestMatchers(
-                                "/api/appointments/*/clinical-notes"
-                        )
-                        .hasAnyRole(
-                                "DOCTOR",
-                                "PHARMACIST"
-                        )
-
-                        
-                        .requestMatchers(
-                                "/api/appointments/**"
-                        )
-                        .hasAnyRole(
-                                "SUPER_ADMIN",
-                                "ADMIN",
-                                "DOCTOR"
-                        )
-
-                       
-                        .requestMatchers(
-                                "/api/invoices/**"
-                        )
-                        .hasAnyRole(
-                                "SUPER_ADMIN",
-                                "ADMIN",
-                                "PHARMACIST"
-                        )
-
-                       
-                        .requestMatchers(
-                                "/api/audit/**"
-                        )
-                        .hasAnyRole(
-                                "SUPER_ADMIN",
-                                "ADMIN"
-                        )
-
-                        
-                        .requestMatchers(
-                                "/api/secure/**"
-                        )
-                        .authenticated()
-
-                        .anyRequest()
-                        .authenticated()
-                )
-
-                
-                .authenticationProvider(
-                        authenticationProvider()
-                )
-
-                .addFilterBefore(
-                        jwtAuthFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                )
-
-                
-                .addFilterBefore(
-                        apiRateLimitFilter,
-                        JwtAuthFilter.class
-                );
+                            .permitAll()
+                        .requestMatchers("/api/users/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/doctors/*/schedule")
+                            .hasAnyRole("SUPER_ADMIN", "DOCTOR")
+                        .requestMatchers("/api/doctors/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/roles/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/system/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/patients/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
+                        .requestMatchers("/api/medicines/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST")
+                        .requestMatchers("/api/prescriptions/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR", "PHARMACIST")
+                        // clinical notes are readable by doctors and pharmacists (DDP-20 clinical notes move)
+                        .requestMatchers("/api/appointments/*/clinical-notes")
+                            .hasAnyRole("DOCTOR", "PHARMACIST")
+                        .requestMatchers("/api/appointments/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
+                        .requestMatchers("/api/invoices/**").hasAnyRole("SUPER_ADMIN", "ADMIN","PHARMACIST")
+                        .requestMatchers("/api/audit/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
+                        .requestMatchers("/api/secure/**").authenticated()
+                        .anyRequest().authenticated())
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(apiRateLimitFilter, JwtAuthFilter.class);
 
         return http.build();
     }
@@ -329,11 +240,11 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
 
         return new Argon2PasswordEncoder(
-                16,     // salt length
-                32,     // hash length
-                1,      // parallelism
-                65536,  // memory in KB
-                2       // iterations
+                16,                 // salt length
+                32,                 // hash length
+                argon2Parallelism,  // parallelism
+                argon2MemoryKb,     // memory in KB
+                argon2Iterations    // iterations
         );
     }
 
