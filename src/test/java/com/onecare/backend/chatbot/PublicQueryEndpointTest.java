@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+@SpringBootTest
 @AutoConfigureMockMvc
 class PublicQueryEndpointTest {
     private static final String URL = "/api/chatbot/query";
