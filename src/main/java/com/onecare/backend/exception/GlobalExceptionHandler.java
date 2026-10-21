@@ -20,6 +20,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -182,13 +183,6 @@ public class GlobalExceptionHandler {
             HttpRequestMethodNotSupportedException exception) {
         ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
         return new ResponseEntity<>(response, HttpStatus.METHOD_NOT_ALLOWED);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
-
-        log.error("Unhandled exception handling request", ex);
-        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(InvalidStockException.class)

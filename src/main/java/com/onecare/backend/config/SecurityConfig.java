@@ -129,11 +129,8 @@ public class SecurityConfig {
                                 "/api/auth/reset-password",
                                 "/api/public/**",
                                 "/v3/api-docs/**",
-                                "/swagger-ui/**",
+                                "/swagger-ui/**")
                         .permitAll()
-
-                       
-
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/chatbot/query"
