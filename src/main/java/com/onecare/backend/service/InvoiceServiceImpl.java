@@ -30,7 +30,6 @@ import com.onecare.backend.repository.*;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -75,7 +74,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final ExternalDispensingRepository externalDispensingRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
-    private final BigDecimal consultationFee;
+    private final SystemSettingService systemSettingService;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                               AppointmentRepository appointmentRepository,
@@ -83,14 +82,14 @@ public class InvoiceServiceImpl implements InvoiceService {
                               ExternalDispensingRepository externalDispensingRepository,
                               PatientRepository patientRepository,
                               UserRepository userRepository,
-                              @Value("${billing.consultation-fee:500.00}") BigDecimal consultationFee) {
+                              SystemSettingService systemSettingService) {
         this.invoiceRepository = invoiceRepository;
         this.appointmentRepository = appointmentRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.externalDispensingRepository = externalDispensingRepository;
         this.patientRepository = patientRepository;
         this.userRepository = userRepository;
-        this.consultationFee = consultationFee;
+        this.systemSettingService = systemSettingService;
     }
 
     // ------------------------------------------------------------------
@@ -548,7 +547,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     private List<InvoiceItem> buildLines(Invoice invoice, Prescription prescription) {
 
         List<InvoiceItem> lines = new ArrayList<>();
-        lines.add(newLine(invoice, null, CONSULTATION_DESCRIPTION, 1, consultationFee));
+        lines.add(newLine(invoice, null, CONSULTATION_DESCRIPTION, 1,
+                systemSettingService.getConsultationFee()));
 
         if (prescription == null) {
             return lines; // consultation only: nothing was prescribed

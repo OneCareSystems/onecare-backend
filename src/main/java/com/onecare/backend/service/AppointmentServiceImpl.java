@@ -6,6 +6,7 @@ import com.onecare.backend.dto.request.UpdateAppointmentRequest;
 import com.onecare.backend.dto.response.AppointmentClinicalNotesResponse;
 import com.onecare.backend.dto.response.AppointmentResponse;
 import com.onecare.backend.entity.Appointment;
+import com.onecare.backend.entity.DoctorSchedule;
 import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.AppointmentStatus;
@@ -15,6 +16,7 @@ import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.exception.SlotConflictException;
 import com.onecare.backend.repository.AppointmentRepository;
+import com.onecare.backend.repository.DoctorScheduleRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.Permission;
@@ -29,6 +31,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,8 +39,6 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -49,6 +50,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
+    private final DoctorScheduleRepository doctorScheduleRepository;
     private final LocalTime operatingStartTime;
     private final LocalTime operatingEndTime;
     private final Duration slotDuration;
@@ -58,12 +60,14 @@ public class AppointmentServiceImpl implements AppointmentService {
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
             UserRepository userRepository,
+            DoctorScheduleRepository doctorScheduleRepository,
             @Value("${clinic.operating-hours.start-time:16:00}") String startTimeStr,
             @Value("${clinic.operating-hours.end-time:21:00}") String endTimeStr,
             @Value("${clinic.operating-hours.slot-duration-minutes:30}") int slotDurationMinutes) {
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
         this.userRepository = userRepository;
+        this.doctorScheduleRepository = doctorScheduleRepository;
         this.operatingStartTime = LocalTime.parse(startTimeStr);
         this.operatingEndTime = LocalTime.parse(endTimeStr);
         this.slotDuration = Duration.ofMinutes(slotDurationMinutes);
@@ -74,7 +78,7 @@ public class AppointmentServiceImpl implements AppointmentService {
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
             UserRepository userRepository) {
-        this(appointmentRepository, patientRepository, userRepository, "16:00", "21:00", 30);
+        this(appointmentRepository, patientRepository, userRepository, null, "16:00", "21:00", 30);
     }
 
     @Override
@@ -119,12 +123,13 @@ public class AppointmentServiceImpl implements AppointmentService {
      */
     private Appointment createAppointmentInternal(Patient patient, User doctor,
             LocalDateTime requestedStart, String reason) {
-        assertWithinOperatingHours(requestedStart);
+        assertWithinOperatingHours(doctor.getUserId(), requestedStart);
 
         lockDoctor(doctor.getUserId());
 
         LocalDateTime requestedEnd = requestedStart.plus(slotDuration);
         assertDoctorSlotAvailability(doctor.getUserId(), requestedStart, requestedEnd, null);
+        assertWithinWorkingHours(doctor.getUserId(), requestedStart, requestedEnd, null);
 
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
@@ -310,10 +315,15 @@ public class AppointmentServiceImpl implements AppointmentService {
             }
         }
 
-        if (request.appointmentDateTime() != null) {
-            // rescheduling lands on the same clinic grid as booking
-            assertWithinOperatingHours(newDateTime);
+        if (request.doctorId() != null || request.appointmentDateTime() != null) {
+            // Reassignment and rescheduling both require validation against
+            // the effective doctor's booking rules and the effective time.
+            assertWithinOperatingHours(doctorId, newDateTime);
             assertDoctorSlotAvailability(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
+            assertWithinWorkingHours(doctorId, newDateTime, newDateTime.plus(slotDuration), appointmentId);
+        }
+
+        if (request.appointmentDateTime() != null) {
             appointment.setAppointmentDate(newDateTime.toLocalDate());
             appointment.setTimeSlot(newDateTime.toLocalTime());
         }
@@ -427,17 +437,32 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     /**
-     * Booking and rescheduling must land on the clinic slot grid: at or after
-     * operating start, ending at or before operating end, and aligned to the
-     * slot duration (e.g. 16:00, 16:30, ... 20:30 with the default 16:00-21:00
-     * / 30-minute config). Off-grid or out-of-hours times are rejected with
-     * 400 instead of silently creating appointments that the availability
-     * display (getAvailableSlots / alternative slots) never shows.
+     * Booking and rescheduling must land on the slot grid of the time source
+     * that governs the doctor, so an appointment is never silently created
+     * that the availability display (getAvailableSlots / alternative slots)
+     * never shows.
+     *
+     * <p>A doctor with a configured schedule (DDP-20 rework) is governed by
+     * it: their working windows may sit outside the clinic-wide operating
+     * hours (e.g. a 09:00-12:00 schedule when the clinic-hours default starts
+     * at 16:00), and the schedule is exactly what availability offers. The
+     * clinic gate is therefore skipped for them and the window + grid checks
+     * in {@link #assertWithinWorkingHours} apply instead. Doctors without a
+     * schedule keep the clinic-wide fallback: at or after operating start,
+     * ending at or before operating end, aligned to the slot duration (e.g.
+     * 16:00, 16:30, ... 20:30 with the default 16:00-21:00 / 30-minute
+     * config). Off-grid or out-of-hours times are rejected with 400.
      */
-    private void assertWithinOperatingHours(LocalDateTime requestedStart) {
+    private void assertWithinOperatingHours(Long doctorId, LocalDateTime requestedStart) {
+        if (doctorScheduleRepository != null && hasAnySchedule(doctorId)) {
+            return; // the configured schedule is authoritative (DDP-20 rework)
+        }
+
         LocalTime start = requestedStart.toLocalTime();
+        LocalDateTime requestedEnd = requestedStart.plus(slotDuration);
+        LocalDateTime operatingEnd = LocalDateTime.of(requestedStart.toLocalDate(), operatingEndTime);
         boolean withinHours = !start.isBefore(operatingStartTime)
-                && !start.plus(slotDuration).isAfter(operatingEndTime);
+                && !requestedEnd.isAfter(operatingEnd);
 
         long offsetSeconds = Duration.between(operatingStartTime, start).getSeconds();
         boolean alignedToGrid = offsetSeconds >= 0
@@ -454,64 +479,81 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     private void assertDoctorSlotAvailability(Long doctorId, LocalDateTime requestedStart, LocalDateTime requestedEnd,
             Long excludeAppointmentId) {
-        for (Appointment existing : appointmentRepository.findByDoctor_UserIdAndAppointmentDate(doctorId,
-                requestedStart.toLocalDate())) {
-            if (excludeAppointmentId != null && existing.getAppointmentId() != null
-                    && existing.getAppointmentId().equals(excludeAppointmentId)) {
-                continue;
-            }
-
-            if (existing.getStatus() == AppointmentStatus.CANCELLED || existing.getStatus() == AppointmentStatus.NO_SHOW) {
-                continue;
-            }
-
-            LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
-            LocalDateTime existingEnd = existingStart.plus(slotDuration);
-            boolean overlaps = requestedStart.isBefore(existingEnd) && existingStart.isBefore(requestedEnd);
-            if (overlaps) {
-                throw new SlotConflictException(
-                        "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: "
-                                + requestedStart,
-                        requestedStart.toString(),
-                        findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart, requestedEnd,
-                                excludeAppointmentId));
-            }
+        List<Appointment> appointments = appointmentRepository.findByDoctor_UserIdAndAppointmentDate(
+                doctorId, requestedStart.toLocalDate());
+        if (hasAppointmentOverlap(appointments, requestedStart, requestedEnd, excludeAppointmentId)) {
+            throw new SlotConflictException(
+                    "Appointment slot is unavailable for doctor " + doctorId + ". Requested slot: "
+                            + requestedStart,
+                    requestedStart.toString(),
+                    findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart, requestedEnd,
+                            excludeAppointmentId));
         }
     }
 
     private List<String> findAlternativeSlots(Long doctorId, LocalDate appointmentDate, LocalDateTime requestedStart,
             LocalDateTime requestedEnd, Long excludeAppointmentId) {
         List<String> alternatives = new ArrayList<>();
-        LocalDateTime candidate = LocalDateTime.of(appointmentDate, operatingStartTime);
 
-        while (!candidate.toLocalTime().plus(slotDuration).isAfter(operatingEndTime) && alternatives.size() < 5) {
-            LocalDateTime candidateEnd = candidate.plus(slotDuration);
-            boolean free = true;
-            for (Appointment existing : appointmentRepository.findByDoctor_UserIdAndAppointmentDate(doctorId,
-                    appointmentDate)) {
-                if (excludeAppointmentId != null && existing.getAppointmentId() != null
-                        && existing.getAppointmentId().equals(excludeAppointmentId)) {
-                    continue;
+        // Real doctor schedule (DDP-20 rework): candidates only inside the
+        // doctor's working windows; a non-working day offers no alternatives.
+        List<DoctorSchedule> windows = workingWindowsForDay(doctorId, appointmentDate.getDayOfWeek());
+        if (!windows.isEmpty() && hasAnySchedule(doctorId)) {
+            for (DoctorSchedule window : windows) {
+                LocalDateTime candidate = LocalDateTime.of(appointmentDate, window.getStartTime());
+                LocalDateTime windowEnd = LocalDateTime.of(appointmentDate, window.getEndTime());
+                while (!candidate.plus(slotDuration).isAfter(windowEnd)
+                        && alternatives.size() < 5) {
+                    LocalDateTime candidateEnd = candidate.plus(slotDuration);
+                    if (freeOfAppointments(doctorId, appointmentDate, candidate, candidateEnd, excludeAppointmentId)
+                            && !candidate.equals(requestedStart)) {
+                        alternatives.add(candidate.toString());
+                    }
+                    candidate = candidate.plus(slotDuration);
                 }
-                if (existing.getStatus() == AppointmentStatus.CANCELLED || existing.getStatus() == AppointmentStatus.NO_SHOW) {
-                    continue;
-                }
-
-                LocalDateTime existingStart = LocalDateTime.of(existing.getAppointmentDate(), existing.getTimeSlot());
-                LocalDateTime existingEnd = existingStart.plus(slotDuration);
-                if (candidate.isBefore(existingEnd) && existingStart.isBefore(candidateEnd)) {
-                    free = false;
+                if (alternatives.size() >= 5) {
                     break;
                 }
             }
+            return alternatives;
+        }
 
-            if (free && !candidate.equals(requestedStart)) {
+        LocalDateTime candidate = LocalDateTime.of(appointmentDate, operatingStartTime);
+        LocalDateTime operatingEnd = LocalDateTime.of(appointmentDate, operatingEndTime);
+
+        while (!candidate.plus(slotDuration).isAfter(operatingEnd) && alternatives.size() < 5) {
+            LocalDateTime candidateEnd = candidate.plus(slotDuration);
+            if (freeOfAppointments(doctorId, appointmentDate, candidate, candidateEnd, excludeAppointmentId)
+                    && !candidate.equals(requestedStart)) {
                 alternatives.add(candidate.toString());
             }
             candidate = candidate.plus(slotDuration);
         }
 
         return alternatives;
+    }
+
+    private boolean freeOfAppointments(Long doctorId, LocalDate appointmentDate, LocalDateTime candidateStart,
+            LocalDateTime candidateEnd, Long excludeAppointmentId) {
+        List<Appointment> appointments = appointmentRepository.findByDoctor_UserIdAndAppointmentDate(
+                doctorId, appointmentDate);
+        return !hasAppointmentOverlap(appointments, candidateStart, candidateEnd, excludeAppointmentId);
+    }
+
+    private boolean hasAppointmentOverlap(List<Appointment> appointments, LocalDateTime candidateStart,
+            LocalDateTime candidateEnd, Long excludeAppointmentId) {
+        return appointments.stream()
+                .filter(appointment -> excludeAppointmentId == null
+                        || appointment.getAppointmentId() == null
+                        || !appointment.getAppointmentId().equals(excludeAppointmentId))
+                .filter(appointment -> appointment.getStatus() != AppointmentStatus.CANCELLED
+                        && appointment.getStatus() != AppointmentStatus.NO_SHOW)
+                .anyMatch(appointment -> {
+                    LocalDateTime existingStart =
+                            LocalDateTime.of(appointment.getAppointmentDate(), appointment.getTimeSlot());
+                    LocalDateTime existingEnd = existingStart.plus(slotDuration);
+                    return candidateStart.isBefore(existingEnd) && existingStart.isBefore(candidateEnd);
+                });
     }
 
     @Override
@@ -537,27 +579,123 @@ public class AppointmentServiceImpl implements AppointmentService {
         List<Appointment> existingAppointments = appointmentRepository
                 .findByDoctor_UserIdAndAppointmentDate(doctorId, date);
 
-        Set<LocalTime> bookedSlots = existingAppointments.stream()
-                .filter(a -> a.getStatus() != AppointmentStatus.CANCELLED
-                        && a.getStatus() != AppointmentStatus.NO_SHOW)
-                .map(Appointment::getTimeSlot)
-                .collect(Collectors.toSet());
-
-        List<String> availableSlots = new ArrayList<>();
-        LocalTime candidate = operatingStartTime;
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+        List<String> availableSlots = new ArrayList<>();
 
-        while (!candidate.plus(slotDuration).isAfter(operatingEndTime)) {
+        // Real doctor schedule (DDP-20 rework): a doctor with a configured
+        // schedule is only bookable on working days, inside their windows.
+        List<DoctorSchedule> windows = workingWindowsForDay(doctorId, date.getDayOfWeek());
+        if (hasAnySchedule(doctorId)) {
+            if (windows.isEmpty()) {
+                return List.of(); // non-working day
+            }
+            for (DoctorSchedule window : windows) {
+                LocalDateTime candidate = LocalDateTime.of(date, window.getStartTime());
+                LocalDateTime windowEnd = LocalDateTime.of(date, window.getEndTime());
+                while (!candidate.plus(slotDuration).isAfter(windowEnd)) {
+                    LocalTime candidateTime = candidate.toLocalTime();
+                    boolean isPast = date.isEqual(LocalDate.now())
+                            && !candidate.isAfter(LocalDateTime.now());
+                    if (!isPast && !hasAppointmentOverlap(
+                            existingAppointments, candidate, candidate.plus(slotDuration), null)) {
+                        availableSlots.add(candidateTime.format(formatter));
+                    }
+                    candidate = candidate.plus(slotDuration);
+                }
+            }
+            return availableSlots;
+        }
+
+        // Fallback: clinic-wide operating hours until a schedule is configured
+        LocalDateTime candidate = LocalDateTime.of(date, operatingStartTime);
+        LocalDateTime operatingEnd = LocalDateTime.of(date, operatingEndTime);
+
+        while (!candidate.plus(slotDuration).isAfter(operatingEnd)) {
+            LocalTime candidateTime = candidate.toLocalTime();
             boolean isPast = date.isEqual(LocalDate.now())
-                    && !LocalDateTime.of(date, candidate).isAfter(LocalDateTime.now());
+                    && !candidate.isAfter(LocalDateTime.now());
 
-            if (!isPast && !bookedSlots.contains(candidate)) {
-                availableSlots.add(candidate.format(formatter));
+            if (!isPast && !hasAppointmentOverlap(
+                    existingAppointments, candidate, candidate.plus(slotDuration), null)) {
+                availableSlots.add(candidateTime.format(formatter));
             }
             candidate = candidate.plus(slotDuration);
         }
 
         return availableSlots;
+    }
+
+    /** True when the doctor has any configured schedule rows (DDP-20 rework). */
+    private boolean hasAnySchedule(Long doctorId) {
+        return doctorScheduleRepository != null
+                && !doctorScheduleRepository.findByDoctorUserIdOrderByStartTimeAsc(doctorId).isEmpty();
+    }
+
+    private List<DoctorSchedule> workingWindowsForDay(Long doctorId, DayOfWeek dayOfWeek) {
+        if (doctorScheduleRepository == null) {
+            return List.of();
+        }
+        return doctorScheduleRepository.findByDoctorUserIdAndDayOfWeekOrderByStartTimeAsc(doctorId, dayOfWeek)
+                .stream()
+                .filter(DoctorSchedule::isAvailable)
+                .toList();
+    }
+
+    /**
+     * Booking must use real availability (FR009): when the doctor has a
+     * configured schedule, the requested slot must fall inside a working
+     * window of that day AND on that window's slot grid; a non-working day
+     * is rejected outright. Doctors without a schedule keep the clinic-hours
+     * fallback (enforced by {@link #assertWithinOperatingHours}).
+     */
+    private void assertWithinWorkingHours(Long doctorId, LocalDateTime requestedStart, LocalDateTime requestedEnd,
+            Long excludeAppointmentId) {
+        if (doctorScheduleRepository == null || !hasAnySchedule(doctorId)) {
+            return;
+        }
+        List<DoctorSchedule> windows = workingWindowsForDay(doctorId, requestedStart.getDayOfWeek());
+        if (windows.isEmpty()) {
+            throw new SlotConflictException(
+                    "Doctor " + doctorId + " does not work on " + requestedStart.getDayOfWeek()
+                            + ". Requested slot: " + requestedStart,
+                    requestedStart.toString(),
+                    List.of());
+        }
+        boolean crossesMidnight = !requestedEnd.toLocalDate().equals(requestedStart.toLocalDate());
+        boolean within = !crossesMidnight && windows.stream().anyMatch(window ->
+                !requestedStart.toLocalTime().isBefore(window.getStartTime())
+                        && !requestedEnd.toLocalTime().isAfter(window.getEndTime()));
+        if (!within) {
+            throw new SlotConflictException(
+                    "Requested slot is outside the working hours of doctor " + doctorId
+                            + ". Requested slot: " + requestedStart,
+                    requestedStart.toString(),
+                    findAlternativeSlots(doctorId, requestedStart.toLocalDate(), requestedStart, requestedEnd,
+                            excludeAppointmentId));
+        }
+
+        // On-grid inside the covering window: availability and alternatives are
+        // generated at window-start + n x slotDuration, so an off-grid time
+        // (e.g. 09:15 in a 09:00-12:00 window) is never offered and must not
+        // be bookable either — rejected with 400 like the clinic-grid gate.
+        boolean onGrid = windows.stream().anyMatch(window -> {
+            boolean covers = !requestedStart.toLocalTime().isBefore(window.getStartTime())
+                    && !requestedEnd.toLocalTime().isAfter(window.getEndTime());
+            if (!covers) {
+                return false;
+            }
+            long offsetSeconds =
+                    Duration.between(window.getStartTime(), requestedStart.toLocalTime()).getSeconds();
+            return offsetSeconds >= 0
+                    && offsetSeconds % slotDuration.toSeconds() == 0
+                    && requestedStart.getNano() == 0;
+        });
+        if (!onGrid) {
+            throw new BusinessRuleException(String.format(
+                    "Appointment time must be aligned to %d-minute slots inside the doctor's working window "
+                            + "(requested: %s)",
+                    slotDuration.toMinutes(), requestedStart));
+        }
     }
 
     private User getCurrentAuthenticatedUser() {

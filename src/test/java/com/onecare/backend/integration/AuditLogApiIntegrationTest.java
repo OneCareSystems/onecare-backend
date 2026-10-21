@@ -242,19 +242,18 @@ class AuditLogApiIntegrationTest {
         String token = login("superadmin");
         long rowsBefore = auditLogRepository.count();
 
-        // The controller declares GET only; POST/DELETE never reach a handler.
-        // The global catch-all exception handler surfaces the resulting 405 as
-        // a 500 - what matters is the request is rejected, never that it succeeds.
+        // The controller declares GET only; POST/DELETE are rejected with 405.
         mockMvc.perform(post("/api/audit-logs")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isInternalServerError())
+                .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.success").value(false));
 
         mockMvc.perform(delete("/api/audit-logs")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.success").value(false));
 
         assertThat(auditLogRepository.count()).isEqualTo(rowsBefore);
     }

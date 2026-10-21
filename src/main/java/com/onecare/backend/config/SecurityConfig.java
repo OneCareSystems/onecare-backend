@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -38,6 +39,20 @@ public class SecurityConfig {
     @Value("${frontend.allowed-origins}")
     String allowedOrigins;
 
+    /**
+     * Argon2 cost parameters. The defaults are production strength; tests lower
+     * them (src/test/resources/application.properties) so the per-test user
+     * creation and login hashing does not dominate suite runtime.
+     */
+    @Value("${app.security.argon2.parallelism:1}")
+    int argon2Parallelism;
+
+    @Value("${app.security.argon2.memory-kb:65536}")
+    int argon2MemoryKb;
+
+    @Value("${app.security.argon2.iterations:2}")
+    int argon2Iterations;
+
     public SecurityConfig(JwtAuthFilter jwtAuthFilter, AppUserDetailsService userDetailsService,
             ApiRateLimitFilter apiRateLimitFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
@@ -67,6 +82,11 @@ public class SecurityConfig {
                                 "/swagger-ui.html")
                             .permitAll()
                         .requestMatchers("/api/users/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/doctors/*/schedule")
+                            .hasAnyRole("SUPER_ADMIN", "DOCTOR")
+                        .requestMatchers("/api/doctors/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/roles/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/system/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/patients/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
                         .requestMatchers("/api/medicines/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST")
                         .requestMatchers("/api/prescriptions/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR", "PHARMACIST")
@@ -129,11 +149,11 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new Argon2PasswordEncoder(
-                16,     // salt length
-                32,     // hash length
-                1,      // parallelism
-                65536,  // memory in KB
-                2       // iterations
+                16,                 // salt length
+                32,                 // hash length
+                argon2Parallelism,  // parallelism
+                argon2MemoryKb,     // memory in KB
+                argon2Iterations    // iterations
         );
     }
 
