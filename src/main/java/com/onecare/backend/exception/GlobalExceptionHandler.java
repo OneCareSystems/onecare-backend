@@ -3,8 +3,8 @@ package com.onecare.backend.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.onecare.backend.chatbot.ChatMessages;
-import com.onecare.backend.chatbot.InvalidInputException;
-import com.onecare.backend.chatbot.RateLimitExceededException;
+import com.onecare.backend.chatbot.exception.InvalidInputException;
+import com.onecare.backend.chatbot.exception.RateLimitExceededException;
 import com.onecare.backend.dto.ApiResponse;
 
 import io.swagger.v3.oas.annotations.Hidden;
