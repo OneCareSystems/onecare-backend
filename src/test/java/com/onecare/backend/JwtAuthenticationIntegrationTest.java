@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
-import com.onecare.backend.repository.PasswordResetTokenRepository;
+import com.onecare.backend.config.TestRedisConfiguration;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.JwtService;
 import io.jsonwebtoken.Jwts;
@@ -18,7 +18,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
 import java.time.Instant;
@@ -40,8 +39,15 @@ import java.util.concurrent.TimeUnit;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional 
 @ActiveProfiles("test")
+// Keep this class hashing at true production strength so the hardcoded
+// m=65536,t=2,p=1 assertion below stays meaningful; other test classes use the
+// cheaper Argon2 cost from src/test/resources/application.properties.
+@org.springframework.test.context.TestPropertySource(properties = {
+        "app.security.argon2.parallelism=1",
+        "app.security.argon2.memory-kb=65536",
+        "app.security.argon2.iterations=2"
+})
 class JwtAuthenticationIntegrationTest {
         @MockitoBean
 private JavaMailSender javaMailSender;
@@ -67,11 +73,16 @@ private JavaMailSender javaMailSender;
     @Autowired
     private TokenBlacklistService tokenBlacklistService;
 
+    @Autowired
+    private TestRedisConfiguration testRedisConfiguration;
+
     @Value("${jwt.secret}")
     private String jwtSecret;
 
     @BeforeEach
     void setupUser() {
+        testRedisConfiguration.clearInMemoryStore();
+
         User user = userRepository.findByUsername("doctor1").orElseGet(User::new);
         user.setUsername("doctor1");
         user.setEmail("doctor1@onecare.com");

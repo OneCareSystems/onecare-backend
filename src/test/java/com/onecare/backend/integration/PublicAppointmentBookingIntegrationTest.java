@@ -287,6 +287,7 @@ class PublicAppointmentBookingIntegrationTest {
 
     @Test
     void bookAppointment_lastSlotOfTheDay_accepted() throws Exception {
+        // default window without a schedule: 16:00-21:00 -> last slot 20:30-21:00
         LocalDateTime lastSlot = LocalDate.now().plusDays(2).atTime(20, 30);
 
         mockMvc.perform(post(BOOKING_URL)
@@ -296,6 +297,22 @@ class PublicAppointmentBookingIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.timeSlot").value("20:30:00"))
                 .andExpect(jsonPath("$.data.status").value("SCHEDULED"));
+    }
+
+    @Test
+    void bookAppointment_afterDefaultWindowEnd_returns400() throws Exception {
+        // 21:00 is the end of the default window: nothing may start at/after it
+        LocalDateTime afterWindow = LocalDate.now().plusDays(2).atTime(21, 0);
+
+        mockMvc.perform(post(BOOKING_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingJson("Nimal Perera", "0771234567",
+                                LocalDate.of(1990, 5, 12), doctor.getUserId(), afterWindow, "Male")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value(org.hamcrest.Matchers.containsString("clinic slot")));
+
+        assertThat(appointmentRepository.count()).isZero();
     }
 
     // ---------- Validation / security posture ----------

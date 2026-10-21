@@ -669,6 +669,7 @@ class AppointmentApiIntegrationTest {
                         .param("date", futureDate.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(10))
                 .andExpect(jsonPath("$.data[0]").value("16:00"))
                 .andExpect(jsonPath("$.data[9]").value("20:30"));
     }
