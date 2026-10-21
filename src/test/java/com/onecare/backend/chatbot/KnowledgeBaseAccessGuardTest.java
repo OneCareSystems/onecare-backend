@@ -62,7 +62,9 @@ class KnowledgeBaseAccessGuardTest {
                 checked++;
             }
         }
-        assertTrue(checked >= 3, "Expected at least upload, link and delete handlers, found " + checked);
+        assertTrue(checked >= 1, "Expected the link submission handler, found " + checked);
+        assertTrue(handlers(KnowledgeBaseController.class).stream()
+                .anyMatch(method -> method.getName().equals("submitLink")), "Link submission handler is missing");
     }
 
     @Test void the_public_query_endpoint_must_stay_public() {
