@@ -77,6 +77,13 @@ class KnowledgeBaseRbacTest {
 
     private void assertDenied() {
         assertThrows(AccessDeniedException.class, () -> service.submitLink(URL));
+
+        assertThrows(AccessDeniedException.class, () -> service.list(1, 20, null, null));
+        assertThrows(AccessDeniedException.class, () -> service.get(1));
+        assertThrows(AccessDeniedException.class, () -> service.remove(1));
+        assertThrows(AccessDeniedException.class, () -> service.uploadPdf(null, ""));
+
+
         verifyNoInteractions(submission, chatbot);
     }
 }

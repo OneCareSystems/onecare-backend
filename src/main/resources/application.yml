@@ -1,3 +1,12 @@
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: "${KB_MAX_UPLOAD_BYTES:10485760}B"
+      max-request-size: "${KB_MAX_REQUEST_BYTES:11534336}B"
+
+
+
 chatbot:
   api:
     max-query-chars: 500                  # keep equal to Django CHAT_MAX_QUERY_CHARS
@@ -6,4 +15,8 @@ chatbot:
     max-tracked-clients: 10000
     trusted-proxies: ${TRUSTED_PROXIES:}  # your load balancer / reverse proxy, e.g. 127.0.0.1,10.0.0.0/8. EMPTY = X-Forwarded-For is never trusted
     url-allowlist: ${KB_URL_ALLOWLIST:}   # approved domains, the SAME value as the Django KB_URL_ALLOWLIST, e.g. who.int,nhs.uk,cdc.gov
+
 # The existing chatbot.read-timeout (60s) must stay above Django's worst case (search 5 s + LLM about 41 s with its one retry).
+
+# The existing chatbot.read-timeout (60s) must stay above Django's worst case (search 5 s + LLM about 41 s with its one retry).
+

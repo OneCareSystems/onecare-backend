@@ -12,6 +12,13 @@ import com.onecare.backend.chatbot.exception.ChatbotUnavailableException;
 import com.onecare.backend.chatbot.exception.InvalidInputException;
 
 class ChatQueryServiceTest {
+    @Test void clinic_booking_action_reaches_the_public_response() {
+        ChatQueryResponse response = service(query -> new ChatBackendResult(
+                "CLINIC_FACT", "EN", "Booking information", List.of(), "0123456789abcdef", "BOOK_APPOINTMENT"))
+                .answer("How can I book an appointment?");
+        assertEquals("BOOK_APPOINTMENT", response.action());
+    }
+
     private final List<String> sent = new ArrayList<>();
     private static final ChatBackendResult.Source SOURCE = new ChatBackendResult.Source(7L, "guide.pdf", null, "EN");
 

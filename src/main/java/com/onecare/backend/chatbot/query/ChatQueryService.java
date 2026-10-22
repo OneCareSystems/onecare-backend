@@ -25,7 +25,7 @@ public class ChatQueryService {
             ChatBackendResult result = backend.query(query);
             String language = result.language() != null ? result.language() : (tamil ? "TA" : "EN");
             List<ChatBackendResult.Source> sources = "ANSWER".equals(result.type()) ? result.sources() : List.of();
-            return new ChatQueryResponse(result.type(), language, result.message(), sources, result.requestId());
+            return new ChatQueryResponse(result.type(), language, result.message(), sources, result.requestId(), result.action());
         } catch (RuntimeException e) {                                        // Django down, timeout, bad reply, anything
             return ChatQueryResponse.unavailable(tamil);
         }
