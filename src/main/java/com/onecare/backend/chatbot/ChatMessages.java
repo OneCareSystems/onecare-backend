@@ -1,0 +1,14 @@
+package com.onecare.backend.chatbot;
+
+
+public final class ChatMessages {
+    private ChatMessages() {}
+
+    private static final String UNAVAILABLE_EN = "The assistant is temporarily unavailable. Please try again shortly, or contact the clinic.";
+    private static final String UNAVAILABLE_TA = "\u0b89\u0ba4\u0bb5\u0bbf\u0baf\u0bbe\u0bb3\u0bb0\u0bcd \u0ba4\u0bb1\u0bcd\u0b95\u0bbe\u0bb2\u0bbf\u0b95\u0bae\u0bbe\u0b95\u0b95\u0bcd \u0b95\u0bbf\u0b9f\u0bc8\u0b95\u0bcd\u0b95\u0bb5\u0bbf\u0bb2\u0bcd\u0bb2\u0bc8. \u0b9a\u0bbf\u0bb1\u0bbf\u0ba4\u0bc1 \u0ba8\u0bc7\u0bb0\u0ba4\u0bcd\u0ba4\u0bbf\u0bb2\u0bcd \u0bae\u0bc0\u0ba3\u0bcd\u0b9f\u0bc1\u0bae\u0bcd \u0bae\u0bc1\u0baf\u0bb1\u0bcd\u0b9a\u0bbf\u0b95\u0bcd\u0b95\u0bb5\u0bc1\u0bae\u0bcd \u0b85\u0bb2\u0bcd\u0bb2\u0ba4\u0bc1 \u0b95\u0bbf\u0bb3\u0bbf\u0ba9\u0bbf\u0b95\u0bcd\u0b95\u0bc8\u0ba4\u0bcd \u0ba4\u0bca\u0b9f\u0bb0\u0bcd\u0baa\u0bc1\u0b95\u0bca\u0bb3\u0bcd\u0bb3\u0bb5\u0bc1\u0bae\u0bcd.";
+    /** The rate-limit check runs before the body is read, so the language is unknown: one message in both languages. */
+    public static final String RATE_LIMITED = "Too many requests. Please wait a moment and try again. / "
+            + "\u0bae\u0bbf\u0b95 \u0b85\u0ba4\u0bbf\u0b95\u0bae\u0bbe\u0ba9 \u0b95\u0bcb\u0bb0\u0bbf\u0b95\u0bcd\u0b95\u0bc8\u0b95\u0bb3\u0bcd. \u0b9a\u0bbf\u0bb1\u0bbf\u0ba4\u0bc1 \u0ba8\u0bc7\u0bb0\u0bae\u0bcd \u0b95\u0bbe\u0ba4\u0bcd\u0ba4\u0bbf\u0bb0\u0bc1\u0ba8\u0bcd\u0ba4\u0bc1 \u0bae\u0bc0\u0ba3\u0bcd\u0b9f\u0bc1\u0bae\u0bcd \u0bae\u0bc1\u0baf\u0bb1\u0bcd\u0b9a\u0bbf\u0b95\u0bcd\u0b95\u0bb5\u0bc1\u0bae\u0bcd.";
+
+    public static String unavailable(boolean tamil) { return tamil ? UNAVAILABLE_TA : UNAVAILABLE_EN; }
+}
