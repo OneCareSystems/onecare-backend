@@ -8,7 +8,11 @@ import java.util.Set;
 import com.onecare.backend.chatbot.exception.ChatbotUnavailableException;
 
 
-public record ChatBackendResult(String type, String language, String message, List<Source> sources, String requestId) {
+public record ChatBackendResult(String type, String language, String message, List<Source> sources, String requestId, String action) {
+    public ChatBackendResult(String type, String language, String message, List<Source> sources, String requestId) {
+        this(type, language, message, sources, requestId, null);
+    }
+
     public record Source(Long documentId, String source, String url, String language) {}
 
     private static final Set<String> TYPES = Set.of("ANSWER", "REFUSAL", "FALLBACK", "CLINIC_FACT");
@@ -21,7 +25,9 @@ public record ChatBackendResult(String type, String language, String message, Li
         Object lang = body.get("language");
         String language = "EN".equals(lang) || "TA".equals(lang) ? (String) lang : null;
         String requestId = body.get("requestId") instanceof String id && id.matches("[0-9a-fA-F]{8,64}") ? id : null;
-        return new ChatBackendResult(type, language, message, parseSources(body.get("sources")), requestId);
+        return new ChatBackendResult(type, language, message, parseSources(body.get("sources")), requestId,
+                "CLINIC_FACT".equals(type) && body.get("action") instanceof Map<?, ?> action
+                        && "BOOK_APPOINTMENT".equals(action.get("type")) ? "BOOK_APPOINTMENT" : null);
     }
 
     private static List<Source> parseSources(Object raw) {
