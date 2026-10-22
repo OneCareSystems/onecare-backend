@@ -24,14 +24,14 @@ public class DjangoKnowledgeBaseClient implements KnowledgeBaseClient {
 
     public DjangoKnowledgeBaseClient(
             RestTemplateBuilder builder,
-            ChatbotProperties props
-    ) {
+            ChatbotProperties props) {
+
         this.props = props;
 
         this.rest = builder
-                .rootUri(props.baseUrl())
-                .setConnectTimeout(props.connectTimeout())
-                .setReadTimeout(props.readTimeout())
+                .rootUri(props.getBaseUrl())
+                .setConnectTimeout(props.getConnectTimeout())
+                .setReadTimeout(props.getReadTimeout())
                 .build();
     }
 
