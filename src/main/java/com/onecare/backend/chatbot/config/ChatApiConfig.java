@@ -16,7 +16,7 @@ import com.onecare.backend.chatbot.ratelimit.SlidingWindowRateLimiter;
 public class ChatApiConfig {
     @Bean
     public QueryInputValidator queryInputValidator(ChatApiProperties props) {
-        return new QueryInputValidator(props.maxQueryChars());
+        return new QueryInputValidator(props.getMaxQueryChars());
     }
     @Bean
     public ApprovedUrlValidator approvedUrlValidator(ChatApiProperties props) {
@@ -24,7 +24,7 @@ public class ChatApiConfig {
     }
     @Bean
     public SlidingWindowRateLimiter publicRateLimiter(ChatApiProperties props) {
-        return new SlidingWindowRateLimiter(props.rateLimitPerMinute(), Duration.ofMinutes(1), props.maxTrackedClients(), System::nanoTime);
+        return new SlidingWindowRateLimiter(props.getRateLimitPerMinute(), Duration.ofMinutes(1), props.getMaxTrackedClients(), System::nanoTime);
     }
     @Bean
     public ClientIpResolver clientIpResolver(ChatApiProperties props) {
