@@ -1,17 +1,16 @@
-
 package com.onecare.backend.chatbot.config;
 
 import java.util.Arrays;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * Settings for Stage 5 (API-01 to API-03).
  * Lists are comma-separated strings, so they are easy to set from environment variables.
  */
-@Component
+@ConfigurationProperties(prefix = "chatbot.api")
 public class ChatApiProperties {
 
     private final int maxQueryChars;
@@ -22,12 +21,12 @@ public class ChatApiProperties {
     private final String urlAllowlist;
 
     public ChatApiProperties(
-            @Value("${chatbot.api.max-query-chars:500}") int maxQueryChars,
-            @Value("${chatbot.api.max-body-bytes:8192}") int maxBodyBytes,
-            @Value("${chatbot.api.rate-limit-per-minute:20}") int rateLimitPerMinute,
-            @Value("${chatbot.api.max-tracked-clients:10000}") int maxTrackedClients,
-            @Value("${chatbot.api.trusted-proxies:}") String trustedProxies,
-            @Value("${chatbot.api.url-allowlist:}") String urlAllowlist) {
+            @DefaultValue("500") int maxQueryChars,
+            @DefaultValue("8192") int maxBodyBytes,
+            @DefaultValue("20") int rateLimitPerMinute,
+            @DefaultValue("10000") int maxTrackedClients,
+            String trustedProxies,
+            String urlAllowlist) {
 
         this.maxQueryChars = maxQueryChars;
         this.maxBodyBytes = maxBodyBytes;
