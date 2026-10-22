@@ -42,7 +42,10 @@ class StagingProfileConfigIntegrationTest {
                 "--JWT_SECRET=" + TEST_JWT_SECRET,
                 "--BACKUP_ENCRYPTION_KEY=" + TEST_BACKUP_KEY,
                 "--FRONTEND_ALLOWED_ORIGINS=https://staging.example.com",
-                "--CHATBOT_URL=http://chatbot:8000/chat",
+                "--CHATBOT_BASE_URL=http://chatbot:8000",
+                // chatbot.service-token has no default in staging (required
+                // placeholder, same class of variable as JWT_SECRET).
+                "--CHATBOT_SERVICE_TOKEN=test-chatbot-service-token",
                 "--FRONTEND_URL=https://staging.example.com",
                 // Staging hardcodes the MySQL driver and validates the schema;
                 // this throwaway H2 needs its own driver and no pre-existing

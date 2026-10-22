@@ -281,4 +281,77 @@ private JavaMailSender javaMailSender;
         mockMvc.perform(post("/api/auth/logout"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void logoutWithRefreshTokenBlocksFutureRefresh() throws Exception {
+        String responseBody = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"doctor1","password":"Password@123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        var data = objectMapper.readTree(responseBody).get("data");
+        String accessToken = data.get("accessToken").asText();
+        String refreshToken = data.get("refreshToken").asText();
+
+        // Logout revokes both tokens when the client sends the refresh token.
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                java.util.Map.of("refreshToken", refreshToken))))
+                .andExpect(status().isOk());
+
+        assertThat(tokenBlacklistService.isBlacklisted(accessToken)).isTrue();
+        assertThat(tokenBlacklistService.isBlacklisted(refreshToken)).isTrue();
+
+        // The revoked refresh token must not mint a new access token (SDS 2.5.1).
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"refreshToken":"%s"}
+                                """.formatted(refreshToken)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void logoutWithoutBodyKeepsWorkingAndOnlyRevokesAccessToken() throws Exception {
+        // Backwards compatibility: existing clients send no body; the refresh
+        // token stays valid in that case (documented trade-off), but logout
+        // itself must still succeed exactly as before.
+        String responseBody = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"doctor1","password":"Password@123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        var data = objectMapper.readTree(responseBody).get("data");
+        String accessToken = data.get("accessToken").asText();
+        String refreshToken = data.get("refreshToken").asText();
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Logout successful"));
+
+        assertThat(tokenBlacklistService.isBlacklisted(accessToken)).isTrue();
+        assertThat(tokenBlacklistService.isBlacklisted(refreshToken)).isFalse();
+
+        // Without the blacklist the refresh token still works (no-body path).
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"refreshToken":"%s"}
+                                """.formatted(refreshToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
+    }
 }
