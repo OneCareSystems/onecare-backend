@@ -71,6 +71,9 @@ public class SecurityConfig {
                                 .sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
                         .accessDeniedHandler(accessDeniedHandler()))
                 .authorizeHttpRequests(auth -> auth
+                        // Health endpoint is public: the docker-compose healthcheck
+                        // Only status is exposed (no details) by default config.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/refresh",
