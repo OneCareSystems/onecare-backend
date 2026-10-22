@@ -1,3 +1,4 @@
+
 package com.onecare.backend.chatbot.knowledgebase;
 
 import java.util.List;
@@ -24,47 +25,37 @@ public class DjangoKnowledgeBaseClient implements KnowledgeBaseClient {
 
     public DjangoKnowledgeBaseClient(
             RestTemplateBuilder builder,
-            ChatbotProperties props
-    ) {
+            ChatbotProperties props) {
+
         this.props = props;
 
         this.rest = builder
-                .rootUri(props.baseUrl())
-                .setConnectTimeout(props.connectTimeout())
-                .setReadTimeout(props.readTimeout())
+                .rootUri(props.getBaseUrl())
+                .setConnectTimeout(props.getConnectTimeout())
+                .setReadTimeout(props.getReadTimeout())
                 .build();
     }
 
     @Override
-    public KnowledgeDocumentResponse submitLink(
-            String url,
-            Long actorId
-    ) {
+    public KnowledgeDocumentResponse submitLink(String url, Long actorId) {
         HttpHeaders headers = new HttpHeaders();
 
-        headers.setBearerAuth(props.serviceToken());
+        headers.setBearerAuth(props.getServiceToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.set("X-OneCare-User-Id", actorId.toString());
 
-        headers.set(
-                "X-OneCare-User-Id",
-                actorId.toString()
-        );
-
-        Map<String, String> body = Map.of(
-                "url", url
-        );
+        Map<String, String> body = Map.of("url", url);
 
         HttpEntity<Map<String, String>> request =
                 new HttpEntity<>(body, headers);
 
-        KnowledgeDocumentResponse response =
-                rest.exchange(
-                        PATH,
-                        HttpMethod.POST,
-                        request,
-                        KnowledgeDocumentResponse.class
-                ).getBody();
+        KnowledgeDocumentResponse response = rest.exchange(
+                PATH,
+                HttpMethod.POST,
+                request,
+                KnowledgeDocumentResponse.class
+        ).getBody();
 
         if (response == null) {
             throw new ChatbotUnavailableException(
