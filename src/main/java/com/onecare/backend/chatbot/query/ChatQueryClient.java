@@ -16,6 +16,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.onecare.backend.chatbot.config.ChatbotProperties;
 import com.onecare.backend.chatbot.exception.ChatbotUnavailableException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Spring Boot to Django: POST /internal/chat/query. Authenticated ONLY with the service token (chatbot.service-token).
@@ -26,6 +28,7 @@ import com.onecare.backend.chatbot.exception.ChatbotUnavailableException;
 public class ChatQueryClient implements ChatBackend {
     private static final Logger log = LoggerFactory.getLogger(ChatQueryClient.class);
     private static final String PATH = "/internal/chat/query";
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final RestTemplate rest;
     private final ChatbotProperties props;
@@ -42,8 +45,12 @@ public class ChatQueryClient implements ChatBackend {
         headers.setBearerAuth(props.serviceToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        // WSGI development servers require Content-Length; a streamed Map body can
+        // use chunked encoding and arrive in Django as an empty request body.
+        byte[] bodyBytes = JSON.createObjectNode().put("query", text).toString().getBytes(StandardCharsets.UTF_8);
+        headers.setContentLength(bodyBytes.length);
         try {
-            Map<?, ?> body = rest.exchange(PATH, HttpMethod.POST, new HttpEntity<>(Map.of("query", text), headers), Map.class).getBody();
+            Map<?, ?> body = rest.exchange(PATH, HttpMethod.POST, new HttpEntity<>(bodyBytes, headers), Map.class).getBody();
             return ChatBackendResult.fromMap(body);
         } catch (HttpStatusCodeException ex) {
             // 401/403 = wrong service token, 400 = limits differ from Django's, 5xx = Django or its LLM is down

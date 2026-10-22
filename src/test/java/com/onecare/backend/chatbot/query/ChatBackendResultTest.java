@@ -10,6 +10,16 @@ import org.junit.jupiter.api.Test;
 import com.onecare.backend.chatbot.exception.ChatbotUnavailableException;
 
 class ChatBackendResultTest {
+    @Test void only_the_structured_clinic_booking_action_is_forwarded() {
+        Map<String, Object> body = answer();
+        body.put("action", Map.of("type", "BOOK_APPOINTMENT", "url", "https://untrusted.invalid"));
+        assertNull(ChatBackendResult.fromMap(body).action());
+        body.put("type", "CLINIC_FACT");
+        assertEquals("BOOK_APPOINTMENT", ChatBackendResult.fromMap(body).action());
+        body.put("action", Map.of("type", "OTHER"));
+        assertNull(ChatBackendResult.fromMap(body).action());
+    }
+
     private static Map<String, Object> answer() {
         Map<String, Object> m = new HashMap<>();
         m.put("success", true);
