@@ -52,6 +52,7 @@ class StagingProfileConfigIntegrationTest {
                 // schema, so both are overridden at the highest precedence.
                 "--spring.datasource.driver-class-name=org.h2.Driver",
                 "--spring.jpa.hibernate.ddl-auto=update",
+                "--spring.sql.init.mode=never",
                 // No Redis is running for this boot test.
                 "--management.health.redis.enabled=false",
         };
