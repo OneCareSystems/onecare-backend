@@ -7,5 +7,4 @@ public record KnowledgeDocumentResponse(Long id, String status, String title, St
     public KnowledgeDocumentResponse(Long id, String status) {
         this(id, status, null, null, null, null, null, null, null, null, null);
     }
-record KnowledgeDocumentResponse(Long id, String status) {
 }
