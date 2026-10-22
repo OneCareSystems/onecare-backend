@@ -12,4 +12,5 @@ interface KnowledgeBaseClient {
     }
     default KnowledgeDocumentResponse get(long id, Long actorId) { throw new UnsupportedOperationException(); }
     default void remove(long id, Long actorId) { throw new UnsupportedOperationException(); }
+
 }

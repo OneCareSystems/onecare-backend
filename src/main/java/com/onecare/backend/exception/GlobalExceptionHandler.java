@@ -310,6 +310,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(false, message));
+
     }
 
     
@@ -334,6 +335,25 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(new ApiResponse<>(false, "The uploaded file exceeds the allowed size."));
     }
+
+    }
+
+    
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<?>> handleMediaType(
+            HttpMediaTypeNotSupportedException ex) {
+
+        String message =
+                "Unsupported Content-Type. Use the content type required by this endpoint.";
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, message);
+
+        return ResponseEntity
+                .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(response);
+    }
+
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {

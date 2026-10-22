@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MultipartFile;
 import com.onecare.backend.chatbot.exception.ChatbotUnavailableException;
 
+
 @RestController
 @RequestMapping("/api/chatbot/knowledge-base")
 @PreAuthorize("hasAnyRole('DOCTOR','SUPER_ADMIN')")
@@ -27,6 +28,7 @@ public class KnowledgeBaseController {
     public KnowledgeBaseController(KnowledgeBaseService service) {
         this.service = service;
     }
+
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<KnowledgeDocumentResponse>> uploadPdf(
@@ -66,6 +68,7 @@ public class KnowledgeBaseController {
     public ResponseEntity<ApiResponse<Void>> missingFile(org.springframework.web.multipart.support.MissingServletRequestPartException exception) {
         return ResponseEntity.badRequest().body(new ApiResponse<>(false, "A PDF file is required."));
     }
+
 
     @PostMapping(path = "/links", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
