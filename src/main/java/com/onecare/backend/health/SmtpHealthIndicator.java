@@ -73,7 +73,7 @@ public class SmtpHealthIndicator implements HealthIndicator {
         }
 
         try {
-            probe(host, port, impl.getUsername(), impl.getPassword());
+            probe(host, port, impl.getUsername(), impl.getPassword(), impl.getJavaMailProperties());
             return Health.up()
                     .withDetail("host", host)
                     .withDetail("port", port)
@@ -92,8 +92,9 @@ public class SmtpHealthIndicator implements HealthIndicator {
     }
 
     /** Opens the SMTP conversation (CONNECT/EHLO/AUTH) then quits. No mail is sent. */
-    private void probe(String host, int port, String username, String password) throws MessagingException {
+    private void probe(String host, int port, String username, String password, Properties configuredProperties) throws MessagingException {
         Properties props = new Properties();
+        props.putAll(configuredProperties);
         props.setProperty("mail.smtp.connectiontimeout", String.valueOf(connectTimeoutMillis));
         props.setProperty("mail.smtp.timeout", String.valueOf(connectTimeoutMillis));
         props.setProperty("mail.smtp.writetimeout", String.valueOf(connectTimeoutMillis));
