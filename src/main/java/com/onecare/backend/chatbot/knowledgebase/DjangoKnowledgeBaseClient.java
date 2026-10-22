@@ -30,8 +30,8 @@ public class DjangoKnowledgeBaseClient implements KnowledgeBaseClient {
 
         this.rest = builder
                 .rootUri(props.getBaseUrl())
-                .setConnectTimeout(props.getConnectTimeout())
-                .setReadTimeout(props.getReadTimeout())
+                .connectTimeout(props.getConnectTimeout())
+                .readTimeout(props.getReadTimeout())
                 .build();
     }
 
@@ -42,7 +42,7 @@ public class DjangoKnowledgeBaseClient implements KnowledgeBaseClient {
     ) {
         HttpHeaders headers = new HttpHeaders();
 
-        headers.setBearerAuth(props.serviceToken());
+        headers.setBearerAuth(props.getServiceToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 

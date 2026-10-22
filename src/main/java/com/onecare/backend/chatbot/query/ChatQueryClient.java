@@ -35,14 +35,14 @@ public class ChatQueryClient implements ChatBackend {
 
     public ChatQueryClient(RestTemplateBuilder builder, ChatbotProperties props) {
         this.props = props;
-        this.rest = builder.rootUri(props.baseUrl())
-                .connectTimeout(props.connectTimeout()).readTimeout(props.readTimeout()).build();
+        this.rest = builder.rootUri(props.getBaseUrl())
+                .connectTimeout(props.getConnectTimeout()).readTimeout(props.getReadTimeout()).build();
     }
 
     @Override
     public ChatBackendResult query(String text) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(props.serviceToken());
+        headers.setBearerAuth(props.getServiceToken());
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
         // WSGI development servers require Content-Length; a streamed Map body can
