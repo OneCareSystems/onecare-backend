@@ -6,7 +6,6 @@ import com.onecare.backend.dto.request.GenerateInvoiceRequest;
 import com.onecare.backend.dto.response.AppointmentResponse;
 import com.onecare.backend.dto.response.QueueResponse;
 import com.onecare.backend.entity.Appointment;
-import com.onecare.backend.entity.Patient;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.AppointmentStatus;
 import com.onecare.backend.enums.Role;
@@ -14,7 +13,6 @@ import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.InvoiceRepository;
-import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
@@ -35,19 +33,16 @@ public class QueueServiceImpl implements QueueService {
     private static final Logger log = LoggerFactory.getLogger(QueueServiceImpl.class);
 
     private final AppointmentRepository appointmentRepository;
-    private final PatientRepository patientRepository;
     private final UserRepository userRepository;
     private final InvoiceService invoiceService;
     private final InvoiceRepository invoiceRepository;
 
     public QueueServiceImpl(
             AppointmentRepository appointmentRepository,
-            PatientRepository patientRepository,
             UserRepository userRepository,
             InvoiceService invoiceService,
             InvoiceRepository invoiceRepository) {
         this.appointmentRepository = appointmentRepository;
-        this.patientRepository = patientRepository;
         this.userRepository = userRepository;
         this.invoiceService = invoiceService;
         this.invoiceRepository = invoiceRepository;
@@ -186,12 +181,12 @@ public class QueueServiceImpl implements QueueService {
                 .orElseThrow(() -> new AccessDeniedException("Authenticated user not found"));
     }
 
-    private Patient resolveSelfPatient(User currentUser) {
-        return patientRepository.findAll().stream()
-                .filter(patient -> patient.getEmail() != null
-                        && currentUser.getEmail() != null
-                        && patient.getEmail().equalsIgnoreCase(currentUser.getEmail()))
-                .findFirst()
-                .orElseThrow(() -> new AccessDeniedException("No trusted patient profile found for the current user"));
-    }
+    // private Patient resolveSelfPatient(User currentUser) {
+    //     return patientRepository.findAll().stream()
+    //             .filter(patient -> patient.getEmail() != null
+    //                     && currentUser.getEmail() != null
+    //                     && patient.getEmail().equalsIgnoreCase(currentUser.getEmail()))
+    //             .findFirst()
+    //             .orElseThrow(() -> new AccessDeniedException("No trusted patient profile found for the current user"));
+    // }
 }

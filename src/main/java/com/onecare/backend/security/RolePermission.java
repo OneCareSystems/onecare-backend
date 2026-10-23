@@ -94,6 +94,8 @@ public final class RolePermission {
                     Permission.PATIENT_READ,
                     Permission.PATIENT_UPDATE,
 
+                    Permission.MEDICINE_READ,
+
                     Permission.APPOINTMENT_READ_ALL,
                     Permission.APPOINTMENT_READ,
                     Permission.APPOINTMENT_UPDATE,
@@ -120,7 +122,9 @@ public final class RolePermission {
                     Permission.PRESCRIPTION_DISPENSE,
                     Permission.PRESCRIPTION_STATUS_UPDATE,
 
-                    Permission.APPOINTMENT_READ_CLINICAL_NOTES,
+                    // AC4 (Table 9): pharmacists do NOT read clinical notes or
+                    // medical history — dispensing context comes from the
+                    // prescription, not the appointment's clinical notes.
 
                     Permission.INVOICE_CREATE,
                     Permission.INVOICE_READ,

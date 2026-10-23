@@ -130,7 +130,8 @@ public class MedicineController {
             )
     })
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('" + Permission.MEDICINE_READ_ALL + "')")
+    @PreAuthorize("hasAuthority('" + Permission.MEDICINE_READ_ALL + "') or hasAuthority('"
+            + Permission.MEDICINE_READ + "')")
     public ResponseEntity<com.onecare.backend.dto.ApiResponse<MedicineResponse>> findMedicineById(
             @PathVariable Long id
     ) {

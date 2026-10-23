@@ -36,6 +36,8 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(ApiRateLimitFilter.class);
     private static final String AUTH_PREFIX = "/api/auth/";
     private static final String PUBLIC_PREFIX = "/api/public/";
+
+    private static final String PUBLIC_AVAILABLE_SLOTS_PATH = "/api/appointments/available-slots";
     private static final String FORWARDED_FOR = "X-Forwarded-For";
     private static final int MAX_TRACKED_BUCKETS = 10_000;
 
@@ -135,7 +137,8 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         if (requestUri.startsWith(AUTH_PREFIX)) {
             return authTier;
         }
-        if (requestUri.startsWith(PUBLIC_PREFIX)) {
+        if (requestUri.startsWith(PUBLIC_PREFIX)
+                || requestUri.equals(PUBLIC_AVAILABLE_SLOTS_PATH)) {
             return publicBookingTier;
         }
         return null;

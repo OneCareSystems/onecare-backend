@@ -124,7 +124,7 @@ public class GlobalExceptionHandler {
 
         ApiResponse<?> response = new ApiResponse<>(
                 false,
-                "Access denied: insufficient permissions"
+                "Access denied"
         );
 
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
