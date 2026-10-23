@@ -80,7 +80,9 @@ class KnowledgeBaseRbacTest {
 
         assertThrows(AccessDeniedException.class, () -> service.list(1, 20, null, null));
         assertThrows(AccessDeniedException.class, () -> service.get(1));
+
         assertThrows(AccessDeniedException.class, () -> service.file(1));
+
         assertThrows(AccessDeniedException.class, () -> service.remove(1));
         assertThrows(AccessDeniedException.class, () -> service.uploadPdf(null, ""));
 

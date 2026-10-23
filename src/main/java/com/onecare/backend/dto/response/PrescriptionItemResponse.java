@@ -17,7 +17,9 @@ public record PrescriptionItemResponse(
         String dosage,
         String frequency,
         Integer durationDays,
-        Integer quantity) {
+        Integer quantity,
+        int quantityDispensed,
+        java.math.BigDecimal unitPrice) {
 
     public static PrescriptionItemResponse from(PrescriptionItem item) {
         return new PrescriptionItemResponse(
@@ -28,6 +30,6 @@ public record PrescriptionItemResponse(
                 item.getDosage(),
                 item.getFrequency(),
                 item.getDurationDays(),
-                item.getQuantity());
+                item.getQuantity(), item.getQuantityDispensed(), item.getUnitPrice());
     }
 }

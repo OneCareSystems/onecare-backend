@@ -48,6 +48,9 @@ public class Prescription {
     @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PrescriptionItem> items = new ArrayList<>();
 
+    @Column(name = "dispense_revision", nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    private long dispenseRevision = 0;
+
     @CreationTimestamp  // auto set on INSERT automatically
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

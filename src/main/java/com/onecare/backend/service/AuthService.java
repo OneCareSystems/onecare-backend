@@ -20,5 +20,13 @@ public interface AuthService {
 
     public void resetPassword(ResetPasswordRequest request);
 
-    public void logout(String token);
+    /**
+     * Ends the session by blacklisting the access token, and the refresh
+     * token when the client supplies one.
+     *
+     * @param accessToken  the Bearer access token from the Authorization header (required)
+     * @param refreshToken the refresh token from the request body; may be null/blank,
+     *                     in which case only the access token is blacklisted
+     */
+    public void logout(String accessToken, String refreshToken);
 }

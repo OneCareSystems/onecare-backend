@@ -282,6 +282,42 @@ class InvoiceServiceImplTest {
     }
 
     @Test
+    void generateInvoice_clinicPartialUsesFulfilledQuantityAndFrozenPrice() {
+        Appointment appointment = stubCompletedAppointment();
+        Medicine medicine = medicine(1L, "Amoxicillin", "99.00");
+        PrescriptionItem prescribed = item(100L, medicine, 10);
+        prescribed.setQuantityDispensed(3);
+        prescribed.setUnitPrice(new BigDecimal("10.00"));
+        Prescription prescription = stubDispensedPrescription(appointment, prescribed);
+        prescription.setStatus(PrescriptionStatus.PARTIALLY_DISPENSED);
+        stubNoDispensingEvents();
+        stubSave();
+        InvoiceResponse response = service.generateInvoice(new GenerateInvoiceRequest(APPOINTMENT_ID, null));
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items().get(1).quantity()).isEqualTo(3);
+        assertThat(response.items().get(1).lineTotal()).isEqualByComparingTo("30.00");
+    }
+
+    @Test
+    void generateInvoice_clinicPartialDoesNotBillUnfulfilledLines() {
+        Appointment appointment = stubCompletedAppointment();
+        Medicine medicine = medicine(1L, "Amoxicillin", "10.00");
+        PrescriptionItem fulfilled = item(100L, medicine, 10);
+        fulfilled.setQuantityDispensed(3);
+        fulfilled.setUnitPrice(new BigDecimal("10.00"));
+        PrescriptionItem unfulfilled = item(101L, medicine(2L, "Other", "20.00"), 5);
+        Prescription prescription = stubDispensedPrescription(appointment, fulfilled, unfulfilled);
+        prescription.setStatus(PrescriptionStatus.PARTIALLY_DISPENSED);
+        prescription.setDispenseRevision(1);
+        stubNoDispensingEvents();
+        stubSave();
+        InvoiceResponse response = service.generateInvoice(new GenerateInvoiceRequest(APPOINTMENT_ID, null));
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items().get(1).quantity()).isEqualTo(3);
+        assertThat(response.total()).isEqualByComparingTo("530.00");
+    }
+
+    @Test
     void generateInvoice_neverBillsExternallyDispensedItems() {
         Appointment appointment = stubCompletedAppointment();
         Medicine medicine = medicine(1L, "Paracetamol", "5.00");

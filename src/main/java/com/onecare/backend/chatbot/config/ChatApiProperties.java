@@ -6,7 +6,32 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-/** Settings for Stage 5 (API-01 to API-03). Lists are comma-separated strings, so they are easy to set from environment variables. */
+public class ChatApiProperties {
+
+    private final int maxQueryChars;
+    private final int maxBodyBytes;
+    private final int rateLimitPerMinute;
+    private final int maxTrackedClients;
+    private final String trustedProxies;
+    private final String urlAllowlist;
+
+    public ChatApiProperties(
+            @DefaultValue("500") int maxQueryChars,
+            @DefaultValue("8192") int maxBodyBytes,
+            @DefaultValue("20") int rateLimitPerMinute,
+            @DefaultValue("10000") int maxTrackedClients,
+            String trustedProxies,
+            String urlAllowlist) {
+
+        this.maxQueryChars = maxQueryChars;
+        this.maxBodyBytes = maxBodyBytes;
+        this.rateLimitPerMinute = rateLimitPerMinute;
+        this.maxTrackedClients = maxTrackedClients;
+        this.trustedProxies = trustedProxies;
+        this.urlAllowlist = urlAllowlist;
+    }
+
+
 @ConfigurationProperties(prefix = "chatbot.api")
 public record ChatApiProperties(
         @DefaultValue("500") int maxQueryChars,            // keep equal to Django CHAT_MAX_QUERY_CHARS

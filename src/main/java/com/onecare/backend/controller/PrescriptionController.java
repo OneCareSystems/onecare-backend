@@ -25,12 +25,15 @@ import java.util.List;
 @RequestMapping("/api/prescriptions")
 public class PrescriptionController {
 
+    private final com.onecare.backend.service.PrescriptionDispensingService dispensingService;
     private final PrescriptionService prescriptionService;
     private final ExternalDispensingService externalDispensingService;      
     
     public PrescriptionController(
                     PrescriptionService prescriptionService,
-                    ExternalDispensingService externalDispensingService) {
+                    ExternalDispensingService externalDispensingService,
+                    com.onecare.backend.service.PrescriptionDispensingService dispensingService) {
+            this.dispensingService = dispensingService;
 
             this.prescriptionService = prescriptionService;
             this.externalDispensingService = externalDispensingService;
@@ -64,12 +67,12 @@ public class PrescriptionController {
     @Operation(
             summary = "List prescriptions",
             description = "Returns all prescriptions, optionally filtered by status "
-                    + "(ISSUED, DISPENSED or CANCELLED; invalid value returns 400). "
+                    + "(ISSUED, PARTIALLY_DISPENSED, DISPENSED, DISPENSED_EXTERNAL or CANCELLED; invalid value returns 400). "
                     + "Returns 403 without PRESCRIPTION_READ_ALL.")
     @GetMapping
     @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_READ_ALL + "')")
     public ResponseEntity<ApiResponse<?>> findAllPrescriptions(
-            @Parameter(description = "Optional status filter: ISSUED, DISPENSED or CANCELLED")
+            @Parameter(description = "Optional status filter: ISSUED, PARTIALLY_DISPENSED, DISPENSED, DISPENSED_EXTERNAL or CANCELLED")
             @RequestParam(required = false) String status) {
 
         List<PrescriptionResponse> prescriptions = prescriptionService.findAllPrescriptions(status);
@@ -172,13 +175,19 @@ public class PrescriptionController {
                         response));
     }
 
-    // Commenting this end point since it is future DDP things remove this comment when works on it
-//    @Operation(
-//            summary = "Dispense a prescription (DDP-25)",
-//            description = "Not implemented yet — reserved for the dispensing flow.")
-//    @PutMapping("/{id}/dispense")
-//    @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_DISPENSE + "')")
-//    public ResponseEntity<ApiResponse<?>> dispensePrescription( @PathVariable Long id ) {
-//
-//    }
+    @Operation(summary = "Preview in-clinic dispensing", description = "Read-only remaining quantities, price, stock, shortfalls and quarantine/expiry reasons. Doctors may view only their own prescriptions.")
+    @GetMapping("/{id}/dispense-preview")
+    @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_READ_ALL + "') or hasAuthority('" + Permission.PRESCRIPTION_READ + "')")
+    public ResponseEntity<ApiResponse<?>> dispensePreview(@PathVariable Long id) {
+        return ResponseEntity.ok(new ApiResponse<>(true, "Dispense preview retrieved successfully", dispensingService.preview(id)));
+    }
+
+    @Operation(summary = "Dispense a prescription in clinic", description = "Atomically dispenses remaining IN_HOUSE quantities. Set confirmPartial=true to accept stock shortfalls. Returns 400 for completed/cancelled or unsafe medicines, 404 when missing, and 409 for stock or concurrency conflicts.")
+    @PostMapping("/{id}/dispense")
+    @PreAuthorize("hasAuthority('" + Permission.PRESCRIPTION_DISPENSE + "')")
+    public ResponseEntity<ApiResponse<?>> dispensePrescription(@PathVariable Long id,
+            @Valid @RequestBody com.onecare.backend.dto.request.DispensePrescriptionRequest request) {
+        return ResponseEntity.ok(new ApiResponse<>(true, "Prescription dispensed successfully",
+                dispensingService.dispense(id, request.confirmPartial())));
+    }
 }

@@ -8,6 +8,8 @@ package com.onecare.backend.enums;
  */
 public enum PrescriptionStatus {
     ISSUED,
+    PARTIALLY_DISPENSED,
     DISPENSED,
+    DISPENSED_EXTERNAL,
     CANCELLED;
 }

@@ -28,4 +28,7 @@ public @interface Audited {
 
     /** Owning module, e.g. {@code PATIENT}, {@code AUTH}, {@code INVOICE}. */
     String module();
+
+    /** Optional method parameter carrying the entity ID when the result has several IDs. */
+    String entityIdParameter() default "";
 }

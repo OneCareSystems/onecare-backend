@@ -54,6 +54,7 @@ public class KnowledgeBaseController {
         return ResponseEntity.noContent().build();
     }
 
+
     @GetMapping(value = "/{id}/file", produces = MediaType.APPLICATION_PDF_VALUE)
     public ResponseEntity<byte[]> file(@PathVariable long id) {
         return ResponseEntity.ok()

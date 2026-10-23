@@ -21,6 +21,7 @@ public class PublicEndpointWebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new PublicRateLimitInterceptor(limiter, resolver, props.maxBodyBytes()))
+        registry.addInterceptor(new PublicRateLimitInterceptor(limiter, resolver, props.getMaxBodyBytes()))
                 .addPathPatterns("/api/chatbot/query");
     }
 }

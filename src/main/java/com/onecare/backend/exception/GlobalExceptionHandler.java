@@ -205,6 +205,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(StockShortfallException.class)
+    public ResponseEntity<ApiResponse<?>> handleStockShortfall(StockShortfallException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(false, exception.getMessage(), exception.getPreview()));
+    }
+
+    @ExceptionHandler({org.springframework.dao.PessimisticLockingFailureException.class,
+            jakarta.persistence.LockTimeoutException.class, jakarta.persistence.PessimisticLockException.class})
+    public ResponseEntity<ApiResponse<?>> handleDispensingLock(Exception exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(false, "Concurrent update. Please refresh and retry."));
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<?>> handleConflict(
             ConflictException exception) {

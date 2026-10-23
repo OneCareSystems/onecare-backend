@@ -31,15 +31,32 @@ public class DjangoKnowledgeBaseClient implements KnowledgeBaseClient {
         this.props = props;
         this.rest = builder.rootUri(props.baseUrl()).connectTimeout(props.connectTimeout())
                 .readTimeout(props.readTimeout()).build();
+        this.rest = builder.rootUri(props.getBaseUrl()).setConnectTimeout(props.getConnectTimeout())
+                .setReadTimeout(props.getReadTimeout()).build();
     }
 
     private HttpHeaders headers(Long actorId) {
         HttpHeaders headers = new HttpHeaders();
+
         headers.setBearerAuth(props.serviceToken());
+
+        headers.setBearerAuth(props.getServiceToken());
+
         headers.set("X-OneCare-User-Id", actorId.toString());
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
         return headers;
     }
+
+
+    @Override
+    public KnowledgeDocumentResponse submitLink(String url, Long actorId) {
+        HttpHeaders headers = headers(actorId);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        byte[] body = JSON.createObjectNode().put("url", url).toString().getBytes(StandardCharsets.UTF_8);
+        headers.setContentLength(body.length); // Django WSGI requires a length rather than chunked JSON.
+        return exchange(PATH + "/links", HttpMethod.POST, new HttpEntity<>(body, headers), KnowledgeDocumentResponse.class);
+    }
+
 
     @Override
     public KnowledgeDocumentResponse submitLink(String url, Long actorId) {
@@ -98,6 +115,23 @@ public class DjangoKnowledgeBaseClient implements KnowledgeBaseClient {
         HttpHeaders headers = headers(actorId);
         headers.setAccept(List.of(MediaType.APPLICATION_PDF));
         return exchange(PATH + "/" + id + "/file", HttpMethod.GET, new HttpEntity<>(headers), byte[].class);
+
+    @Override
+    public KnowledgeDocumentPage list(int page, int pageSize, String sourceType, String status, Long actorId) {
+        var uri = UriComponentsBuilder.fromPath(PATH).queryParam("page", page).queryParam("pageSize", pageSize);
+        if (sourceType != null && !sourceType.isBlank()) uri.queryParam("sourceType", sourceType);
+        if (status != null && !status.isBlank()) uri.queryParam("status", status);
+        return exchange(uri.build().encode().toUriString(), HttpMethod.GET, new HttpEntity<>(headers(actorId)), KnowledgeDocumentPage.class);
+    }
+
+    @Override
+    public KnowledgeDocumentResponse get(long id, Long actorId) {
+        return exchange(PATH + "/" + id, HttpMethod.GET, new HttpEntity<>(headers(actorId)), KnowledgeDocumentResponse.class);
+    }
+
+    @Override
+    public void remove(long id, Long actorId) {
+        exchange(PATH + "/" + id, HttpMethod.DELETE, new HttpEntity<>(headers(actorId)), Void.class);
     }
 
     private <T> T exchange(String path, HttpMethod method, HttpEntity<?> entity, Class<T> type) {

@@ -24,7 +24,11 @@ public class ChatApiConfig {
     }
     @Bean
     public SlidingWindowRateLimiter publicRateLimiter(ChatApiProperties props) {
+
         return new SlidingWindowRateLimiter(props.rateLimitPerMinute(), Duration.ofMinutes(1), props.maxTrackedClients(), System::nanoTime);
+
+        return new SlidingWindowRateLimiter(props.getRateLimitPerMinute(), Duration.ofMinutes(1), props.getMaxTrackedClients(), System::nanoTime);
+
     }
     @Bean
     public ClientIpResolver clientIpResolver(ChatApiProperties props) {

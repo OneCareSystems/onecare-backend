@@ -1,6 +1,7 @@
 package com.onecare.backend.service;
 
 import com.onecare.backend.audit.Audited;
+import io.jsonwebtoken.JwtException;
 import com.onecare.backend.dto.request.ForgotPasswordRequest;
 import com.onecare.backend.dto.request.LoginRequest;
 import com.onecare.backend.dto.request.RefreshRequest;
@@ -144,6 +145,15 @@ public class AuthServiceImpl implements AuthService {
                         throw new BadCredentialsException("Invalid refresh token");
                 }
 
+                if (tokenBlacklistService.isBlacklisted(refreshToken)) {
+
+                        log.warn(
+                                "Refresh token rejected | reason=TOKEN_REVOKED"
+                        );
+
+                        throw new BadCredentialsException("Refresh token has been revoked");
+                }
+
                 String username = jwtService.extractUsername(refreshToken);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
@@ -215,12 +225,35 @@ public class AuthServiceImpl implements AuthService {
         }
 
         @Override
-        public void logout(String token) {
-                if (!"access".equals(jwtService.extractType(token))) {
+        public void logout(String accessToken, String refreshToken) {
+                if (!"access".equals(jwtService.extractType(accessToken))) {
                         log.warn("Logout rejected | reason=INVALID_TOKEN_TYPE");
                         throw new BadCredentialsException("Invalid access token");
                 }
-                tokenBlacklistService.blacklistToken(token);
-                log.info("Logout successful | token blacklisted");
+                tokenBlacklistService.blacklistToken(accessToken);
+                log.info("Access token blacklisted");
+
+                if (refreshToken != null && !refreshToken.isBlank()) {
+                        revokeRefreshTokenIfPresent(refreshToken);
+                }
+        }
+
+        /**
+         * Blacklists the supplied refresh token so it can no longer mint new
+         * access tokens after logout. An already-expired or malformed token is
+         * skipped with a warning — logout must still succeed: the token is
+         * unusable either way.
+         */
+        private void revokeRefreshTokenIfPresent(String refreshToken) {
+                try {
+                        if (!"refresh".equals(jwtService.extractType(refreshToken))) {
+                                log.warn("Refresh token not blacklisted | reason=INVALID_TOKEN_TYPE");
+                                return;
+                        }
+                        tokenBlacklistService.blacklistToken(refreshToken);
+                        log.info("Refresh token blacklisted");
+                } catch (JwtException | IllegalArgumentException ex) {
+                        log.warn("Refresh token not blacklisted | reason={}", ex.getClass().getSimpleName());
+                }
         }
 }
