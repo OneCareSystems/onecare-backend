@@ -52,6 +52,7 @@ class PrescriptionDispensingIntegrationTest {
             pharmacistName = staff("pharm" + unique, Role.PHARMACIST).getUsername();
             Patient patient = new Patient(); patient.setFullName("Dispensing Patient");
             patient.setDateOfBirth(LocalDate.of(1990, 1, 1)); patient.setContactNo("0771234567");
+            patient.setGender(Gender.OTHER);
             patient.setIsActive(true); patients.save(patient);
             Appointment appointment = new Appointment(); appointment.setDoctor(doctor); appointment.setPatient(patient);
             appointment.setAppointmentDate(LocalDate.now()); appointment.setTimeSlot(LocalTime.NOON);
