@@ -40,7 +40,7 @@ public class ChatQueryClient implements ChatBackend {
                 .setConnectTimeout(props.getConnectTimeout()).setReadTimeout(props.getReadTimeout()).build();
 
 
-    }
+    };
 
     @Override
     public ChatBackendResult query(String text) {
