@@ -94,7 +94,7 @@ public class AuditAspect {
                     resolveActor(method, args),
                     actionType,
                     audited.module(),
-                    resolveEntityId(method, args, result),
+                    resolveEntityId(audited, method, args, result),
                     description.toString(),
                     ClientIpResolver.resolveCurrentRequest());
         } catch (Exception ex) {
@@ -164,7 +164,15 @@ public class AuditAspect {
         }
     }
 
-    private String resolveEntityId(Method method, Object[] args, Object result) {
+    private String resolveEntityId(Audited audited, Method method, Object[] args, Object result) {
+        if (!audited.entityIdParameter().isEmpty() && args != null) {
+            Parameter[] parameters = method.getParameters();
+            for (int i = 0; i < parameters.length && i < args.length; i++) {
+                if (parameters[i].getName().equals(audited.entityIdParameter()) && args[i] instanceof Number id) {
+                    return id.toString();
+                }
+            }
+        }
         String fromResult = idFrom(result);
         if (fromResult != null) {
             return fromResult;

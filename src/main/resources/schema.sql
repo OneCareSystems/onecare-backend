@@ -121,7 +121,8 @@ CREATE TABLE prescriptions (
     patient_id      BIGINT   NOT NULL,
     date            DATE     NOT NULL,
     clinical_notes  VARCHAR(2000) NULL,
-    status          ENUM('ISSUED','DISPENSED','CANCELLED') NOT NULL DEFAULT 'ISSUED',
+    dispense_revision BIGINT NOT NULL DEFAULT 0,
+    status          ENUM('ISSUED','PARTIALLY_DISPENSED','DISPENSED','DISPENSED_EXTERNAL','CANCELLED') NOT NULL DEFAULT 'ISSUED',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -142,6 +143,8 @@ CREATE TABLE prescription_items (
     duration_days   INT          NOT NULL,
     instruction     VARCHAR(255) NULL,
     quantity        INT          NOT NULL,
+    quantity_dispensed INT       NOT NULL DEFAULT 0,
+    unit_price      DECIMAL(10,2) NULL,
     frequency       VARCHAR(100) NOT NULL,
 
     CONSTRAINT pk_prescription_items PRIMARY KEY (item_id),

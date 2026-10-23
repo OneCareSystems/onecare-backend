@@ -633,11 +633,19 @@ class PrescriptionControllerIntegrationTest {
         Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
 
         mockMvc.perform(get("/api/prescriptions/" + prescription.getPrescriptionId())
-                        .with(as("rx-doc-detail", Role.DOCTOR)))
+                        .with(as(prescription.getDoctor().getUsername(), Role.DOCTOR)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.prescriptionId").value(prescription.getPrescriptionId().intValue()))
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
                 .andExpect(jsonPath("$.data.clinicalNotes").doesNotExist());
+    }
+
+    @Test
+    void detail_asDifferentDoctor_isForbidden() throws Exception {
+        Prescription prescription = savePrescription(PrescriptionStatus.ISSUED);
+        mockMvc.perform(get("/api/prescriptions/" + prescription.getPrescriptionId())
+                        .with(as("another-doctor", Role.DOCTOR)))
+                .andExpect(status().isForbidden());
     }
 
     @Test

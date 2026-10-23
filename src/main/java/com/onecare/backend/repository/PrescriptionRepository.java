@@ -11,6 +11,14 @@ import java.util.Optional;
 
 public interface PrescriptionRepository extends JpaRepository<Prescription, Long> {
 
+    @org.springframework.data.jpa.repository.Query("select p.dispenseRevision from Prescription p where p.prescriptionId = :id")
+    Optional<Long> findDispenseRevision(@org.springframework.data.repository.query.Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.QueryHints(@jakarta.persistence.QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @org.springframework.data.jpa.repository.Query("select p from Prescription p where p.prescriptionId = :id")
+    Optional<Prescription> findByIdForDispensing(@org.springframework.data.repository.query.Param("id") Long id);
+
     // items are fetched eagerly with the prescription to avoid N+1 on list/detail
     @Override
     @EntityGraph(attributePaths = "items")

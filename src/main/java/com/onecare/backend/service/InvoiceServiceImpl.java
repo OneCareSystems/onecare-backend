@@ -554,7 +554,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             return lines; // consultation only: nothing was prescribed
         }
 
-        if (prescription.getStatus() != PrescriptionStatus.DISPENSED) {
+        if (prescription.getStatus() != PrescriptionStatus.DISPENSED
+                && prescription.getStatus() != PrescriptionStatus.PARTIALLY_DISPENSED) {
             log.info("Consultation invoice without medicine lines | prescriptionId={} "
                             + "| status={} | reason=NOT_COLLECTED_YET",
                     prescription.getPrescriptionId(), prescription.getStatus());
@@ -578,7 +579,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
 
             lines.add(newLine(invoice, item.getMedicine(), item.getMedicine().getName(),
-                    billable, item.getMedicine().getPrice()));
+                    billable, item.getUnitPrice() != null ? item.getUnitPrice() : item.getMedicine().getPrice()));
         }
 
         return lines;
@@ -604,7 +605,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         int prescribed = item.getQuantity() == null ? 0 : item.getQuantity();
 
-        Integer dispensed = totals.dispensed().get(item.getItemId());
+        Integer dispensed = item.getUnitPrice() != null || item.getPrescription().getDispenseRevision() > 0
+                ? Integer.valueOf(item.getQuantityDispensed())
+                : totals.dispensed().get(item.getItemId());
         int base = dispensed == null ? prescribed : Math.min(dispensed, prescribed);
 
         int alreadyInvoiced = totals.alreadyInvoiced().getOrDefault(item.getItemId(), 0);

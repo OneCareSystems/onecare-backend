@@ -21,6 +21,9 @@ import java.util.List;
 @Slf4j
 public class MedicineServiceImpl implements MedicineService {
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     private static final int NEAR_EXPIRY_DAYS = 30;
 
     private final MedicineRepository medicineRepository;
@@ -171,8 +174,11 @@ public class MedicineServiceImpl implements MedicineService {
 
         Medicine medicine = findMedicine(id);
 
+        // All stock deltas serialize on this row; refresh avoids a stale entity
+        // already loaded by another service earlier in the transaction.
+        entityManager.flush();
+        entityManager.refresh(medicine, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         checkAndQuarantineIfExpired(medicine);
-
         int currentStock = medicine.getStockQuantity();
         int delta = request.delta();
 
