@@ -170,6 +170,14 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
+    /** Report date range above the allowed threshold (UC24 alt flow, AC3): 422, nothing aggregated. */
+    @ExceptionHandler(DateRangeTooLargeException.class)
+    public ResponseEntity<ApiResponse<?>> handleDateRangeTooLarge(
+            DateRangeTooLargeException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
     /** Restore without confirm=true (UC5, AC4): 400, no data touched. */
     @ExceptionHandler(com.onecare.backend.exception.RestoreConfirmationRequiredException.class)
     public ResponseEntity<ApiResponse<?>> handleRestoreConfirmationRequired(
