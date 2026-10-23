@@ -10,6 +10,10 @@ import java.util.List;
 
 public interface MedicineRepository extends JpaRepository<Medicine, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Medicine m where m.medicineId = :id")
+    java.util.Optional<Medicine> findByIdForUpdate(@Param("id") Long id);
+
     List<Medicine> findByIsQuarantinedFalse();
 
     List<Medicine> findByExpiryDateBeforeAndIsQuarantinedFalse(

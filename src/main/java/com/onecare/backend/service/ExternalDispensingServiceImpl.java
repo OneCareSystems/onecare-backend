@@ -292,9 +292,7 @@ public class ExternalDispensingServiceImpl implements ExternalDispensingService 
             }
 
             int requestedQuantity = Math.max(0, item.getQuantityDispensed());
-            int availableQuantity = Math.max(0, medicine.getStockQuantity());
-
-            int quantityToDispense = Math.min(requestedQuantity, availableQuantity);
+            int quantityToDispense = DispensingRules.quantityToDispense(requestedQuantity, medicine.getStockQuantity());
 
             if (quantityToDispense > 0) {
                 medicineService.updateStock(

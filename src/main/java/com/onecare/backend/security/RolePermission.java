@@ -13,6 +13,7 @@ public final class RolePermission {
         return switch (role) {
 
             case SUPER_ADMIN -> Set.of(
+                    Permission.PRESCRIPTION_DISPENSE,
                     Permission.USER_CREATE,
                     Permission.USER_READ_ALL,
                     Permission.USER_UPDATE,

@@ -149,6 +149,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         // PrescriptionResponse has no clinicalNotes field — nothing to strip here
         return prescriptions.stream()
+                .filter(this::canView)
                 .map(PrescriptionResponse::from)
                 .toList();
     }
@@ -162,6 +163,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         return prescriptionRepository
                 .findByDateAndStatusNot(today, PrescriptionStatus.CANCELLED)
                 .stream()
+                .filter(this::canView)
                 .map(PrescriptionResponse::from)
                 .toList();
     }
@@ -171,6 +173,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     public PrescriptionDetailResponse findPrescriptionById(Long id) {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
+        checkViewAccess(prescription);
 
         // boolean includeClinicalNotes =
         //         SecurityUtil.hasPermission(Permission.PRESCRIPTION_READ_CLINICAL_NOTES);
@@ -230,7 +233,9 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
 
-        if (prescription.getStatus() == PrescriptionStatus.DISPENSED) {
+        if (prescription.getStatus() == PrescriptionStatus.DISPENSED
+                || prescription.getStatus() == PrescriptionStatus.DISPENSED_EXTERNAL
+                || prescription.getStatus() == PrescriptionStatus.PARTIALLY_DISPENSED) {
             throw new BusinessRuleException(
                     "Dispensed prescription cannot be cancelled with id: " + id);
         }
@@ -295,8 +300,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         medicineRepository.findAllById(medicineIds)
                 .forEach(medicine -> medicines.put(medicine.getMedicineId(), medicine));
 
-        LocalDate today = LocalDate.now();
-
         for (Long medicineId : medicineIds) {
             Medicine medicine = medicines.get(medicineId);
 
@@ -304,14 +307,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 throw new BusinessRuleException(
                         "Medicine not found with id: " + medicineId);
             }
-            if (Boolean.TRUE.equals(medicine.getIsQuarantined())) {
-                throw new BusinessRuleException(
-                        "Medicine is quarantined with id: " + medicineId);
-            }
-            if (medicine.getExpiryDate() != null && medicine.getExpiryDate().isBefore(today)) {
-                throw new BusinessRuleException(
-                        "Medicine is expired with id: " + medicineId);
-            }
+            String reason = DispensingRules.unavailableReason(medicine);
+            if (reason != null) throw new BusinessRuleException(reason);
         }
 
         return medicines;
@@ -344,6 +341,23 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
     }
 
+    private boolean canView(Prescription prescription) {
+        return canViewPrescription(prescription);
+    }
+
+    private static boolean canViewPrescription(Prescription prescription) {
+        if (!SecurityUtil.isDoctor()) return true;
+        return SecurityUtil.getCurrentUserId().map(id -> id.equals(prescription.getDoctor().getUserId()))
+                .orElseGet(() -> SecurityUtil.getCurrentUsername()
+                        .map(name -> name.equals(prescription.getDoctor().getUsername())).orElse(false));
+    }
+
+    static void checkViewAccess(Prescription prescription) {
+        if (!canViewPrescription(prescription)) {
+            throw new org.springframework.security.access.AccessDeniedException("Prescription belongs to another doctor");
+        }
+    }
+
     private PrescriptionStatus parseStatus(String status) {
         if (status == null || status.isBlank()) {
             return null;
@@ -353,7 +367,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         } catch (IllegalArgumentException exception) {
             throw new BusinessRuleException(
                     "Invalid status filter: '" + status
-                            + "'. Allowed values: ISSUED, DISPENSED, CANCELLED");
+                            + "'. Allowed values: ISSUED, PARTIALLY_DISPENSED, DISPENSED, DISPENSED_EXTERNAL, CANCELLED");
         }
     }
 
