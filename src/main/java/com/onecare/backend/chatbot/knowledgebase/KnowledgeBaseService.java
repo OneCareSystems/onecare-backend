@@ -71,6 +71,12 @@ public class KnowledgeBaseService {
         return chatbot.get(id, actorId);
     }
 
+    public byte[] file(long id) {
+        Long actorId = actor();
+        if (id < 1) throw new InvalidInputException("A positive resource ID is required.");
+        return chatbot.file(id, actorId);
+    }
+
     @com.onecare.backend.audit.Audited(action = "KB_RESOURCE_REMOVED", module = "CHATBOT")
     public void remove(long id) {
         Long actorId = actor();

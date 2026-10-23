@@ -93,6 +93,13 @@ public class DjangoKnowledgeBaseClient implements KnowledgeBaseClient {
         exchange(PATH + "/" + id, HttpMethod.DELETE, new HttpEntity<>(headers(actorId)), Void.class);
     }
 
+    @Override
+    public byte[] file(long id, Long actorId) {
+        HttpHeaders headers = headers(actorId);
+        headers.setAccept(List.of(MediaType.APPLICATION_PDF));
+        return exchange(PATH + "/" + id + "/file", HttpMethod.GET, new HttpEntity<>(headers), byte[].class);
+    }
+
     private <T> T exchange(String path, HttpMethod method, HttpEntity<?> entity, Class<T> type) {
         try {
             T body = rest.exchange(path, method, entity, type).getBody();

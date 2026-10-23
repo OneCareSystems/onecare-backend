@@ -54,6 +54,16 @@ public class KnowledgeBaseController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping(value = "/{id}/file", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> file(@PathVariable long id) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header("Content-Disposition", "inline; filename=\"document-" + id + ".pdf\"")
+                .header("Cache-Control", "private, no-store")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(service.file(id));
+    }
+
     @ExceptionHandler(KnowledgeBaseRequestException.class)
     public ResponseEntity<ApiResponse<Void>> requestError(KnowledgeBaseRequestException exception) {
         return ResponseEntity.status(exception.status()).body(new ApiResponse<>(false, exception.getMessage()));

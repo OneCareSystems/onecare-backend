@@ -1,6 +1,7 @@
 package com.onecare.backend.chatbot.knowledgebase;
 
 interface KnowledgeBaseClient {
+    default byte[] file(long id, Long actorId) { throw new UnsupportedOperationException(); }
 
     KnowledgeDocumentResponse submitLink(String url, Long actorId);
 

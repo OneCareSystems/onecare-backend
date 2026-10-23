@@ -33,6 +33,17 @@ class KnowledgeBaseControllerTest {
                 .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.id").value(3));
     }
 
+    @Test void serves_pdf_bytes_and_reports_missing_files() throws Exception {
+        byte[] pdf = "%PDF-1.4".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        when(service.file(1)).thenReturn(pdf);
+        mvc.perform(get(BASE + "/1/file")).andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Cache-Control", "private, no-store"))
+                .andExpect(content().bytes(pdf));
+        when(service.file(2)).thenThrow(new KnowledgeBaseRequestException(404, "PDF not found."));
+        mvc.perform(get(BASE + "/2/file")).andExpect(status().isNotFound());
+    }
+
     @Test void lists_details_and_deletes_with_existing_api_envelope() throws Exception {
         when(service.list(2, 10, "PDF", "INDEXED"))
                 .thenReturn(new KnowledgeDocumentPage(List.of(new KnowledgeDocumentResponse(1L, "INDEXED")), 11, 2, 10, 2));
