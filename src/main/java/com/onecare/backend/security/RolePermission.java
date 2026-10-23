@@ -13,6 +13,7 @@ public final class RolePermission {
         return switch (role) {
 
             case SUPER_ADMIN -> Set.of(
+                    Permission.PRESCRIPTION_DISPENSE,
                     Permission.USER_CREATE,
                     Permission.USER_READ_ALL,
                     Permission.USER_UPDATE,
@@ -44,7 +45,16 @@ public final class RolePermission {
                     Permission.INVOICE_UPDATE,
                     Permission.INVOICE_PAY,
 
-                    Permission.AUDIT_READ_ALL
+                    Permission.AUDIT_READ_ALL,
+
+                    Permission.SCHEDULE_READ,
+                    Permission.SCHEDULE_MANAGE,
+
+                    Permission.ROLE_PERMISSION_READ,
+                    Permission.ROLE_PERMISSION_UPDATE,
+
+                    Permission.SYSTEM_BACKUP,
+                    Permission.SYSTEM_RESTORE
             );
 
             case ADMIN -> Set.of(
@@ -93,7 +103,9 @@ public final class RolePermission {
                     Permission.PRESCRIPTION_CREATE,
                     Permission.PRESCRIPTION_READ_ALL,
                     Permission.PRESCRIPTION_READ,
-                    Permission.PRESCRIPTION_UPDATE
+                    Permission.PRESCRIPTION_UPDATE,
+
+                    Permission.SCHEDULE_READ
             );
 
             case PHARMACIST -> Set.of(

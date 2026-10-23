@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.CreatePrescriptionRequest;
 import com.onecare.backend.dto.request.PrescriptionItemRequest;
 import com.onecare.backend.dto.request.UpdatePrescriptionRequest;
@@ -21,6 +22,7 @@ import com.onecare.backend.repository.MedicineRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_CREATE", module = "PRESCRIPTION")
     public PrescriptionResponse createPrescription(CreatePrescriptionRequest request) {
 
         // 1. Doctor: always the authenticated user, persisted role must be DOCTOR
@@ -118,6 +121,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setAppointment(appointment);
         prescription.setDate(LocalDate.now());
         prescription.setStatus(PrescriptionStatus.ISSUED);
+        // prescription.setClinicalNotes(request.clinicalNotes());
 
         populateItems(prescription, request.items(), medicines);
 
@@ -129,7 +133,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         log.info("Prescription created | prescriptionId={} | patientId={} | doctorId={} | items={} | performedBy={}",
                 saved.getPrescriptionId(), patient.getPatientId(),
                 doctor.getUserId(), saved.getItems().size(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
 
         return PrescriptionResponse.from(saved);
     }
@@ -144,9 +147,9 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 ? prescriptionRepository.findAll()
                 : prescriptionRepository.findByStatus(filter);
 
-        // PrescriptionResponse has no clinicalNotes field — clinical notes
-        // live on the Appointment entity and are never exposed here
+        // PrescriptionResponse has no clinicalNotes field — nothing to strip here
         return prescriptions.stream()
+                .filter(this::canView)
                 .map(PrescriptionResponse::from)
                 .toList();
     }
@@ -160,6 +163,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         return prescriptionRepository
                 .findByDateAndStatusNot(today, PrescriptionStatus.CANCELLED)
                 .stream()
+                .filter(this::canView)
                 .map(PrescriptionResponse::from)
                 .toList();
     }
@@ -169,11 +173,16 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     public PrescriptionDetailResponse findPrescriptionById(Long id) {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
+        checkViewAccess(prescription);
+
+        // boolean includeClinicalNotes =
+        //         SecurityUtil.hasPermission(Permission.PRESCRIPTION_READ_CLINICAL_NOTES);
 
         return PrescriptionDetailResponse.from(prescription);
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_UPDATE", module = "PRESCRIPTION")
     public PrescriptionResponse updatePrescription(Long id, UpdatePrescriptionRequest request) {
 
         // 1. Doctor: always the authenticated user, persisted role must be DOCTOR
@@ -199,8 +208,12 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         //    so a rejected request leaves the prescription exactly as it was
         Map<Long, Medicine> medicines = loadAndValidateMedicines(request.items());
 
-        // 6. Replace content: items are swapped as a whole
+        // 6. Replace content: notes only when provided; items are swapped as a whole
         //    (orphanRemoval deletes the old lines on save)
+        // if (request.clinicalNotes() != null) {
+        //     prescription.setClinicalNotes(request.clinicalNotes());
+        // }
+
         prescription.getItems().clear();
         populateItems(prescription, request.items(), medicines);
 
@@ -210,17 +223,19 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         log.info("Prescription updated | prescriptionId={} | doctorId={} | items={} | performedBy={}",
                 saved.getPrescriptionId(), doctor.getUserId(),
                 saved.getItems().size(), performedBy);
-        // TODO(DDP-26): replace with persisted audit event
 
         return PrescriptionResponse.from(saved);
     }
 
     @Override
+    @Audited(action = "PRESCRIPTION_CANCEL", module = "PRESCRIPTION")
     public void cancelPrescription(Long id) {
 
         Prescription prescription = findPrescriptionByIdInternal(id);
 
-        if (prescription.getStatus() == PrescriptionStatus.DISPENSED) {
+        if (prescription.getStatus() == PrescriptionStatus.DISPENSED
+                || prescription.getStatus() == PrescriptionStatus.DISPENSED_EXTERNAL
+                || prescription.getStatus() == PrescriptionStatus.PARTIALLY_DISPENSED) {
             throw new BusinessRuleException(
                     "Dispensed prescription cannot be cancelled with id: " + id);
         }
@@ -236,7 +251,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         String performedBy = SecurityUtil.getCurrentUsername().orElse("SYSTEM");
         log.info("Prescription cancelled | prescriptionId={} | performedBy={}", id, performedBy);
-        // TODO(DDP-26): replace with persisted audit event
     }
 
     /**
@@ -286,8 +300,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         medicineRepository.findAllById(medicineIds)
                 .forEach(medicine -> medicines.put(medicine.getMedicineId(), medicine));
 
-        LocalDate today = LocalDate.now();
-
         for (Long medicineId : medicineIds) {
             Medicine medicine = medicines.get(medicineId);
 
@@ -295,14 +307,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 throw new BusinessRuleException(
                         "Medicine not found with id: " + medicineId);
             }
-            if (Boolean.TRUE.equals(medicine.getIsQuarantined())) {
-                throw new BusinessRuleException(
-                        "Medicine is quarantined with id: " + medicineId);
-            }
-            if (medicine.getExpiryDate() != null && medicine.getExpiryDate().isBefore(today)) {
-                throw new BusinessRuleException(
-                        "Medicine is expired with id: " + medicineId);
-            }
+            String reason = DispensingRules.unavailableReason(medicine);
+            if (reason != null) throw new BusinessRuleException(reason);
         }
 
         return medicines;
@@ -335,6 +341,23 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
     }
 
+    private boolean canView(Prescription prescription) {
+        return canViewPrescription(prescription);
+    }
+
+    private static boolean canViewPrescription(Prescription prescription) {
+        if (!SecurityUtil.isDoctor()) return true;
+        return SecurityUtil.getCurrentUserId().map(id -> id.equals(prescription.getDoctor().getUserId()))
+                .orElseGet(() -> SecurityUtil.getCurrentUsername()
+                        .map(name -> name.equals(prescription.getDoctor().getUsername())).orElse(false));
+    }
+
+    static void checkViewAccess(Prescription prescription) {
+        if (!canViewPrescription(prescription)) {
+            throw new org.springframework.security.access.AccessDeniedException("Prescription belongs to another doctor");
+        }
+    }
+
     private PrescriptionStatus parseStatus(String status) {
         if (status == null || status.isBlank()) {
             return null;
@@ -344,7 +367,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         } catch (IllegalArgumentException exception) {
             throw new BusinessRuleException(
                     "Invalid status filter: '" + status
-                            + "'. Allowed values: ISSUED, DISPENSED, CANCELLED");
+                            + "'. Allowed values: ISSUED, PARTIALLY_DISPENSED, DISPENSED, DISPENSED_EXTERNAL, CANCELLED");
         }
     }
 

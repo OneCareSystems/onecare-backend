@@ -25,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.TestPropertySource;
+import com.onecare.backend.repository.AuditLogRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -68,6 +69,9 @@ class AppointmentApiIntegrationTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private String adminToken;
@@ -83,6 +87,8 @@ class AppointmentApiIntegrationTest {
         appointmentRepository.deleteAll();
         patientRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
+        // committed audit rows (own transaction) would block user deletion via FK
+        auditLogRepository.deleteAll();
         userRepository.deleteAll();
 
         createUser("admin", "admin@onecare.com", Role.ADMIN);
@@ -124,7 +130,7 @@ class AppointmentApiIntegrationTest {
     @Test
     void createAppointment_conflictReturns409WithAlternatives() throws Exception {
         String body = appointmentJson(doctor.getUserId(), patient.getPatientId(),
-                LocalDate.now().plusDays(1).atTime(10, 0), "Follow-up");
+                LocalDate.now().plusDays(1).atTime(16, 30), "Follow-up");
 
         mockMvc.perform(post("/api/appointments")
                         .header("Authorization", "Bearer " + adminToken)
@@ -145,6 +151,29 @@ class AppointmentApiIntegrationTest {
 
         JsonNode bodyNode = objectMapper.readTree(conflictResponse);
         assertThat(bodyNode.path("data").path("alternativeSlots").isEmpty()).isFalse();
+    }
+
+    @Test
+    void createAppointment_outsideClinicGrid_returns400() throws Exception {
+        // 10:00 is before the clinic opens (16:00) — booking must land on the grid
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(appointmentJson(doctor.getUserId(), patient.getPatientId(),
+                                LocalDate.now().plusDays(1).atTime(10, 0), "Off-grid attempt")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value(org.hamcrest.Matchers.containsString("clinic slot")));
+
+        // off-grid minutes inside operating hours are rejected as well
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(appointmentJson(doctor.getUserId(), patient.getPatientId(),
+                                LocalDate.now().plusDays(1).atTime(16, 15), "Off-grid attempt")))
+                .andExpect(status().isBadRequest());
+
+        assertThat(appointmentRepository.count()).isZero();
     }
 
     @Test
@@ -640,6 +669,7 @@ class AppointmentApiIntegrationTest {
                         .param("date", futureDate.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(10))
                 .andExpect(jsonPath("$.data[0]").value("16:00"))
                 .andExpect(jsonPath("$.data[9]").value("20:30"));
     }

@@ -1,16 +1,26 @@
+
 package com.onecare.backend.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.onecare.backend.chatbot.ChatMessages;
+import com.onecare.backend.chatbot.exception.InvalidInputException;
+import com.onecare.backend.chatbot.exception.RateLimitExceededException;
 import com.onecare.backend.dto.ApiResponse;
+
 import io.swagger.v3.oas.annotations.Hidden;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,12 +35,15 @@ import java.util.Map;
 @Hidden
 public class GlobalExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiResponse<?>> handleNotFound(ResourceNotFoundException exception) {
+    public ResponseEntity<ApiResponse<?>> handleNotFound(
+            ResourceNotFoundException exception) {
 
-        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
@@ -44,13 +57,13 @@ public class GlobalExceptionHandler {
                 .stream()
                 .map(error -> {
                     Map<String, String> fieldError = new HashMap<>();
+
                     fieldError.put("field", error.getField());
-                    fieldError.put(
-                            "message",
-                            error.getDefaultMessage()
-                    );
+                    fieldError.put("message", error.getDefaultMessage());
+
                     return fieldError;
-                }).toList();
+                })
+                .toList();
 
         return ResponseEntity.badRequest()
                 .body(new ApiResponse<>(
@@ -58,53 +71,79 @@ public class GlobalExceptionHandler {
                         "Request validation failed",
                         errors
                 ));
-
     }
 
     @ExceptionHandler(InvalidResetTokenException.class)
-    public ResponseEntity<ApiResponse<?>> handleInvalidResetToken(InvalidResetTokenException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+    public ResponseEntity<ApiResponse<?>> handleInvalidResetToken(
+            InvalidResetTokenException exception) {
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(EmailSendException.class)
-    public ResponseEntity<ApiResponse<?>> handleEmailSendFailure(EmailSendException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false,
-                "Unable to send email at this time. Please try again later.");
+    public ResponseEntity<ApiResponse<?>> handleEmailSendFailure(
+            EmailSendException exception) {
 
-        return new ResponseEntity<>(response, HttpStatus.SERVICE_UNAVAILABLE);
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
+                "Unable to send email at this time. Please try again later."
+        );
+
+        return new ResponseEntity<>(
+                response,
+                HttpStatus.SERVICE_UNAVAILABLE
+        );
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponse<?>> handleBadCredentials(BadCredentialsException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false, "Invalid username or password");
+    public ResponseEntity<ApiResponse<?>> handleBadCredentials(
+            BadCredentialsException exception) {
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, "Invalid username or password");
 
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(AccountLockedException.class)
-    public ResponseEntity<ApiResponse<?>> handleAccountLocked(AccountLockedException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+    public ResponseEntity<ApiResponse<?>> handleAccountLocked(
+            AccountLockedException exception) {
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.LOCKED);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false, "Access denied: insufficient permissions");
+    public ResponseEntity<ApiResponse<?>> handleAccessDenied(
+            AccessDeniedException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
+                "Access denied: insufficient permissions"
+        );
 
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(InvalidAppointmentStatusException.class)
-    public ResponseEntity<ApiResponse<?>> handleInvalidAppointmentStatus(InvalidAppointmentStatusException exception) {
-        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+    public ResponseEntity<ApiResponse<?>> handleInvalidAppointmentStatus(
+            InvalidAppointmentStatusException exception) {
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
+
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(SlotConflictException.class)
-    public ResponseEntity<ApiResponse<?>> handleSlotConflict(SlotConflictException exception) {
+    public ResponseEntity<ApiResponse<?>> handleSlotConflict(
+            SlotConflictException exception) {
+
         ApiResponse<?> response = new ApiResponse<>(
                 false,
                 exception.getMessage(),
@@ -115,78 +154,148 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
+    /** Overlapping doctor-schedule slots (UC4 alt flow): 400, conflicting ranges in data. */
+    @ExceptionHandler(com.onecare.backend.exception.TimeSlotConflictException.class)
+    public ResponseEntity<ApiResponse<?>> handleTimeSlotConflict(
+            com.onecare.backend.exception.TimeSlotConflictException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage(), exception.getConflictingSlots());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
 
-        log.error("Unhandled exception handling request", ex);
+    /** BR004-BR006 violation on a permission change: 422, nothing persisted (AC5). */
+    @ExceptionHandler(com.onecare.backend.exception.PermissionRuleViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handlePermissionRuleViolation(
+            com.onecare.backend.exception.PermissionRuleViolationException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
 
-        ApiResponse<?> response = new ApiResponse<>(false, "Internal Server Error");
+    /** Restore without confirm=true (UC5, AC4): 400, no data touched. */
+    @ExceptionHandler(com.onecare.backend.exception.RestoreConfirmationRequiredException.class)
+    public ResponseEntity<ApiResponse<?>> handleRestoreConfirmationRequired(
+            com.onecare.backend.exception.RestoreConfirmationRequiredException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
 
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<?>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception) {
+        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     @ExceptionHandler(InvalidStockException.class)
-public ResponseEntity<ApiResponse<?>> handleInvalidStock(
-        InvalidStockException exception
-) {
+    public ResponseEntity<ApiResponse<?>> handleInvalidStock(
+            InvalidStockException exception) {
 
-    ApiResponse<?> response =
-            new ApiResponse<>(false, exception.getMessage());
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
 
-    return new ResponseEntity<>(
-            response,
-            HttpStatus.BAD_REQUEST
-    );
-}
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
 
-        @ExceptionHandler(DuplicateUserException.class)
-    public ResponseEntity<ApiResponse<?>> handleDuplicateUser(DuplicateUserException exception) {
+    @ExceptionHandler(DuplicateUserException.class)
+    public ResponseEntity<ApiResponse<?>> handleDuplicateUser(
+            DuplicateUserException exception) {
 
-        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(StockShortfallException.class)
+    public ResponseEntity<ApiResponse<?>> handleStockShortfall(StockShortfallException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(false, exception.getMessage(), exception.getPreview()));
+    }
+
+    @ExceptionHandler({org.springframework.dao.PessimisticLockingFailureException.class,
+            jakarta.persistence.LockTimeoutException.class, jakarta.persistence.PessimisticLockException.class})
+    public ResponseEntity<ApiResponse<?>> handleDispensingLock(Exception exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(false, "Concurrent update. Please refresh and retry."));
     }
 
     @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ApiResponse<?>> handleConflict(ConflictException exception) {
+    public ResponseEntity<ApiResponse<?>> handleConflict(
+            ConflictException exception) {
 
-        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
-    /**
-     * Optimistic-locking conflict (api-standards 942): another request modified
-     * the same invoice between our read and our write - for billing this is how
-     * two concurrent payments are stopped instead of overpaying the invoice.
-     */
     @ExceptionHandler(OptimisticLockingFailureException.class)
-    public ResponseEntity<ApiResponse<?>> handleOptimisticLock(OptimisticLockingFailureException exception) {
+    public ResponseEntity<ApiResponse<?>> handleOptimisticLock(
+            OptimisticLockingFailureException exception) {
 
-        ApiResponse<?> response = new ApiResponse<>(false,
-                "The record was modified by another request. Please retry.");
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
+                "The record was modified by another request. Please retry."
+        );
 
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(BusinessRuleException.class)
-    public ResponseEntity<ApiResponse<?>> handleBusinessRule(BusinessRuleException exception) {
+    public ResponseEntity<ApiResponse<?>> handleBusinessRule(
+            BusinessRuleException exception) {
 
-        ApiResponse<?> response = new ApiResponse<>(false, exception.getMessage());
+        ApiResponse<?> response =
+                new ApiResponse<>(false, exception.getMessage());
 
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiResponse<?>> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
+    public ResponseEntity<ApiResponse<?>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException exception) {
 
-        ApiResponse<?> response = new ApiResponse<>(false,
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
                 "Invalid value '" + exception.getValue()
-                        + "' for parameter '" + exception.getName() + "'");
+                        + "' for parameter '" + exception.getName() + "'"
+        );
 
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    
+    @ExceptionHandler(InvalidInputException.class)
+    public ResponseEntity<ApiResponse<?>> handleInvalidInput(
+            InvalidInputException ex) {
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, ex.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(response);
+    }
+
+    
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<?>> handleRateLimit(
+            RateLimitExceededException ex) {
+
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
+                ChatMessages.RATE_LIMITED
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(
+                        HttpHeaders.RETRY_AFTER,
+                        String.valueOf(ex.getRetryAfterSeconds())
+                )
+                .body(response);
+    }
+
+    
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<?>> handleUnreadableBody(
             HttpMessageNotReadableException ex) {
@@ -207,13 +316,50 @@ public ResponseEntity<ApiResponse<?>> handleInvalidStock(
                     + "' for field '" + field
                     + "'. Allowed values: "
                     + Arrays.toString(
-                            ife.getTargetType().getEnumConstants());
+                            ife.getTargetType().getEnumConstants()
+                    );
         }
 
-        return new ResponseEntity<>(
-                new ApiResponse<>(false, message),
-                HttpStatus.BAD_REQUEST);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(false, message));
+
     }
 
+    
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<?>> handleMediaType(
+            HttpMediaTypeNotSupportedException ex) {
 
+        String message =
+                "Unsupported Content-Type. Use the content type required by this endpoint.";
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, message);
+
+        return ResponseEntity
+                .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(response);
+    }
+
+   
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<?>> handleUploadTooLarge(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(new ApiResponse<>(false, "The uploaded file exceeds the allowed size."));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
+
+        log.error("Unhandled exception handling request", ex);
+
+        ApiResponse<?> response =
+                new ApiResponse<>(false, "Internal Server Error");
+
+        return new ResponseEntity<>(
+                response,
+                HttpStatus.INTERNAL_SERVER_ERROR
+        );
+    }
 }

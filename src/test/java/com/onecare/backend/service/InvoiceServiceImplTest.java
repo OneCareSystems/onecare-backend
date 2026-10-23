@@ -90,6 +90,8 @@ class InvoiceServiceImplTest {
     private PatientRepository patientRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private SystemSettingService systemSettingService;
 
     private InvoiceServiceImpl service;
     private User admin;
@@ -99,7 +101,9 @@ class InvoiceServiceImplTest {
     void setUp() {
         service = new InvoiceServiceImpl(invoiceRepository, appointmentRepository,
                 prescriptionRepository, externalDispensingRepository, patientRepository,
-                userRepository, CONSULTATION_FEE);
+                userRepository, systemSettingService);
+
+        when(systemSettingService.getConsultationFee()).thenReturn(CONSULTATION_FEE);
 
         admin = user(1L, "admin", Role.ADMIN);
         patient = patient(PATIENT_ID);
@@ -160,6 +164,26 @@ class InvoiceServiceImplTest {
         assertThat(response.total()).isEqualByComparingTo("560.27");
         assertThat(response.total().scale()).isEqualTo(2);
         assertThat(response.payments()).isEmpty();
+    }
+
+    @Test
+    void generateInvoice_usesUpdatedConsultationFeeFromSystemSettings() {
+        // the Super Admin changed the fee after startup: invoices must pick it up
+        when(systemSettingService.getConsultationFee()).thenReturn(new BigDecimal("750.50"));
+
+        Appointment appointment = stubCompletedAppointment();
+        stubDispensedPrescription(appointment);
+        stubNoDispensingEvents();
+        stubSave();
+
+        InvoiceResponse response = service.generateInvoice(
+                new GenerateInvoiceRequest(APPOINTMENT_ID, null));
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).description()).isEqualTo("Consultation charge");
+        assertThat(response.items().get(0).unitPrice()).isEqualByComparingTo("750.50");
+        assertThat(response.items().get(0).lineTotal()).isEqualByComparingTo("750.50");
+        assertThat(response.total()).isEqualByComparingTo("750.50");
     }
 
     @Test
@@ -254,6 +278,42 @@ class InvoiceServiceImplTest {
         assertThat(response.items()).hasSize(2);
         assertThat(response.items().get(1).quantity()).isEqualTo(3);
         assertThat(response.items().get(1).lineTotal()).isEqualByComparingTo("30.00");
+        assertThat(response.total()).isEqualByComparingTo("530.00");
+    }
+
+    @Test
+    void generateInvoice_clinicPartialUsesFulfilledQuantityAndFrozenPrice() {
+        Appointment appointment = stubCompletedAppointment();
+        Medicine medicine = medicine(1L, "Amoxicillin", "99.00");
+        PrescriptionItem prescribed = item(100L, medicine, 10);
+        prescribed.setQuantityDispensed(3);
+        prescribed.setUnitPrice(new BigDecimal("10.00"));
+        Prescription prescription = stubDispensedPrescription(appointment, prescribed);
+        prescription.setStatus(PrescriptionStatus.PARTIALLY_DISPENSED);
+        stubNoDispensingEvents();
+        stubSave();
+        InvoiceResponse response = service.generateInvoice(new GenerateInvoiceRequest(APPOINTMENT_ID, null));
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items().get(1).quantity()).isEqualTo(3);
+        assertThat(response.items().get(1).lineTotal()).isEqualByComparingTo("30.00");
+    }
+
+    @Test
+    void generateInvoice_clinicPartialDoesNotBillUnfulfilledLines() {
+        Appointment appointment = stubCompletedAppointment();
+        Medicine medicine = medicine(1L, "Amoxicillin", "10.00");
+        PrescriptionItem fulfilled = item(100L, medicine, 10);
+        fulfilled.setQuantityDispensed(3);
+        fulfilled.setUnitPrice(new BigDecimal("10.00"));
+        PrescriptionItem unfulfilled = item(101L, medicine(2L, "Other", "20.00"), 5);
+        Prescription prescription = stubDispensedPrescription(appointment, fulfilled, unfulfilled);
+        prescription.setStatus(PrescriptionStatus.PARTIALLY_DISPENSED);
+        prescription.setDispenseRevision(1);
+        stubNoDispensingEvents();
+        stubSave();
+        InvoiceResponse response = service.generateInvoice(new GenerateInvoiceRequest(APPOINTMENT_ID, null));
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.items().get(1).quantity()).isEqualTo(3);
         assertThat(response.total()).isEqualByComparingTo("530.00");
     }
 

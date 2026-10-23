@@ -1,10 +1,13 @@
 package com.onecare.backend.integration;
 
 import com.onecare.backend.entity.User;
+import com.onecare.backend.entity.PasswordResetToken;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.EmailSendException;
+import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +18,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -44,14 +49,22 @@ class PasswordResetApiIntegrationTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private AppointmentRepository appointmentRepository;
 
     @MockitoBean
     private EmailService emailService;
 
     @BeforeEach
     void setUp() {
+        appointmentRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
+        // committed audit rows (own transaction) would block user deletion via FK
+        auditLogRepository.deleteAll();
         userRepository.deleteAll();
 
         User user = new User();
@@ -62,6 +75,21 @@ class PasswordResetApiIntegrationTest {
         user.setIsActive(true);
         user.setFailedAttempts(0);
         userRepository.save(user);
+    }
+
+    @Test
+    void deletingUser_cascadesToPasswordResetTokens() {
+        User user = userRepository.findByEmail(KNOWN_EMAIL).orElseThrow();
+        PasswordResetToken token = new PasswordResetToken();
+        token.setUser(user);
+        token.setTokenHash("a".repeat(64));
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+        passwordResetTokenRepository.saveAndFlush(token);
+
+        userRepository.delete(user);
+        userRepository.flush();
+
+        assertThat(passwordResetTokenRepository.findByTokenHash("a".repeat(64))).isEmpty();
     }
 
     @Test

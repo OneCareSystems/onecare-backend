@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import com.onecare.backend.enums.Gender;
+import com.onecare.backend.util.PhoneNumberUtil;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -52,12 +53,15 @@ public class Patient {
 
     @PrePersist
     protected void onCreate() {
+    contactNo = PhoneNumberUtil.canonicalPhone(contactNo);
     createdAt = LocalDateTime.now();
     updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
     protected void onUpdate() {
+    // Also migrates a legacy spaced row to the canonical format on its first update.
+    contactNo = PhoneNumberUtil.canonicalPhone(contactNo);
     updatedAt = LocalDateTime.now();
     }
 

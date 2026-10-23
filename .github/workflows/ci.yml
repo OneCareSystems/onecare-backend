@@ -317,6 +317,17 @@ jobs:
           PASSWORD_RESET_FRONTEND_BASE_URL: ${{ secrets.FRONTEND_BASE_URL }}
           PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES: 15
           BILLING_CONSULTATION_FEE: 500.00
+          BILLING_CONSULTATION-FEE: 500.00
+          CHATBOT_BASE_URL: http://localhost:8000
+          CHATBOT_SERVICE_TOKEN: ci-test-chatbot-token
+          CHATBOT_CONNECT_TIMEOUT: 5s
+          CHATBOT_READ_TIMEOUT: 60s
+          CHATBOT_MAX_QUERY_CHARS: 500
+          CHATBOT_MAX_BODY_BYTES: 8192
+          CHATBOT_RATE_LIMIT_PER_MINUTE: 20
+          CHATBOT_MAX_TRACKED_CLIENTS: 10000
+          CHATBOT_TRUSTED_PROXIES: ""
+          CHATBOT_URL_ALLOWLIST: ""
 
       - name: Upload test reports
         if: always()

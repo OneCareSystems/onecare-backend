@@ -7,6 +7,7 @@ import com.onecare.backend.enums.Gender;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.exception.SlotConflictException;
 import com.onecare.backend.repository.AppointmentRepository;
+import com.onecare.backend.repository.AuditLogRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
@@ -51,11 +52,16 @@ class AppointmentConcurrencyIntegrationTest {
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+
     @BeforeEach
     void setUp() {
         appointmentRepository.deleteAll();
         patientRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
+        // committed audit rows (own transaction) would block user deletion via FK
+        auditLogRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -73,7 +79,7 @@ class AppointmentConcurrencyIntegrationTest {
         patient.setIsActive(true);
         patient = patientRepository.save(patient);
 
-        LocalDateTime slot = LocalDateTime.now().plusDays(1).withHour(10).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime slot = LocalDateTime.now().plusDays(1).withHour(16).withMinute(30).withSecond(0).withNano(0);
         CreateAppointmentRequest request = new CreateAppointmentRequest(doctor.getUserId(), patient.getPatientId(), slot, "checkup");
 
         ExecutorService executor = Executors.newFixedThreadPool(2);

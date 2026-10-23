@@ -5,6 +5,7 @@ import com.onecare.backend.entity.User;
 import com.onecare.backend.exception.InvalidResetTokenException;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.security.ClientIpResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +34,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
     private final int tokenExpirationMinutes;
 
     public PasswordResetServiceImpl(
@@ -40,11 +42,13 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             UserRepository userRepository,
             EmailService emailService,
             PasswordEncoder passwordEncoder,
+            AuditService auditService,
             @Value("${password-reset.token-expiration-minutes}") int tokenExpirationMinutes) {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
         this.tokenExpirationMinutes = tokenExpirationMinutes;
     }
 
@@ -62,32 +66,55 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         String tokenHash = hashToken(rawToken);
 
         PasswordResetToken token = passwordResetTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(PasswordResetServiceImpl::invalidToken);
+                .orElse(null);
+        User tokenOwner = token != null ? token.getUser() : null;
 
-        if (token.isUsed()) {
-            log.warn("Password reset rejected | userId={} | reason=TOKEN_USED",
-                    token.getUser().getUserId());
-            throw invalidToken();
+        try {
+            if (token == null) {
+                throw invalidToken();
+            }
+            if (token.isUsed()) {
+                log.warn("Password reset rejected | userId={} | reason=TOKEN_USED",
+                        token.getUser().getUserId());
+                throw invalidToken();
+            }
+            if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
+                log.warn("Password reset rejected | userId={} | reason=TOKEN_EXPIRED",
+                        token.getUser().getUserId());
+                throw invalidToken();
+            }
+
+            User user = token.getUser();
+            user.setPasswordHash(passwordEncoder.encode(newPassword));
+            user.setFailedAttempts(0);
+            user.setLockedUntil(null);
+            user.setPasswordChangeRequired(false);
+
+            token.setUsed(true);
+            token.setUsedAt(LocalDateTime.now());
+
+            userRepository.save(user);
+            passwordResetTokenRepository.save(token);
+
+            log.info("Password reset completed | userId={}", user.getUserId());
+
+            auditService.record(
+                    user,
+                    "PASSWORD_RESET",
+                    "AUTH",
+                    String.valueOf(user.getUserId()),
+                    "Password reset completed",
+                    ClientIpResolver.resolveCurrentRequest());
+        } catch (InvalidResetTokenException ex) {
+            auditService.record(
+                    tokenOwner,
+                    "PASSWORD_RESET_FAILED",
+                    "AUTH",
+                    tokenOwner != null ? String.valueOf(tokenOwner.getUserId()) : null,
+                    "Password reset rejected: invalid, expired or already used token",
+                    ClientIpResolver.resolveCurrentRequest());
+            throw ex;
         }
-        if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            log.warn("Password reset rejected | userId={} | reason=TOKEN_EXPIRED",
-                    token.getUser().getUserId());
-            throw invalidToken();
-        }
-
-        User user = token.getUser();
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
-        user.setFailedAttempts(0);
-        user.setLockedUntil(null);
-        user.setPasswordChangeRequired(false);
-
-        token.setUsed(true);
-        token.setUsedAt(LocalDateTime.now());
-
-        userRepository.save(user);
-        passwordResetTokenRepository.save(token);
-
-        log.info("Password reset completed | userId={}", user.getUserId());
     }
 
     @Override

@@ -12,10 +12,9 @@ import java.time.LocalDate;
 /**
  * Billing / invoice domain actions (DDP-23, FR035-FR038).
  *
- * Every mutating call runs in one transaction and emits exactly one audit
- * record through the logger (DDP-25 will replace it with the persisted audit
- * event) - the domain never writes a repository save of its own outside this
- * service.
+ * Every mutating call runs in one transaction and emits exactly one persisted
+ * audit record through the single AuditService (FR041) - the domain never
+ * writes an auditLogRepository save of its own outside that service.
  */
 public interface InvoiceService {
 

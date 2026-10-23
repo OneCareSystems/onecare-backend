@@ -28,7 +28,13 @@ import static org.mockito.Mockito.*;
 class MedicineServiceImplTest {
 
     @Mock
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Mock
     private MedicineRepository medicineRepository;
+
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private MedicineServiceImpl medicineService;
@@ -37,6 +43,7 @@ class MedicineServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(medicineService, "entityManager", entityManager);
 
         medicine = new Medicine();
 

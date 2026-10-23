@@ -29,6 +29,10 @@ public class TestRedisConfiguration {
 
     private final Map<String, ExpirableEntry> inMemoryStore = new ConcurrentHashMap<>();
 
+    public void clearInMemoryStore() {
+        inMemoryStore.clear();
+    }
+
     @Bean
     @Primary
     public RedisConnectionFactory redisConnectionFactory() {

@@ -17,6 +17,12 @@ import java.io.IOException;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return "POST".equals(request.getMethod())
+                && (request.getContextPath() + "/api/chatbot/query").equals(request.getRequestURI());
+    }
+
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
     private final TokenBlacklistService tokenBlacklistService;

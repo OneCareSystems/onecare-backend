@@ -12,6 +12,10 @@ DROP TABLE IF EXISTS appointments;
 DROP TABLE IF EXISTS medicines;
 DROP TABLE IF EXISTS patients;
 DROP TABLE IF EXISTS password_reset_tokens;
+DROP TABLE IF EXISTS backup_metadata;
+DROP TABLE IF EXISTS system_settings;
+DROP TABLE IF EXISTS doctor_schedules;
+DROP TABLE IF EXISTS role_permissions;
 DROP TABLE IF EXISTS users;
 
 -- CREATE ORDER: parents first, children last
@@ -48,7 +52,7 @@ CREATE TABLE password_reset_tokens (
 
     CONSTRAINT pk_password_reset_tokens PRIMARY KEY (id),
     CONSTRAINT uq_prt_token_hash        UNIQUE (token_hash),
-    CONSTRAINT fk_prt_user              FOREIGN KEY (user_id) REFERENCES users(user_id)
+    CONSTRAINT fk_prt_user              FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 -- 2. patients
@@ -61,11 +65,13 @@ CREATE TABLE patients (
     email         VARCHAR(100) NULL,
     blood_group   VARCHAR(10)  NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    gender        ENUM('MALE','FEMALE') NOT NULL,
+    gender        ENUM('MALE','FEMALE','OTHER') NOT NULL,
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    CONSTRAINT pk_patients PRIMARY KEY (patient_id)
+    CONSTRAINT pk_patients PRIMARY KEY (patient_id),
+    CONSTRAINT chk_patient_contact_no
+        CHECK (contact_no REGEXP '^[+]947[0-9]{8}$')
 );
 
 -- 3. medicines
@@ -114,7 +120,9 @@ CREATE TABLE prescriptions (
     doctor_id       BIGINT   NOT NULL,
     patient_id      BIGINT   NOT NULL,
     date            DATE     NOT NULL,
-    status          ENUM('ISSUED','DISPENSED','CANCELLED') NOT NULL DEFAULT 'ISSUED',
+    clinical_notes  VARCHAR(2000) NULL,
+    dispense_revision BIGINT NOT NULL DEFAULT 0,
+    status          ENUM('ISSUED','PARTIALLY_DISPENSED','DISPENSED','DISPENSED_EXTERNAL','CANCELLED') NOT NULL DEFAULT 'ISSUED',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -135,6 +143,8 @@ CREATE TABLE prescription_items (
     duration_days   INT          NOT NULL,
     instruction     VARCHAR(255) NULL,
     quantity        INT          NOT NULL,
+    quantity_dispensed INT       NOT NULL DEFAULT 0,
+    unit_price      DECIMAL(10,2) NULL,
     frequency       VARCHAR(100) NOT NULL,
 
     CONSTRAINT pk_prescription_items PRIMARY KEY (item_id),
@@ -244,9 +254,10 @@ CREATE TABLE payments (
 );
 
 -- 9. audit_log (needs: users) — LAST
+-- user_id is nullable: failed logins with an unknown username are still audited
 CREATE TABLE audit_log (
     log_id      BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id     BIGINT       NOT NULL,
+    user_id     BIGINT       NULL,
     action      VARCHAR(100) NOT NULL,
     timestamp   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ip_address  VARCHAR(45)  NULL,
@@ -263,3 +274,50 @@ ALTER TABLE external_dispensing
     ADD CONSTRAINT fk_ext_disp_audit_log
     FOREIGN KEY (audit_log_id)
     REFERENCES audit_log(log_id);
+
+-- 10. role_permissions (FR003, UC3) — configurable role permission sets
+CREATE TABLE role_permissions (
+    id         BIGINT       NOT NULL AUTO_INCREMENT,
+    role       ENUM('SUPER_ADMIN','ADMIN','DOCTOR','PHARMACIST') NOT NULL,
+    permission VARCHAR(100) NOT NULL,
+
+    CONSTRAINT pk_role_permissions    PRIMARY KEY (id),
+    CONSTRAINT uq_role_permission     UNIQUE (role, permission)
+);
+
+-- 11. doctor_schedules (FR009, UC4) — needs: users
+CREATE TABLE doctor_schedules (
+    schedule_id BIGINT NOT NULL AUTO_INCREMENT,
+    doctor_id   BIGINT NOT NULL,
+    day_of_week ENUM('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY') NOT NULL,
+    start_time  TIME   NULL,
+    end_time    TIME   NULL,
+    available   BOOLEAN NOT NULL DEFAULT TRUE,
+
+    CONSTRAINT pk_doctor_schedules  PRIMARY KEY (schedule_id),
+    CONSTRAINT uq_doctor_schedule   UNIQUE (doctor_id, day_of_week, start_time, end_time),
+    CONSTRAINT fk_schedule_doctor   FOREIGN KEY (doctor_id) REFERENCES users(user_id)
+);
+
+-- 12. backup_metadata (FR010, UC5) — encrypted payload lives on disk
+CREATE TABLE backup_metadata (
+    backup_id  BIGINT       NOT NULL AUTO_INCREMENT,
+    created_at DATETIME     NOT NULL,
+    filename   VARCHAR(255) NOT NULL,
+    size_bytes BIGINT       NOT NULL,
+    checksum   VARCHAR(64)  NOT NULL,
+    created_by BIGINT       NULL,
+
+    CONSTRAINT pk_backup_metadata PRIMARY KEY (backup_id),
+    CONSTRAINT uq_backup_filename  UNIQUE (filename)
+);
+
+-- 13. system_settings — runtime-configurable key/value settings (Super Admin)
+CREATE TABLE system_settings (
+    setting_key   VARCHAR(100) NOT NULL,
+    setting_value VARCHAR(255) NOT NULL,
+    description   VARCHAR(255) NULL,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT pk_system_settings PRIMARY KEY (setting_key)
+);

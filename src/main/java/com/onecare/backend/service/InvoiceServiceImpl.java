@@ -1,5 +1,6 @@
 package com.onecare.backend.service;
 
+import com.onecare.backend.audit.Audited;
 import com.onecare.backend.dto.request.GenerateInvoiceRequest;
 import com.onecare.backend.dto.request.RecordPaymentRequest;
 import com.onecare.backend.dto.request.UpdateInvoiceLineRequest;
@@ -29,7 +30,6 @@ import com.onecare.backend.repository.*;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -74,7 +74,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final ExternalDispensingRepository externalDispensingRepository;
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
-    private final BigDecimal consultationFee;
+    private final SystemSettingService systemSettingService;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                               AppointmentRepository appointmentRepository,
@@ -82,14 +82,14 @@ public class InvoiceServiceImpl implements InvoiceService {
                               ExternalDispensingRepository externalDispensingRepository,
                               PatientRepository patientRepository,
                               UserRepository userRepository,
-                              @Value("${billing.consultation-fee:500.00}") BigDecimal consultationFee) {
+                              SystemSettingService systemSettingService) {
         this.invoiceRepository = invoiceRepository;
         this.appointmentRepository = appointmentRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.externalDispensingRepository = externalDispensingRepository;
         this.patientRepository = patientRepository;
         this.userRepository = userRepository;
-        this.consultationFee = consultationFee;
+        this.systemSettingService = systemSettingService;
     }
 
     // ------------------------------------------------------------------
@@ -97,6 +97,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     // ------------------------------------------------------------------
 
     @Override
+    @Audited(action = "INVOICE_GENERATE", module = "INVOICE")
     public InvoiceResponse generateInvoice(GenerateInvoiceRequest request) {
 
         boolean hasAppointment = request != null && request.appointmentId() != null;
@@ -164,7 +165,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                 saved.getInvoiceId(), saved.getInvoiceNumber(),
                 appointment.getPatient().getPatientId(), appointment.getAppointmentId(),
                 saved.getTotal(), saved.getItems().size(), billedBy.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }
@@ -232,7 +232,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                 saved.getInvoiceId(), saved.getInvoiceNumber(), event.getDispenseId(),
                 invoice.getPatient() != null ? invoice.getPatient().getPatientId() : null,
                 saved.getTotal(), saved.getItems().size(), billedBy.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }
@@ -378,6 +377,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     // ------------------------------------------------------------------
 
     @Override
+    @Audited(action = "INVOICE_LINES_UPDATE", module = "INVOICE")
     public InvoiceResponse updateInvoiceLines(Long id, UpdateInvoiceRequest request) {
 
         User editor = resolveAuthenticatedUser();
@@ -457,7 +457,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                         + "| lines={} | performedBy={}",
                 saved.getInvoiceId(), saved.getInvoiceNumber(), saved.getTotal(),
                 saved.getItems().size(), editor.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }
@@ -467,6 +466,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     // ------------------------------------------------------------------
 
     @Override
+    @Audited(action = "PAYMENT_RECORD", module = "INVOICE")
     public InvoiceResponse recordPayment(Long id, RecordPaymentRequest request) {
 
         User cashier = resolveAuthenticatedUser();
@@ -527,7 +527,6 @@ public class InvoiceServiceImpl implements InvoiceService {
                 saved.getInvoiceId(), saved.getInvoiceNumber(), payment.getAmount(),
                 saved.getAmountPaid(), saved.getOutstandingBalance(), saved.getStatus(),
                 cashier.getUsername());
-        // TODO(DDP-25): replace with persisted audit event, same transaction
 
         return InvoiceResponse.from(saved);
     }
@@ -548,13 +547,15 @@ public class InvoiceServiceImpl implements InvoiceService {
     private List<InvoiceItem> buildLines(Invoice invoice, Prescription prescription) {
 
         List<InvoiceItem> lines = new ArrayList<>();
-        lines.add(newLine(invoice, null, CONSULTATION_DESCRIPTION, 1, consultationFee));
+        lines.add(newLine(invoice, null, CONSULTATION_DESCRIPTION, 1,
+                systemSettingService.getConsultationFee()));
 
         if (prescription == null) {
             return lines; // consultation only: nothing was prescribed
         }
 
-        if (prescription.getStatus() != PrescriptionStatus.DISPENSED) {
+        if (prescription.getStatus() != PrescriptionStatus.DISPENSED
+                && prescription.getStatus() != PrescriptionStatus.PARTIALLY_DISPENSED) {
             log.info("Consultation invoice without medicine lines | prescriptionId={} "
                             + "| status={} | reason=NOT_COLLECTED_YET",
                     prescription.getPrescriptionId(), prescription.getStatus());
@@ -578,7 +579,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
 
             lines.add(newLine(invoice, item.getMedicine(), item.getMedicine().getName(),
-                    billable, item.getMedicine().getPrice()));
+                    billable, item.getUnitPrice() != null ? item.getUnitPrice() : item.getMedicine().getPrice()));
         }
 
         return lines;
@@ -604,7 +605,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         int prescribed = item.getQuantity() == null ? 0 : item.getQuantity();
 
-        Integer dispensed = totals.dispensed().get(item.getItemId());
+        Integer dispensed = item.getUnitPrice() != null || item.getPrescription().getDispenseRevision() > 0
+                ? Integer.valueOf(item.getQuantityDispensed())
+                : totals.dispensed().get(item.getItemId());
         int base = dispensed == null ? prescribed : Math.min(dispensed, prescribed);
 
         int alreadyInvoiced = totals.alreadyInvoiced().getOrDefault(item.getItemId(), 0);
