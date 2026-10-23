@@ -40,6 +40,12 @@ public class PrescriptionItem{
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 
+    @Column(name = "quantity_dispensed", nullable = false, columnDefinition = "INT DEFAULT 0")
+    private int quantityDispensed = 0;
+
+    @Column(name = "unit_price", precision = 10, scale = 2)
+    private java.math.BigDecimal unitPrice;
+
     @Column(name = "frequency", nullable = false, length = 100)
     private String frequency;
 
