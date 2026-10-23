@@ -13,7 +13,6 @@ import com.onecare.backend.enums.Status;
 import com.onecare.backend.exception.BusinessRuleException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.*;
-import com.onecare.backend.security.ClientIpResolver;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

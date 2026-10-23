@@ -2,8 +2,6 @@ package com.onecare.backend.chatbot.query;
 
 import java.util.List;
 
-import com.onecare.backend.chatbot.query.ChatBackendResult.Source;
-
 /**
  * API-01: validate, forward to Django, answer. Plain class (registered as a bean in ChatApiConfig).
  * A patient never gets an error because the chatbot is down: they get the localised "temporarily unavailable"
