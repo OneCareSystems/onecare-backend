@@ -42,4 +42,19 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
             OR CAST(m.medicineId AS string) = :search
             """)
     List<Medicine> search(@Param("search") String search);
+
+    /**
+     * Report query (FR040, AC4): straight projection of the expiry_date /
+     * is_quarantined data DDP-21 maintains - quarantined rows are included so
+     * the report reflects the flag rather than filtering it away. No separate
+     * expiry logic runs here.
+     */
+    @Query("""
+            SELECT m
+            FROM Medicine m
+            WHERE m.expiryDate BETWEEN :from AND :to
+            ORDER BY m.expiryDate ASC
+            """)
+    List<Medicine> findExpiringBetween(@Param("from") LocalDate from,
+                                       @Param("to") LocalDate to);
 }
