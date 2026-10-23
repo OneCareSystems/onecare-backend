@@ -356,7 +356,7 @@ class AuthServiceImplTest {
         String token = "valid-access-token";
         when(jwtService.extractType(token)).thenReturn("access");
 
-        authService.logout(token);
+        authService.logout(token, null);
 
         verify(jwtService).extractType(token);
         verify(tokenBlacklistService).blacklistToken(token);
@@ -367,8 +367,75 @@ class AuthServiceImplTest {
         String token = "refresh-token";
         when(jwtService.extractType(token)).thenReturn("refresh");
 
-        assertThrows(BadCredentialsException.class, () -> authService.logout(token));
+        assertThrows(BadCredentialsException.class, () -> authService.logout(token, null));
         verify(tokenBlacklistService, never()).blacklistToken(anyString());
+    }
+
+    @Test
+    void logoutShouldBlacklistRefreshTokenWhenSupplied() {
+        String accessToken = "valid-access-token";
+        String refreshToken = "valid-refresh-token";
+        when(jwtService.extractType(accessToken)).thenReturn("access");
+        when(jwtService.extractType(refreshToken)).thenReturn("refresh");
+
+        authService.logout(accessToken, refreshToken);
+
+        verify(tokenBlacklistService).blacklistToken(accessToken);
+        verify(tokenBlacklistService).blacklistToken(refreshToken);
+    }
+
+    @Test
+    void logoutShouldStillBlacklistAccessTokenWhenRefreshTokenIsExpired() {
+        // jjwt rejects an expired token at parse time, so extractType itself
+        // throws. That must not fail the whole logout: the expired token is
+        // unusable anyway, but the (still valid) access token must be revoked.
+        String accessToken = "valid-access-token";
+        String expiredRefreshToken = "expired-refresh-token";
+        when(jwtService.extractType(accessToken)).thenReturn("access");
+        when(jwtService.extractType(expiredRefreshToken))
+                .thenThrow(new io.jsonwebtoken.ExpiredJwtException(null, null, "expired"));
+
+        authService.logout(accessToken, expiredRefreshToken);
+
+        verify(tokenBlacklistService).blacklistToken(accessToken);
+        verify(tokenBlacklistService, never()).blacklistToken(expiredRefreshToken);
+    }
+
+    @Test
+    void logoutShouldNotBlacklistRefreshTokenWithWrongType() {
+        String accessToken = "valid-access-token";
+        String notARefreshToken = "another-access-token";
+        when(jwtService.extractType(accessToken)).thenReturn("access");
+        when(jwtService.extractType(notARefreshToken)).thenReturn("access");
+
+        authService.logout(accessToken, notARefreshToken);
+
+        verify(tokenBlacklistService).blacklistToken(accessToken);
+        verify(tokenBlacklistService, never()).blacklistToken(notARefreshToken);
+    }
+
+    @Test
+    void logoutShouldTreatBlankRefreshTokenAsAbsent() {
+        String accessToken = "valid-access-token";
+        when(jwtService.extractType(accessToken)).thenReturn("access");
+
+        authService.logout(accessToken, "   ");
+
+        verify(tokenBlacklistService).blacklistToken(accessToken);
+        verify(tokenBlacklistService, times(1)).blacklistToken(anyString());
+    }
+
+    @Test
+    void refreshShouldRejectBlacklistedRefreshToken() {
+        String refreshToken = "revoked-refresh-token";
+        var request = new RefreshRequest(refreshToken);
+
+        when(jwtService.extractType(refreshToken)).thenReturn("refresh");
+        when(tokenBlacklistService.isBlacklisted(refreshToken)).thenReturn(true);
+
+        assertThrows(BadCredentialsException.class, () -> authService.refresh(request));
+        // No new access token may be minted from a revoked refresh token.
+        verify(jwtService, never()).issueAccessToken(anyLong(), anyString(), anyString());
     }
 
     private AppUserDetailsService.AppUserDetails userDetails() {

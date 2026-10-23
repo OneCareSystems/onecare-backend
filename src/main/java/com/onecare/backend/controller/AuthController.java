@@ -129,7 +129,8 @@ public class AuthController {
 						"Password has been reset successfully"));
 	}
 
-	@Operation(summary = "Logout", description = "Invalidates the current session and blacklists the JWT token until its expiration.")
+	@Operation(summary = "Logout", description = "Invalidates the current session and blacklists the JWT access token until its expiration. "
+			+ "When the optional refreshToken is supplied in the body, it is blacklisted too, so it can no longer mint new access tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Logout successful"),
 			@ApiResponse(responseCode = "401", description = "Missing or invalid access token")
@@ -137,7 +138,8 @@ public class AuthController {
 	@PreAuthorize("isAuthenticated()")
 	@PostMapping("/logout")
 	public ResponseEntity<com.onecare.backend.dto.ApiResponse<Void>> logout(
-			@RequestHeader(name = org.springframework.http.HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+			@RequestHeader(name = org.springframework.http.HttpHeaders.AUTHORIZATION, required = false) String authHeader,
+			@RequestBody(required = false) com.onecare.backend.dto.request.LogoutRequest logoutRequest) {
 
 		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
 			return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
@@ -145,7 +147,9 @@ public class AuthController {
 		}
 
 		String token = authHeader.substring(7);
-		authService.logout(token);
+		// Body is optional: clients that only send the header still work, they
+		// just get access-token-only revocation (backwards compatible).
+		authService.logout(token, logoutRequest != null ? logoutRequest.refreshToken() : null);
 		org.springframework.security.core.context.SecurityContextHolder.clearContext();
 
 		return ResponseEntity.ok(
