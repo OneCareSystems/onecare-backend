@@ -58,6 +58,8 @@ public final class PermissionCatalog {
             Permission.AUDIT_READ,
             Permission.AUDIT_READ_ALL,
             Permission.REPORT_GENERATE,
+            Permission.REPORT_CLINIC_GENERATE,
+            Permission.REPORT_PHARMACY_GENERATE,
 
             Permission.SCHEDULE_READ,
             Permission.SCHEDULE_MANAGE,

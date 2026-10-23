@@ -46,6 +46,10 @@ public final class RolePermission {
 
                     Permission.AUDIT_READ_ALL,
 
+                    Permission.REPORT_GENERATE,
+                    Permission.REPORT_CLINIC_GENERATE,
+                    Permission.REPORT_PHARMACY_GENERATE,
+
                     Permission.SCHEDULE_READ,
                     Permission.SCHEDULE_MANAGE,
 
@@ -85,7 +89,10 @@ public final class RolePermission {
                     Permission.INVOICE_UPDATE,
                     Permission.INVOICE_PAY,
 
-                    Permission.AUDIT_READ_ALL
+                    Permission.AUDIT_READ_ALL,
+
+                    Permission.REPORT_GENERATE,
+                    Permission.REPORT_CLINIC_GENERATE
             );
 
             case DOCTOR -> Set.of(
@@ -124,7 +131,9 @@ public final class RolePermission {
                     Permission.INVOICE_CREATE,
                     Permission.INVOICE_READ,
                     Permission.INVOICE_UPDATE,
-                    Permission.INVOICE_PAY
+                    Permission.INVOICE_PAY,
+
+                    Permission.REPORT_PHARMACY_GENERATE
             );
         };
     }
