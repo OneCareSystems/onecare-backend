@@ -1,5 +1,7 @@
 package com.onecare.backend.config;
 
+import com.onecare.backend.security.ApiRateLimitFilter;
+
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
@@ -22,12 +24,14 @@ public class OpenApiConfig {
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/api/auth/forgot-password",
             "/api/auth/reset-password",
-            "/api/public/appointments");
+            "/api/public/appointments",
+            "/api/public/doctors",
+            "/api/public/doctors/{doctorId}/available-slots");
 
     /**
-     * Prefixes guarded by hasAnyRole rules in SecurityConfig — the only
-     * operations that can produce AccessDeniedException (403). Keep in sync
-     * when adding a role-restricted route.
+     * Prefixes guarded by hasAnyRole rules (SecurityConfig requestMatchers or
+     * controller-level @PreAuthorize) — the only operations that can produce
+     * AccessDeniedException (403). Keep in sync when adding a role-restricted route.
      */
     private static final List<String> RBAC_PATH_PREFIXES = List.of(
             "/api/users",
@@ -37,7 +41,8 @@ public class OpenApiConfig {
             "/api/appointments",
             "/api/invoices",
             "/api/queues",
-            "/api/audit");
+            "/api/audit",
+            "/api/chatbot/knowledge-base");
 
     @Bean
     public OpenAPI oneCareOpenAPI() {
@@ -93,7 +98,10 @@ public class OpenApiConfig {
                             responses.putIfAbsent("403",
                                     new ApiResponse().description("Forbidden: insufficient permissions"));
                         }
-                        if (path.startsWith("/api/")) {
+                        // Exempt public routes (e.g. the doctor directory) are never
+                        // throttled, so a 429 would be misleading there.
+                        if (path.startsWith("/api/")
+                                && !ApiRateLimitFilter.RATE_LIMIT_EXEMPT_PATHS.contains(path)) {
                             responses.putIfAbsent("429",
                                     new ApiResponse().description("Too many requests"));
                         }

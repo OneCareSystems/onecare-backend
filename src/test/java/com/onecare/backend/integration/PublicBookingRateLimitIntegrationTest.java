@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -119,5 +120,54 @@ class PublicBookingRateLimitIntegrationTest {
                                 """.formatted(LocalDate.now().plusDays(1).atTime(16, 30)))
                         .header("X-Forwarded-For", "10.9.8.120"))
                 .andExpect(status().isNotFound()); // unknown doctor, not a 429
+    }
+
+    // ---------- Exemptions (exact match on /api/public/doctors) ----------
+
+    @Test
+    void doctorDirectory_isNeverRateLimited_evenAfterPublicTierExhausted() throws Exception {
+        // Exhaust the public-booking tier (2/min) for this IP...
+        bookingAttempt(CLIENT_IP);
+        bookingAttempt(CLIENT_IP);
+        bookingAttempt(CLIENT_IP); // -> 429
+
+        // ...the booking endpoint is limited as before...
+        mockMvc.perform(post("/api/public/appointments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingBody())
+                        .header("X-Forwarded-For", CLIENT_IP))
+                .andExpect(status().isTooManyRequests());
+
+        // ...but the doctor picker the booking form bootstraps from still responds
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(get("/api/public/doctors")
+                            .header("X-Forwarded-For", CLIENT_IP))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void availableSlots_underDoctorPrefix_remainRateLimited() throws Exception {
+        // Same public-booking tier, own per-endpoint bucket (2/min)
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(get("/api/public/doctors/999999/available-slots")
+                            .param("date", LocalDate.now().plusDays(1).toString())
+                            .header("X-Forwarded-For", "10.9.8.130"))
+                    .andExpect(status().isNotFound()); // unknown doctor, not a 429
+        }
+
+        mockMvc.perform(get("/api/public/doctors/999999/available-slots")
+                        .param("date", LocalDate.now().plusDays(1).toString())
+                        .header("X-Forwarded-For", "10.9.8.130"))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    private String bookingBody() {
+        return """
+                {"fullName":"Rate Limit Probe","contactNo":"0770000001",\
+                "dateOfBirth":"1990-01-01","doctorId":999999,\
+                "appointmentDateTime":"%s"}
+                """.formatted(LocalDateTime.now().plusDays(1)
+                .withNano(0).withSecond(0));
     }
 }

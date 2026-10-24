@@ -22,6 +22,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -258,6 +259,18 @@ public class GlobalExceptionHandler {
                 false,
                 "Invalid value '" + exception.getValue()
                         + "' for parameter '" + exception.getName() + "'"
+        );
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<?>> handleMissingParameter(
+            MissingServletRequestParameterException exception) {
+
+        ApiResponse<?> response = new ApiResponse<>(
+                false,
+                "Missing required parameter: '" + exception.getParameterName() + "'"
         );
 
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
