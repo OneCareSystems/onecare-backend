@@ -154,7 +154,10 @@ public class SecurityConfig {
                             .hasRole("DOCTOR")
                         .requestMatchers("/api/appointments/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
                         .requestMatchers("/api/invoices/**").hasAnyRole("SUPER_ADMIN", "ADMIN","PHARMACIST")
-                        .requestMatchers("/api/audit/**", "/api/audit-logs/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
+                        // reports (Table 9): clinic - SUPER_ADMIN/ADMIN, pharmacy - SUPER_ADMIN/PHARMACIST
+                        .requestMatchers("/api/reports/clinic/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
+                        .requestMatchers("/api/reports/pharmacy/**").hasAnyRole("SUPER_ADMIN", "PHARMACIST")
+                        .requestMatchers("/api/audit/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/secure/**").authenticated()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
