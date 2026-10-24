@@ -563,8 +563,12 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         User doctor = userRepository.findById(doctorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with id: " + doctorId));
-        if (doctor.getRole() != Role.DOCTOR) {
-            throw new IllegalArgumentException("Specified user with id: " + doctorId + " is not a doctor");
+        // Same guard as public booking (PublicAppointmentServiceImpl): this
+        // endpoint is public (permitAll), so inactive doctors must not leak
+        // their slot grid either.
+        if (doctor.getRole() != Role.DOCTOR || !Boolean.TRUE.equals(doctor.getIsActive())) {
+            throw new BusinessRuleException(
+                    "Specified user with id: " + doctorId + " is not an active doctor");
         }
 
         if (date.isBefore(LocalDate.now())) {

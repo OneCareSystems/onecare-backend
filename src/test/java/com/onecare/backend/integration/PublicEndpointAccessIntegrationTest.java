@@ -41,6 +41,7 @@ class PublicEndpointAccessIntegrationTest {
     private static final String SLOTS_IP = "10.9.9.101";
     private static final String BOOKING_IP = "10.9.9.102";
     private static final String CHATBOT_IP = "10.9.9.103";
+    private static final String INACTIVE_SLOTS_IP = "10.9.9.104";
 
     @Autowired
     private MockMvc mockMvc;
@@ -81,6 +82,29 @@ class PublicEndpointAccessIntegrationTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", not(emptyString())))
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void availableSlots_inactiveDoctor_isRejectedWithoutJwt() throws Exception {
+        // Same guard as public booking: an inactive doctor's slots must not be
+        // readable anonymously through this permitAll endpoint either.
+        User inactive = new User();
+        inactive.setUsername("inactive-doctor");
+        inactive.setEmail("inactive-doctor@onecare.com");
+        inactive.setPasswordHash("hash");
+        inactive.setRole(Role.DOCTOR);
+        inactive.setIsActive(false);
+        inactive.setFailedAttempts(0);
+        Long inactiveId = userRepository.save(inactive).getUserId();
+
+        mockMvc.perform(get("/api/appointments/available-slots")
+                        .header("X-Forwarded-For", INACTIVE_SLOTS_IP)
+                        .param("doctorId", String.valueOf(inactiveId))
+                        .param("date", LocalDate.now().plusDays(1).toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message")
+                        .value("Specified user with id: " + inactiveId + " is not an active doctor"));
     }
 
     @Test

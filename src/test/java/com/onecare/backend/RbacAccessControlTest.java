@@ -230,7 +230,9 @@ class RbacAccessControlTest {
 
         assertAllowed("/api/patients", doctorToken);
 
-        assertForbidden("/api/medicines", doctorToken);
+        // Doctors hold MEDICINE_READ: the catalogue (list/search) and the
+        // available-medicines picker are readable; writes stay MEDICINE_*_ALL.
+        assertAllowed("/api/medicines", doctorToken);
 
         assertAllowed("/api/prescriptions", doctorToken);
 

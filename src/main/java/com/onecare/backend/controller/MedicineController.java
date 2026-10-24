@@ -89,7 +89,8 @@ public class MedicineController {
             )
     })
     @GetMapping
-    @PreAuthorize("hasAuthority('" + Permission.MEDICINE_READ_ALL + "')")
+    @PreAuthorize("hasAuthority('" + Permission.MEDICINE_READ_ALL
+            + "') or hasAuthority('" + Permission.MEDICINE_READ + "')")
     public ResponseEntity<com.onecare.backend.dto.ApiResponse<List<MedicineResponse>>> findAllMedicines(
             @Parameter(description = "Partial medicine name or exact medicine ID")
             @RequestParam(required = false) String search
@@ -339,7 +340,8 @@ public class MedicineController {
             )
     })
     @GetMapping("/available")
-    @PreAuthorize("hasAuthority('" + Permission.MEDICINE_READ_ALL + "')")
+    @PreAuthorize("hasAuthority('" + Permission.MEDICINE_READ_ALL
+            + "') or hasAuthority('" + Permission.MEDICINE_READ + "')")
     public ResponseEntity<com.onecare.backend.dto.ApiResponse<List<MedicineResponse>>> findAvailableMedicines() {
 
         List<MedicineResponse> response =

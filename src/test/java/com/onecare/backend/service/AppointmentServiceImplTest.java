@@ -557,14 +557,28 @@ class AppointmentServiceImplTest {
     }
 
     @Test
-    void getAvailableSlots_nonDoctor_throwsException() {
+    void getAvailableSlots_nonDoctor_throwsBusinessRule() {
         User nonDoctor = new User();
         nonDoctor.setUserId(8L);
         nonDoctor.setRole(Role.ADMIN);
         when(userRepository.findById(8L)).thenReturn(Optional.of(nonDoctor));
 
-        assertThrows(IllegalArgumentException.class,
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> appointmentService.getAvailableSlots(8L, LocalDate.now().plusDays(1)));
+        assertEquals("Specified user with id: 8 is not an active doctor", ex.getMessage());
+    }
+
+    @Test
+    void getAvailableSlots_inactiveDoctor_throwsBusinessRule() {
+        User inactiveDoctor = new User();
+        inactiveDoctor.setUserId(9L);
+        inactiveDoctor.setRole(Role.DOCTOR);
+        inactiveDoctor.setIsActive(false);
+        when(userRepository.findById(9L)).thenReturn(Optional.of(inactiveDoctor));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> appointmentService.getAvailableSlots(9L, LocalDate.now().plusDays(1)));
+        assertEquals("Specified user with id: 9 is not an active doctor", ex.getMessage());
     }
 
     // ---------- Public booking creation path (DDP-33 / AC1, AC4) ----------
