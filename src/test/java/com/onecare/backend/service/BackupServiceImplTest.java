@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 class BackupServiceImplTest {
 
     /** base64 of the 32 ASCII bytes "0123456789abcdef0123456789abcdef" (same as test properties). */
-    private static final String TEST_KEY_BASE64 = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+    private static final String TEST_KEY_BASE64 = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="; // gitleaks:allow
 
     @TempDir
     Path storageDir;

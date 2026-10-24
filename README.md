@@ -150,12 +150,29 @@ CI workflow location:
 .github/workflows/ci.yml
 ```
 
-### Pipeline performs:
+Full documentation (stage map, secrets inventory, branch-protection setup, known
+deviations): [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md).
 
-* Setup isolated MySQL 8.4 service container
-* Setup Java 21 environment with Maven caching
-* Run build and tests:
+### Pipeline stages (each one its own check)
+
+* `lint` - Checkstyle (`config/checkstyle/checkstyle.xml`)
+* `static-analysis` - SpotBugs
+* `security-scan` - gitleaks secret scan, GitHub dependency review, OWASP Dependency-Check (fails on CVSS >= 7)
+* `build` - `./mvnw -DskipTests package` (bootable jar artifact)
+* `test` - setup of an isolated MySQL 8.4 service container, Java 21 with Maven caching, unit + integration tests, OpenAPI document artifact
+* `coverage-gate` - JaCoCo check enforcing overall coverage >= 70% (NFRM-003); reported separately from `test`
+* `docker-build` - backend container image (SDS 2.6.5 stage 4)
+* `ci-gate` - aggregate check that names the failing stage and blocks the merge
+
+Run the same gates locally:
 
 ```bash
-./mvnw clean verify
+./mvnw -B checkstyle:check
+./mvnw -B compile spotbugs:check
+./mvnw -B clean verify
+./mvnw -B jacoco:report jacoco:check
 ```
+
+All credentials are provided through GitHub Secrets (see the documentation link above);
+staging deployment and monitoring are deferred.
+
