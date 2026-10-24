@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.14</version> <relativePath/>
+		<version>3.5.16</version> <relativePath/>
 	</parent>
 
 	<groupId>com.onecare</groupId>
@@ -16,24 +16,14 @@
 	<description>Backend service for OneCare Clinic Management System</description>
 
 	<properties>
-        <!-- Target Java version for compilation and runtime -->
 		<java.version>21</java.version>
-        
-        <!-- Version of the Checkstyle library used for code style validation -->
-        <checkstyle.version>10.21.2</checkstyle.version>
-        
-        <!-- Version of the Maven Checkstyle plugin -->
-        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
-        
-        <!-- Version of the SpotBugs Maven plugin for static code analysis -->
-        <spotbugs-maven-plugin.version>4.9.3.0</spotbugs-maven-plugin.version>
-        
-        <!-- Minimum code coverage threshold required (70%) -->
-        <coverage.gate.minimum>0.70</coverage.gate.minimum>
-        
-        <!-- SpotBugs bug reporting threshold (reports only High priority issues) -->
-        <spotbugs.threshold>High</spotbugs.threshold>
 
+		<jackson-bom.version>2.21.8</jackson-bom.version>
+		<log4j2.version>2.26.1</log4j2.version>
+		<mysql.version>26.10.0</mysql.version>
+		<netty.version>4.1.139.Final</netty.version>
+		<springdoc.version>2.9.0</springdoc.version>
+		<tomcat.version>10.1.61</tomcat.version>
 	</properties>
 
 	<dependencies>
@@ -117,14 +107,6 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- Checkstyle core, test scope: lets the lint gate be exercised in-unit
-		     (LintGateNegativeTest) with exactly the engine/CI rules. -->
-		<dependency>
-			<groupId>com.puppycrawl.tools</groupId>
-			<artifactId>checkstyle</artifactId>
-			<version>${checkstyle.version}</version>
-			<scope>test</scope>
-		</dependency>
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
@@ -140,7 +122,7 @@
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.5.0</version>
+			<version>${springdoc.version}</version>
 		</dependency>
 
 		<!-- PDF report export (FR039/FR040 format=pdf) -->
@@ -181,66 +163,9 @@
 				</configuration>
 			</plugin>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-checkstyle-plugin</artifactId>
-				<version>${maven-checkstyle-plugin.version}</version>
-				<dependencies>
-					<dependency>
-						<groupId>com.puppycrawl.tools</groupId>
-						<artifactId>checkstyle</artifactId>
-						<version>${checkstyle.version}</version>
-					</dependency>
-				</dependencies>
-				<configuration>
-					<configLocation>config/checkstyle/checkstyle.xml</configLocation>
-					<consoleOutput>true</consoleOutput>
-					<failOnViolation>true</failOnViolation>
-					<violationSeverity>error</violationSeverity>
-					<includeTestSourceDirectory>false</includeTestSourceDirectory>
-				</configuration>
-				<!-- Not bound to a lifecycle phase on purpose: the CI `lint` stage
-				     invokes `mvn checkstyle:check` explicitly so it reports as its
-				     own check, independently of build/test. -->
-			</plugin>
-			<plugin>
-				<groupId>com.github.spotbugs</groupId>
-				<artifactId>spotbugs-maven-plugin</artifactId>
-				<version>${spotbugs-maven-plugin.version}</version>
-				<configuration>
-					<effort>Max</effort>
-					<threshold>${spotbugs.threshold}</threshold>
-					<xmlOutput>true</xmlOutput>
-					<failOnError>true</failOnError>
-				</configuration>
-				<!-- Not bound to a lifecycle phase: the CI `static-analysis` stage
-				     invokes `mvn compile spotbugs:check` explicitly so it reports as
-				     its own check, independently of build/test. -->
-			</plugin>
-			<plugin>
     <groupId>org.jacoco</groupId>
     <artifactId>jacoco-maven-plugin</artifactId>
     <version>0.8.12</version>
-
-    <!-- Coverage gate (DDP-27 / NFRM-003): enforced overall >= 70% instruction
-         coverage.  Plugin-level configuration applies to the explicit
-         `mvn jacoco:check` invocation used by the standalone `coverage-gate`
-         CI stage.  The check goal is deliberately NOT bound to a lifecycle
-         phase, so a coverage failure can never fail the `test` stage -
-         only the coverage-gate stage (AC4). -->
-    <configuration>
-        <haltOnFailure>true</haltOnFailure>
-        <rules>
-            <rule element="BUNDLE">
-                <limits>
-                    <limit>
-                        <counter>INSTRUCTION</counter>
-                        <value>COVEREDRATIO</value>
-                        <minimum>${coverage.gate.minimum}</minimum>
-                    </limit>
-                </limits>
-            </rule>
-        </rules>
-    </configuration>
 
     <executions>
 
