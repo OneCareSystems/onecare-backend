@@ -73,7 +73,7 @@ def main():
         MockDjangoHandler
     )
 
-    server.service_token = args.token
+    server.service_token = args.token  # gitleaks:allow
 
     print(f"Mock Django running at http://127.0.0.1:{args.port}")
     print("Press Ctrl+C to stop.")

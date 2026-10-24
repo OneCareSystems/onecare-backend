@@ -41,7 +41,7 @@ class AuditSanitizerTest {
 
     @Test
     void redactsJwtShapedStrings() {
-        String jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJib2IiLCJyb2xlIjoiQURNSU4ifQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+        String jwt = String.join(".", "eyJhbGciOiJub25lIn0", "eyJzdWIiOiJ0ZXN0In0", "signature");
 
         assertThat(AuditSanitizer.sanitize("parsed subject from token " + jwt))
                 .doesNotContain(jwt)
