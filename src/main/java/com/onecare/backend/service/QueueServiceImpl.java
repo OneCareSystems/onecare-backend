@@ -13,6 +13,7 @@ import com.onecare.backend.exception.InvalidAppointmentStatusException;
 import com.onecare.backend.exception.ResourceNotFoundException;
 import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.InvoiceRepository;
+import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.UserRepository;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
@@ -39,7 +40,7 @@ public class QueueServiceImpl implements QueueService {
 
     public QueueServiceImpl(
             AppointmentRepository appointmentRepository,
-            UserRepository userRepository,
+            PatientRepository patientRepository, UserRepository userRepository,
             InvoiceService invoiceService,
             InvoiceRepository invoiceRepository) {
         this.appointmentRepository = appointmentRepository;
