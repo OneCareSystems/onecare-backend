@@ -23,7 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * prescriptions happens in the repository query itself (derived Spring Data
  * queries on doctor.user_id), never by filtering a full fetch afterwards.
  */
-@DataJpaTest
+@DataJpaTest(properties = {
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
+        "spring.sql.init.mode=never"
+})
 class DoctorScopedRepositoryQueryTest {
 
     @Autowired
