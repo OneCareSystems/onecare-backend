@@ -362,7 +362,7 @@ class AppointmentServiceImplTest {
     }
 
     @Test
-    void getClinicalNotes_pharmacist_readsAnyAppointment() {
+    void getClinicalNotes_pharmacist_denied() {
         User pharmacist = new User();
         pharmacist.setUserId(9L);
         pharmacist.setUsername("pharma.test");
@@ -381,14 +381,12 @@ class AppointmentServiceImplTest {
         appointment.setDoctor(doctor);
         appointment.setClinicalNotes("Post-op pain management");
 
-        appUserAuthentication(pharmacist, "ROLE_PHARMACIST", "APPOINTMENT_READ_CLINICAL_NOTES");
+        appUserAuthentication(pharmacist, "ROLE_PHARMACIST");
 
         when(userRepository.findById(9L)).thenReturn(Optional.of(pharmacist));
         when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
 
-        var response = appointmentService.getClinicalNotes(1L);
-
-        assertEquals("Post-op pain management", response.clinicalNotes());
+        assertThrows(AccessDeniedException.class, () -> appointmentService.getClinicalNotes(1L));
     }
 
     @Test

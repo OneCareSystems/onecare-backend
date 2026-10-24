@@ -23,8 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Fixed-window rate limiter with two independent tiers (SDS 2.5.4, NFRS-009):
  * - auth tier: /api/auth/* endpoints
- * - public-booking tier: /api/public/* endpoints (DDP-33 — public booking is
- *   an abuse vector, so it gets its own limit, distinct from the auth tier)
+ * - public-booking tier: /api/public/* endpoints and the public available-slots
+ *   endpoint (DDP-33 — public booking is an abuse vector, so it gets its own
+ *   limit, distinct from the auth tier)
  * Each tier has its own limit/window configuration and on/off switch. Within a
  * tier, buckets are scoped per client IP *and* per endpoint, so traffic on one
  * route cannot consume another route's allowance. In-memory and per-instance:
@@ -40,6 +41,8 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(ApiRateLimitFilter.class);
     private static final String AUTH_PREFIX = "/api/auth/";
     private static final String PUBLIC_PREFIX = "/api/public/";
+    private static final String PUBLIC_AVAILABLE_SLOTS_PATH = "/api/appointments/available-slots";
+
     private static final String PUBLIC_DOCTOR_SLOTS_PREFIX = "/api/public/doctors/";
     private static final String PUBLIC_DOCTOR_SLOTS_SUFFIX = "/available-slots";
 
@@ -54,6 +57,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
      */
     public static final Set<String> RATE_LIMIT_EXEMPT_PATHS = Set.of(
             "/api/public/doctors");
+  
     private static final String FORWARDED_FOR = "X-Forwarded-For";
     private static final int MAX_TRACKED_BUCKETS = 10_000;
 
@@ -152,6 +156,9 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private RateLimitTier tierFor(String requestUri) {
         if (requestUri.startsWith(AUTH_PREFIX)) {
             return authTier;
+        }
+        if (PUBLIC_AVAILABLE_SLOTS_PATH.equals(requestUri)) {
+            return publicBookingTier;
         }
         if (requestUri.startsWith(PUBLIC_PREFIX)) {
             // Exact match only: /api/public/doctors is exempt, but the

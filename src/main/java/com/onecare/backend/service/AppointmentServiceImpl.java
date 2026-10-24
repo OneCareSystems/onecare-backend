@@ -45,7 +45,6 @@ import java.util.List;
 public class AppointmentServiceImpl implements AppointmentService {
 
     private static final Logger log = LoggerFactory.getLogger(AppointmentServiceImpl.class);
-    private static final Duration DEFAULT_SLOT_DURATION = Duration.ofMinutes(30);
 
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
@@ -232,7 +231,8 @@ public class AppointmentServiceImpl implements AppointmentService {
     /**
      * Appointments the current user is allowed to see:
      * - SUPER_ADMIN / ADMIN: all
-     * - DOCTOR: only appointments assigned to them
+     * - DOCTOR: only appointments assigned to them — the doctor_id = self
+     *   filter is part of the repository query (AC1), not applied after fetch
      * - everyone else: only their own (email-matched) patient profile
      */
     private List<Appointment> findVisibleAppointments(User currentUser) {
@@ -243,11 +243,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     if (currentRole == Role.DOCTOR) {
-        return appointmentRepository.findAll().stream()
-                .filter(appointment -> appointment.getDoctor() != null
-                        && appointment.getDoctor().getUserId()
-                                .equals(currentUser.getUserId()))
-                .toList();
+        return appointmentRepository.findByDoctor_UserId(currentUser.getUserId());
     }
 
     Patient selfPatient = resolveSelfPatient(currentUser);
@@ -389,11 +385,10 @@ public class AppointmentServiceImpl implements AppointmentService {
             return AppointmentClinicalNotesResponse.from(appointment);
         }
 
-        if (currentRole == Role.PHARMACIST) {
-            return AppointmentClinicalNotesResponse.from(appointment);
-        }
-
-        throw new AccessDeniedException("Clinical notes are restricted to doctors and pharmacists");
+        // AC4/Table 9: clinical notes are restricted to doctors. Pharmacists
+        // (and Admin / Super Admin) are denied here as defence in depth behind
+        // the endpoint-level permission (APPOINTMENT_READ_CLINICAL_NOTES).
+        throw new AccessDeniedException("Clinical notes are restricted to doctors");
     }
 
     /**
