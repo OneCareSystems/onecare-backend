@@ -41,6 +41,10 @@ public final class Permission {
     public static final String AUDIT_READ = "AUDIT_READ";
     public static final String AUDIT_READ_ALL = "AUDIT_READ_ALL";
     public static final String REPORT_GENERATE = "REPORT_GENERATE";
+    /** Clinic reports (FR039, UC24): SUPER_ADMIN + ADMIN (Table 9). */
+    public static final String REPORT_CLINIC_GENERATE = "REPORT_CLINIC_GENERATE";
+    /** Pharmacy reports (FR040, UC25): SUPER_ADMIN + PHARMACIST (Table 9). */
+    public static final String REPORT_PHARMACY_GENERATE = "REPORT_PHARMACY_GENERATE";
 
     public static final String SCHEDULE_READ = "SCHEDULE_READ";
     public static final String SCHEDULE_MANAGE = "SCHEDULE_MANAGE";
