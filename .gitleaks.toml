@@ -35,13 +35,14 @@ keywords = ["password", "secret", "token", "api_key"]
 description = """
 Exclusion list for known non-sensitive templates and placeholders:
 - `.env-example` contains structural placeholders, not real secrets.
+- `src/test/resources/application.properties` contains deterministic test-only values.
 - Truncated `eyJ...` strings in API documentation are sample display tokens.
 """
 paths = [
     '''(^|/)\.env(-example|\.example)?$''',
     '''(^|/)\.gitleaks\.toml$''',
+    '''(^|/)src/test/resources/application\.properties$''',
 ]
 regexes = [
     '''\*{6}''',
-    '''MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=''',
 ]
