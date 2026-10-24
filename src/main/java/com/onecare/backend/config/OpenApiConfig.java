@@ -29,9 +29,9 @@ public class OpenApiConfig {
             "/api/public/doctors/{doctorId}/available-slots");
 
     /**
-     * Prefixes guarded by hasAnyRole rules in SecurityConfig — the only
-     * operations that can produce AccessDeniedException (403). Keep in sync
-     * when adding a role-restricted route.
+     * Prefixes guarded by hasAnyRole rules (SecurityConfig requestMatchers or
+     * controller-level @PreAuthorize) — the only operations that can produce
+     * AccessDeniedException (403). Keep in sync when adding a role-restricted route.
      */
     private static final List<String> RBAC_PATH_PREFIXES = List.of(
             "/api/users",
@@ -41,7 +41,8 @@ public class OpenApiConfig {
             "/api/appointments",
             "/api/invoices",
             "/api/queues",
-            "/api/audit");
+            "/api/audit",
+            "/api/chatbot/knowledge-base");
 
     @Bean
     public OpenAPI oneCareOpenAPI() {
