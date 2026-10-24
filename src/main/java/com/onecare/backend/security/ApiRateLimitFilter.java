@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -29,6 +30,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * route cannot consume another route's allowance. In-memory and per-instance:
  * adequate for a single node, but counters are not shared across instances
  * (documented limitation).
+ *
+ * Exact-match exemptions (see {@link #RATE_LIMIT_EXEMPT_PATHS}) opt individual
+ * public GET routes out of the public tier entirely.
  */
 @Component
 public class ApiRateLimitFilter extends OncePerRequestFilter {
@@ -36,6 +40,18 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(ApiRateLimitFilter.class);
     private static final String AUTH_PREFIX = "/api/auth/";
     private static final String PUBLIC_PREFIX = "/api/public/";
+
+    /**
+     * Public-tier routes exempt from rate limiting (exact match, no path
+     * variables). The doctor directory is the read-only picker bootstrap of
+     * the booking form — id + display name only — so exhausting the limit
+     * there would only lock a patient out of the page while leaving the
+     * mutating booking endpoint (still limited) unaffected.
+     * Referenced by OpenApiConfig so the docs don't advertise a 429 that
+     * cannot happen on these routes.
+     */
+    public static final Set<String> RATE_LIMIT_EXEMPT_PATHS = Set.of(
+            "/api/public/doctors");
     private static final String FORWARDED_FOR = "X-Forwarded-For";
     private static final int MAX_TRACKED_BUCKETS = 10_000;
 
@@ -136,7 +152,10 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             return authTier;
         }
         if (requestUri.startsWith(PUBLIC_PREFIX)) {
-            return publicBookingTier;
+            // Exact match only: /api/public/doctors is exempt, but the
+            // slots sub-path (/api/public/doctors/{id}/available-slots)
+            // and the booking endpoint remain rate limited.
+            return RATE_LIMIT_EXEMPT_PATHS.contains(requestUri) ? null : publicBookingTier;
         }
         return null;
     }

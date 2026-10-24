@@ -203,4 +203,32 @@ class ApiRateLimitFilterTest {
         verify(chain, times(10)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         assertThat(response.getStatus()).isEqualTo(200);
     }
+
+    // ---------- Rate-limit exemptions (exact match) ----------
+
+    @Test
+    void shouldExemptDoctorDirectoryFromPublicTierEntirely() throws Exception {
+        ApiRateLimitFilter twoTier = new ApiRateLimitFilter(true, 10, 60, true, 1, 60);
+
+        for (int i = 0; i < 10; i++) {
+            twoTier.doFilter(request("/api/public/doctors", "10.0.0.8"),
+                    new MockHttpServletResponse(), chain);
+        }
+
+        verify(chain, times(10)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void shouldStillRateLimitSlotsUnderTheExemptDoctorPrefix() throws Exception {
+        ApiRateLimitFilter twoTier = new ApiRateLimitFilter(true, 10, 60, true, 1, 60);
+
+        twoTier.doFilter(request("/api/public/doctors/3/available-slots", "10.0.0.9"),
+                new MockHttpServletResponse(), chain);
+        twoTier.doFilter(request("/api/public/doctors/3/available-slots", "10.0.0.9"),
+                response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(429);
+        verify(chain, times(1)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
 }
