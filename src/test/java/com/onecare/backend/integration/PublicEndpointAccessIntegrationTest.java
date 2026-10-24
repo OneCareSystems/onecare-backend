@@ -26,8 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AC6 (FR043): the public endpoints — public booking, available slots and the
  * chatbot query — are reachable WITHOUT a JWT and are rate limited instead of
  * being rejected with 401/403. Every other endpoint returns 401 without a
- * token (the "protected" assertions below; the full matrix's no-token cells
- * live in {@link Table9PermissionMatrixIntegrationTest}).
+ * token (the "protected" assertions below).
  */
 @SpringBootTest(properties = {
         "auth.rate-limit.enabled=false",
