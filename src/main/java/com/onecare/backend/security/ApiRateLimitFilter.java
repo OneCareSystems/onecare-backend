@@ -40,6 +40,8 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(ApiRateLimitFilter.class);
     private static final String AUTH_PREFIX = "/api/auth/";
     private static final String PUBLIC_PREFIX = "/api/public/";
+    private static final String PUBLIC_DOCTOR_SLOTS_PREFIX = "/api/public/doctors/";
+    private static final String PUBLIC_DOCTOR_SLOTS_SUFFIX = "/available-slots";
 
     /**
      * Public-tier routes exempt from rate limiting (exact match, no path
@@ -161,7 +163,32 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     }
 
     private String rateLimitKey(HttpServletRequest request, String clientIp) {
-        return clientIp + "|" + request.getRequestURI();
+        String path = request.getRequestURI();
+        if (path.matches("/api/public/doctors/[^/]+/available-slots")) {
+            path = "/api/public/doctors/{doctorId}/available-slots";
+        }
+        return clientIp + "|" + path;
+    }
+
+    private String normalizedRateLimitPath(String requestUri) {
+        if (!requestUri.startsWith(PUBLIC_DOCTOR_SLOTS_PREFIX)
+                || !requestUri.endsWith(PUBLIC_DOCTOR_SLOTS_SUFFIX)) {
+            return requestUri;
+        }
+
+        String doctorId = requestUri.substring(
+                PUBLIC_DOCTOR_SLOTS_PREFIX.length(),
+                requestUri.length() - PUBLIC_DOCTOR_SLOTS_SUFFIX.length());
+        if (doctorId.isEmpty() || doctorId.contains("/")) {
+            return requestUri;
+        }
+
+        try {
+            Long.parseLong(doctorId);
+            return PUBLIC_DOCTOR_SLOTS_PREFIX + "{doctorId}" + PUBLIC_DOCTOR_SLOTS_SUFFIX;
+        } catch (NumberFormatException ignored) {
+            return requestUri;
+        }
     }
 
     private String resolveClientIp(HttpServletRequest request) {
