@@ -22,7 +22,8 @@
 		<log4j2.version>2.26.1</log4j2.version>
 		<mysql.version>26.10.0</mysql.version>
 		<netty.version>4.1.139.Final</netty.version>
-		<springdoc.version>2.9.0</springdoc.version>
+		<commons-lang3.version>3.21.0</commons-lang3.version>
+		<springdoc.version>2.10.0</springdoc.version>
 		<tomcat.version>10.1.61</tomcat.version>
 		<spotbugs-maven-plugin.version>4.9.8.5</spotbugs-maven-plugin.version>
 		<spotbugs.threshold>High</spotbugs.threshold>
