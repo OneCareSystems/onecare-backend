@@ -271,14 +271,16 @@ class AppointmentApiIntegrationTest {
     }
 
     @Test
-    void clinicalNotes_asPharmacist_returns200() throws Exception {
+    void clinicalNotes_asPharmacist_returns403() throws Exception {
         Appointment appointment = seedAppointment(doctor, patient, LocalTime.of(9, 0),
                 "Checkup", "Post-op pain management");
 
+        // AC4/Table 9: pharmacists no longer read clinical notes (DDP-20 access removed)
         mockMvc.perform(get("/api/appointments/" + appointment.getAppointmentId() + "/clinical-notes")
                         .header("Authorization", "Bearer " + pharmacistToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.clinicalNotes").value("Post-op pain management"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Access denied"));
     }
 
     @Test

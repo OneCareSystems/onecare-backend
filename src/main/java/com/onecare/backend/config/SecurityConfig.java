@@ -145,11 +145,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/roles/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/system/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/patients/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
+                        .requestMatchers(HttpMethod.GET, "/api/medicines/**")
+                            .hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST", "DOCTOR")
                         .requestMatchers("/api/medicines/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "PHARMACIST")
                         .requestMatchers("/api/prescriptions/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR", "PHARMACIST")
-                        // clinical notes are readable by doctors and pharmacists (DDP-20 clinical notes move)
+                        .requestMatchers(HttpMethod.GET, "/api/appointments/available-slots").permitAll()
                         .requestMatchers("/api/appointments/*/clinical-notes")
-                            .hasAnyRole("DOCTOR", "PHARMACIST")
+                            .hasRole("DOCTOR")
                         .requestMatchers("/api/appointments/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "DOCTOR")
                         .requestMatchers("/api/invoices/**").hasAnyRole("SUPER_ADMIN", "ADMIN","PHARMACIST")
                         // reports (Table 9): clinic - SUPER_ADMIN/ADMIN, pharmacy - SUPER_ADMIN/PHARMACIST
@@ -234,7 +236,7 @@ public class SecurityConfig {
 
             response.getWriter().write(
                     "{\"success\":false,"
-                            + "\"message\":\"Access denied: insufficient permissions\","
+                            + "\"message\":\"Access denied\","
                             + "\"data\":null}"
             );
         };

@@ -35,6 +35,18 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
 
     Optional<Prescription> findByAppointmentAppointmentId(Long appointmentId);
 
+    @EntityGraph(attributePaths = "items")
+    List<Prescription> findByDoctor_UserId(Long doctorId);
+
+    @EntityGraph(attributePaths = "items")
+    List<Prescription> findByDoctor_UserIdAndStatus(Long doctorId, PrescriptionStatus status);
+
+    @EntityGraph(attributePaths = "items")
+    List<Prescription> findByDoctor_UserIdAndDateAndStatusNot(
+            Long doctorId,
+            LocalDate date,
+            PrescriptionStatus status);
+
     @EntityGraph(attributePaths = {"items", "doctor", "patient", "appointment"})
     List<Prescription> findByDateAndStatusNot(
             LocalDate date,

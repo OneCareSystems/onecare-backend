@@ -362,7 +362,7 @@ class AppointmentServiceImplTest {
     }
 
     @Test
-    void getClinicalNotes_pharmacist_readsAnyAppointment() {
+    void getClinicalNotes_pharmacist_denied() {
         User pharmacist = new User();
         pharmacist.setUserId(9L);
         pharmacist.setUsername("pharma.test");
@@ -381,14 +381,12 @@ class AppointmentServiceImplTest {
         appointment.setDoctor(doctor);
         appointment.setClinicalNotes("Post-op pain management");
 
-        appUserAuthentication(pharmacist, "ROLE_PHARMACIST", "APPOINTMENT_READ_CLINICAL_NOTES");
+        appUserAuthentication(pharmacist, "ROLE_PHARMACIST");
 
         when(userRepository.findById(9L)).thenReturn(Optional.of(pharmacist));
         when(appointmentRepository.findById(1L)).thenReturn(Optional.of(appointment));
 
-        var response = appointmentService.getClinicalNotes(1L);
-
-        assertEquals("Post-op pain management", response.clinicalNotes());
+        assertThrows(AccessDeniedException.class, () -> appointmentService.getClinicalNotes(1L));
     }
 
     @Test
@@ -559,14 +557,28 @@ class AppointmentServiceImplTest {
     }
 
     @Test
-    void getAvailableSlots_nonDoctor_throwsException() {
+    void getAvailableSlots_nonDoctor_throwsBusinessRule() {
         User nonDoctor = new User();
         nonDoctor.setUserId(8L);
         nonDoctor.setRole(Role.ADMIN);
         when(userRepository.findById(8L)).thenReturn(Optional.of(nonDoctor));
 
-        assertThrows(IllegalArgumentException.class,
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
                 () -> appointmentService.getAvailableSlots(8L, LocalDate.now().plusDays(1)));
+        assertEquals("Specified user with id: 8 is not an active doctor", ex.getMessage());
+    }
+
+    @Test
+    void getAvailableSlots_inactiveDoctor_throwsBusinessRule() {
+        User inactiveDoctor = new User();
+        inactiveDoctor.setUserId(9L);
+        inactiveDoctor.setRole(Role.DOCTOR);
+        inactiveDoctor.setIsActive(false);
+        when(userRepository.findById(9L)).thenReturn(Optional.of(inactiveDoctor));
+
+        BusinessRuleException ex = assertThrows(BusinessRuleException.class,
+                () -> appointmentService.getAvailableSlots(9L, LocalDate.now().plusDays(1)));
+        assertEquals("Specified user with id: 9 is not an active doctor", ex.getMessage());
     }
 
     // ---------- Public booking creation path (DDP-33 / AC1, AC4) ----------

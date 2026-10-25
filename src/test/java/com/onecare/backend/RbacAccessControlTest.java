@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
-import com.onecare.backend.repository.AuditLogRepository;
-import com.onecare.backend.repository.PasswordResetTokenRepository;
-import com.onecare.backend.repository.UserRepository;
+import com.onecare.backend.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +35,24 @@ class RbacAccessControlTest {
     private UserRepository userRepository;
 
     @Autowired
+    private PrescriptionRepository prescriptionRepository;
+
+    @Autowired
+    private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private PatientRepository patientRepository;
+
+    @Autowired
+    private ExternalDispensingRepository externalDispensingRepository;
+
+    @Autowired
+    private DoctorScheduleRepository doctorScheduleRepository;
+
+    @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
@@ -55,6 +71,17 @@ class RbacAccessControlTest {
 
     @BeforeEach
     void setupUsers() throws Exception {
+        // This test class shares its Spring context (and H2 database) with
+        // other RBAC integration tests, so dependent rows must be cleared
+        // before users to stay order-independent (appointments/prescriptions
+        // hold FKs on users).
+        externalDispensingRepository.deleteAll();
+        prescriptionRepository.deleteAll();
+        invoiceRepository.deleteAll();
+        appointmentRepository.deleteAll();
+        patientRepository.deleteAll();
+        // GET /api/doctors/{id}/schedule auto-provisions default schedule rows
+        doctorScheduleRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
         // audit rows are written in their own committed transaction and would
         // otherwise block the user deletion via the audit_log.user_id FK
@@ -168,7 +195,7 @@ class RbacAccessControlTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(
                         jsonPath("$.message")
-                                .value("Access denied: insufficient permissions")
+                                .value("Access denied")
                 );
     }
 
@@ -203,7 +230,9 @@ class RbacAccessControlTest {
 
         assertAllowed("/api/patients", doctorToken);
 
-        assertForbidden("/api/medicines", doctorToken);
+        // Doctors hold MEDICINE_READ: the catalogue (list/search) and the
+        // available-medicines picker are readable; writes stay MEDICINE_*_ALL.
+        assertAllowed("/api/medicines", doctorToken);
 
         assertAllowed("/api/prescriptions", doctorToken);
 
