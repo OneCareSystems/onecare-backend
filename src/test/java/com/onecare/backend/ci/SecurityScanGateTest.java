@@ -149,6 +149,22 @@ class SecurityScanGateTest {
     }
 
     @Test
+    @DisplayName("GHCR actor username is allowed but plaintext usernames remain violations")
+    void githubActorUsernameIsNotTreatedAsASecret() {
+        String workflow = "with:\n"
+                + "  username: ${{ github.actor }}\n"
+                + "  password: ${{ secrets.GITHUB_TOKEN }}\n";
+
+        assertTrue(WorkflowSecretScanner.findCredentialViolations(workflow).isEmpty(),
+                "the public GitHub actor is a valid GHCR username, not a secret");
+
+        List<String> plaintextUsernameViolations = WorkflowSecretScanner.findCredentialViolations(
+                "with:\n  username: deploy-user\n");
+        assertTrue(plaintextUsernameViolations.stream().anyMatch(v -> v.contains("username")),
+                "a literal username must still be reported");
+    }
+
+    @Test
     @DisplayName("step output status keys are not treated as credentials")
     void stepOutputStatusKey_isNotReportedAsCredential() {
         String workflow = "jobs:\n"

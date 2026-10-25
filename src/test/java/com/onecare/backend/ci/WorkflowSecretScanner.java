@@ -57,6 +57,9 @@ public final class WorkflowSecretScanner {
             if (!isCredentialKey(rawKey)) {
                 continue;
             }
+            if (rawKey.equalsIgnoreCase("username") && value.equals("${{ github.actor }}")) {
+                continue; // GHCR uses the public workflow actor as its login name.
+            }
             if (value.contains("secrets.")) {
                 continue; // AC3: value comes from a GitHub Secret
             }
