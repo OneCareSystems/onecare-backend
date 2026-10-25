@@ -161,7 +161,7 @@ deviations): [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md).
 * `build` - `./mvnw -DskipTests package` (bootable jar artifact)
 * `test` - setup of an isolated MySQL 8.4 service container, Java 21 with Maven caching, unit + integration tests, OpenAPI document artifact
 * `coverage-gate` - JaCoCo check enforcing overall coverage >= 70% (NFRM-003); reported separately from `test`
-* `docker-build` - backend container image (SDS 2.6.5 stage 4)
+* `docker-build` - backend container image; publishes a `sha-<commit>` image to GHCR on pushes to `develop` and `main` (SDS 2.6.5 stage 4)
 * `ci-gate` - aggregate check that names the failing stage and blocks the merge
 
 Run the same gates locally:
@@ -175,4 +175,3 @@ Run the same gates locally:
 
 All credentials are provided through GitHub Secrets (see the documentation link above);
 staging deployment and monitoring are deferred.
-

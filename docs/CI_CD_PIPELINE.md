@@ -28,7 +28,7 @@ SRS **NFRM-002** (OpenAPI artefact), **NFRM-003** (overall test coverage
 | D | `build`             | 1               | `mvn -DskipTests package` → bootable jar artefact           | compilation or packaging fails                      |
 | E | `test`              | 3               | `mvn clean test` (unit + integration, MySQL 8.4 service)    | any test fails                                      |
 | F | `coverage-gate`     | 3               | JaCoCo `jacoco:check` (needs `test`)                        | overall instruction coverage < 70%                  |
-| G | `docker-build`      | 4               | `docker build` (backend image)                              | the container image does not build                  |
+| G | `docker-build`      | 4               | Docker Buildx; builds on PRs and publishes SHA-tagged image to GHCR on pushes | the container image does not build or publish       |
 | — | `ci-gate`           | —               | aggregate gate (`if: always()`)                             | any stage above failed, was skipped or was cancelled |
 
 Jobs A–E and G run in parallel; `coverage-gate` waits for `test` because it consumes the
@@ -44,8 +44,12 @@ Configure the repository so the merge is blocked until CI passes:
    and optionally also the individual stage checks (`lint`, `static-analysis`,
    `security-scan`, `build`, `test`, `coverage-gate`, `docker-build`) if you want every stage
    visible as a required check of its own.
-3. Require the PR branch to be up to date and dismiss stale reviews — the workflow itself
-   never pushes or deploys (`permissions: contents: read`).
+3. Require the PR branch to be up to date and dismiss stale reviews.
+
+The `docker-build` job publishes images for pushes to `develop` and `main` as
+`ghcr.io/onecaresystems/onecare-backend:sha-<full-commit-sha>`. Pull requests build the
+image for validation but do not log in to GHCR or publish it. The job uses the repository's
+`GITHUB_TOKEN` with `packages: write`; no separate registry secret is required.
 
 ## Secrets inventory
 
@@ -123,7 +127,8 @@ docker build --tag onecare-backend:local . # same build as docker-build
 3. **Frontend is split into its own repository.** ESLint and the frontend unit tests run in
    `onecare-frontend`'s own `.github/workflows/ci.yml`, and the **frontend Docker image build
    is therefore also executed there** (it is a deviation only in the sense that it is not in
-   *this* workflow). This backend workflow builds the backend image (`docker-build`).
+   *this* workflow). This backend workflow builds and publishes the backend image
+   (`docker-build`).
 4. **GitHub dependency review** complements OWASP Dependency-Check on pull requests
    (GitHub Advisory DB, `fail-on-severity: high`); both run in the single `security-scan`
    check. -->
