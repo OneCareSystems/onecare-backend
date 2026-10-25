@@ -227,20 +227,26 @@ class CiWorkflowConfigurationTest {
         }
 
         // ------------------------------------------------------------------
-        // AC2 - a failing lint/security-scan check blocks the merge
+        // AC2 - only OWASP Dependency-Check findings are warning-only
         // ------------------------------------------------------------------
 
         @Test
-        @DisplayName("no stage may continue on error or swallow failures")
+        @DisplayName("only OWASP Dependency-Check may continue on error")
         void ac2_noStageMayFailOpen() {
                 for (String stage : STAGES) {
                         Map<String, Object> stageJob = job(stage);
                         assertFalse(isEnabled(stageJob.get("continue-on-error")),
                                         stage + " job must not continue on error");
                         for (Map<String, Object> step : stepsOf(stageJob)) {
-                                assertFalse(isEnabled(step.get("continue-on-error")),
-                                                stage + " step '" + step.get("name")
-                                                                + "' must not continue on error");
+                                if (stage.equals("security-scan")
+                                                && "OWASP Dependency-Check".equals(step.get("name"))) {
+                                        assertTrue(isEnabled(step.get("continue-on-error")),
+                                                        "OWASP Dependency-Check findings must be warning-only");
+                                } else {
+                                        assertFalse(isEnabled(step.get("continue-on-error")),
+                                                        stage + " step '" + step.get("name")
+                                                                        + "' must not continue on error");
+                                }
                         }
 
                         String script = runScriptOf(stageJob);

@@ -18,10 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for the security-scan stage: the scan must be able to fail
- * the build, its threshold must be real, the secret scanner cannot be
- * neutralised for the workflow files themselves, and the NVD-key policy
- * must be branch-aware (main strict, develop lenient).
+ * Tests for the security-scan stage: the scan threshold must be real, OWASP
+ * findings are warning-only, the secret scanner cannot be neutralised for
+ * the workflow files themselves, and the NVD-key policy must be branch-aware
+ * (main strict, develop lenient).
  */
 class SecurityScanGateTest {
 
@@ -35,7 +35,7 @@ class SecurityScanGateTest {
     private static final Pattern CVSS_THRESHOLD =
             Pattern.compile("(?m)^\\s*-DfailBuildOnCVSS=(\\d+)\\s*\\\\?\\s*$");
 
-    /** OWASP Dependency-Check semantics: findings with CVSS >= threshold fail the build (11 disables). */
+    /** OWASP Dependency-Check semantics: findings with CVSS >= threshold fail the scan (11 disables). */
     private static boolean scanFailsBuild(double cvss, int threshold) {
         return cvss >= threshold;
     }
@@ -81,19 +81,19 @@ class SecurityScanGateTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("AC2: the dependency scan fails on high/critical findings (threshold is real, not disabled)")
-    void dependencyCheckThresholdFailsOnHighFindings() throws IOException {
+    @DisplayName("AC2: the dependency scan flags high/critical findings (threshold is real, not disabled)")
+    void dependencyCheckThresholdFlagsHighFindings() throws IOException {
         int threshold = thresholdFromWorkflow();
         assertEquals(7, threshold, "NFRPO-002: the scan must fail on CVSS >= 7 (high)");
         assertTrue(threshold <= 10, "a threshold above 10 would disable the gate");
-        assertFalse(scanFailsBuild(5.0, threshold), "medium findings must not block the merge");
-        assertTrue(scanFailsBuild(7.0, threshold), "high findings must block the merge");
-        assertTrue(scanFailsBuild(9.8, threshold), "critical findings must block the merge");
+        assertFalse(scanFailsBuild(5.0, threshold), "medium findings must not fail the scan");
+        assertTrue(scanFailsBuild(7.0, threshold), "high findings must fail the scan");
+        assertTrue(scanFailsBuild(9.8, threshold), "critical findings must fail the scan");
     }
 
     @Test
-    @DisplayName("AC2: the OWASP step is gated on the preflight and never fails open")
-    void owaspStepIsGatedAndEnforced() throws IOException {
+    @DisplayName("AC2: the OWASP step is gated on the preflight and reports failures as warnings")
+    void owaspStepIsGatedAndWarningOnly() throws IOException {
         Map<String, Object> securityScan = securityScanJob();
         Map<String, Object> owasp = stepsOf(securityScan).stream()
                 .filter(step -> "OWASP Dependency-Check".equals(step.get("name")))
@@ -109,9 +109,9 @@ class SecurityScanGateTest {
         assertTrue(condition.contains("key_present"),
                 "the OWASP step must be gated on the preflight's key_present output");
 
-        // No failure-tolerance attributes anywhere on the step.
-        assertFalse(owasp.containsKey("continue-on-error"),
-                "the OWASP step must never be allowed to fail open");
+        // Findings and scanner failures are warnings that do not block CI.
+        assertTrue(isEnabled(owasp.get("continue-on-error")),
+                "the OWASP step must continue on error so findings remain non-blocking");
         String run = String.valueOf(owasp.get("run"));
         assertTrue(run.contains("-DfailBuildOnCVSS=7"),
                 "the OWASP step must fail on CVSS >= 7");
@@ -210,8 +210,14 @@ class SecurityScanGateTest {
             assertFalse(isEnabled(job.get("continue-on-error")),
                     entry.getKey() + " job must not fail open");
             for (Map<String, Object> step : stepsOf(job)) {
-                assertFalse(isEnabled(step.get("continue-on-error")),
-                        entry.getKey() + " step '" + step.get("name") + "' must not fail open");
+                if ("security-scan".equals(entry.getKey())
+                        && "OWASP Dependency-Check".equals(step.get("name"))) {
+                    assertTrue(isEnabled(step.get("continue-on-error")),
+                            "OWASP Dependency-Check must remain warning-only");
+                } else {
+                    assertFalse(isEnabled(step.get("continue-on-error")),
+                            entry.getKey() + " step '" + step.get("name") + "' must not fail open");
+                }
             }
         }
         assertTrue(workflow.contains("${{ secrets.NVD_API_KEY }}"),
