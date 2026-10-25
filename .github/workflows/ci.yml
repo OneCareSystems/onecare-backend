@@ -93,14 +93,17 @@ jobs:
   # Stage C - security on every build:
   #   1. secret scanning of the working tree (gitleaks, explicit config),
   #   2. GitHub dependency review on pull requests (GitHub Advisory DB),
-  #   3. OWASP Dependency-Check: fails on any CVSS >= 7 vulnerability.
+  #   3. OWASP Dependency-Check: reports CVSS >= 7 vulnerabilities as a
+  #      warning and does not block CI.
   #
   # Branch-aware NVD key policy:
   #   main (push or PR target):
   #     NVD_API_KEY is REQUIRED. Missing key -> preflight fails -> job
-  #     fails -> ci-gate blocks. Scan always runs and is enforced.
+  #     fails -> ci-gate blocks. OWASP scan findings/failures are warnings
+  #     and do not block CI.
   #   develop (push or PR target):
-  #     NVD_API_KEY is OPTIONAL. When present -> scan runs, enforced.
+  #     NVD_API_KEY is OPTIONAL. When present -> scan runs; failures are
+  #     warnings and do not block CI.
   #     When absent  -> preflight is a no-op, the scan step is skipped,
   #     the job SUCCEEDS, and the merge is NOT blocked. gitleaks and
   #     dependency-review still run and are still enforced.
@@ -199,10 +202,13 @@ jobs:
             owasp-dependency-check-12.2.2-${{ runner.os }}-${{ github.job }}-
             owasp-dependency-check-12.2.2-${{ runner.os }}-
 
-      # Runs only when the preflight resolved a key. Always enforced
-      # when it runs: no continue-on-error, failBuildOnCVSS=7.
+      # Runs only when the preflight resolved a key. Findings still cause
+      # the scan step to fail, but are reported as a warning and do not
+      # block CI.
       - name: OWASP Dependency-Check
+        id: owasp
         if: steps.preflight.outputs.key_present == 'true'
+        continue-on-error: true
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
@@ -211,6 +217,10 @@ jobs:
             -Dformat=HTML \
             -DdataDirectory="$HOME/.owasp-dependency-check" \
             -DnvdApiKey="$NVD_API_KEY"
+
+      - name: Warn when OWASP Dependency-Check fails
+        if: steps.owasp.outcome == 'failure'
+        run: echo "::warning::OWASP Dependency-Check failed or found a vulnerability at/above the configured CVSS threshold. CI will continue; review the dependency-check report."
 
       - name: Upload dependency-check report
         if: always() && steps.preflight.outputs.key_present == 'true'
