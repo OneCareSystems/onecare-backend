@@ -22,3 +22,33 @@ target
 !.env-example
 
 *.log
+
+
+.idea
+.vscode
+/config
+/docs
+/tools
+/backups
+
+.env
+.env.*
+!.env.example
+.env-example
+
+*.log
+*.tmp
+*.swp
+Thumbs.db
+.DS_Store
+
+
+.gitattributes
+.gitleaks.toml
+HELP.md
+LICENSE
+README*
+q.json
+
+# Local-only application settings may contain credentials and are not needed in the image.
+src/main/resources/application.properties

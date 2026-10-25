@@ -217,6 +217,63 @@ This repository provides the Docker image definition and staging/production prof
 
 ## Troubleshooting
 
+```bash
+./mvnw clean verify
+```
+
+---
+
+## Swagger/OpenAPI Documentation
+
+After application startup:
+
+Swagger UI:
+
+```text
+http://localhost:8080/swagger-ui/index.html 
+```
+
+OpenAPI Docs:
+
+```text
+ http://localhost:8080/v3/api-docs
+ ```
+
+---
+
+## CI Pipeline
+
+CI workflow location:
+
+```text
+.github/workflows/ci.yml
+```
+
+Full documentation (stage map, secrets inventory, branch-protection setup, known
+deviations): [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md).
+
+### Pipeline stages (each one its own check)
+
+* `lint` - Checkstyle (`config/checkstyle/checkstyle.xml`)
+* `static-analysis` - SpotBugs
+* `security-scan` - gitleaks secret scan, GitHub dependency review, OWASP Dependency-Check (fails on CVSS >= 7)
+* `build` - `./mvnw -DskipTests package` (bootable jar artifact)
+* `test` - setup of an isolated MySQL 8.4 service container, Java 21 with Maven caching, unit + integration tests, OpenAPI document artifact
+* `coverage-gate` - JaCoCo check enforcing overall coverage >= 70% (NFRM-003); reported separately from `test`
+* `docker-build` - backend container image; publishes a `sha-<commit>` image to GHCR on pushes to `develop` and `main` (SDS 2.6.5 stage 4)
+* `ci-gate` - aggregate check that names the failing stage and blocks the merge
+
+Run the same gates locally:
+
+```bash
+./mvnw -B checkstyle:check
+./mvnw -B compile spotbugs:check
+./mvnw -B clean verify
+./mvnw -B jacoco:report jacoco:check
+```
+
+All credentials are provided through GitHub Secrets (see the documentation link above);
+staging deployment and monitoring are deferred.
 - **Missing required configuration / unresolved placeholders:** select the intended profile and supply its variables. The script's check is narrower than Spring's full startup requirements.
 - **Schema validation failure:** initialize a fresh disposable database or apply reviewed upgrades to an existing one. Do not enable the destructive schema initializer on an existing database.
 - **JWT key parsing failure:** supply a valid Base64 key of sufficient length rather than a plain-text password.
