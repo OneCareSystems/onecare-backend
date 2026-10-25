@@ -35,6 +35,9 @@ Jobs A–E and G run in parallel; `coverage-gate` waits for `test` because it co
 coverage data artefact; `ci-gate` waits for everything and **names the failing stage** in its
 error output (`::error::CI stage '<name>' did not succeed … the pull request is blocked …`).
 
+The OWASP Dependency-Check step uses version **12.2.2**. Its cache is version-scoped so a
+database created by an older scanner version cannot retain an incompatible schema.
+
 ### Branch protection (required checks)
 
 Configure the repository so the merge is blocked until CI passes:

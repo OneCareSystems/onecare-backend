@@ -194,10 +194,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.owasp-dependency-check
-          key: owasp-dependency-check-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}
+          key: owasp-dependency-check-12.2.2-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}
           restore-keys: |
-            owasp-dependency-check-${{ runner.os }}-${{ github.job }}-
-            owasp-dependency-check-${{ runner.os }}-
+            owasp-dependency-check-12.2.2-${{ runner.os }}-${{ github.job }}-
+            owasp-dependency-check-12.2.2-${{ runner.os }}-
 
       # Runs only when the preflight resolved a key. Always enforced
       # when it runs: no continue-on-error, failBuildOnCVSS=7.
@@ -206,7 +206,7 @@ jobs:
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
-          ./mvnw $MAVEN_CLI_OPTS org.owasp:dependency-check-maven:12.1.3:check \
+          ./mvnw $MAVEN_CLI_OPTS org.owasp:dependency-check-maven:12.2.2:check \
             -DfailBuildOnCVSS=7 \
             -Dformat=HTML \
             -DdataDirectory="$HOME/.owasp-dependency-check" \
