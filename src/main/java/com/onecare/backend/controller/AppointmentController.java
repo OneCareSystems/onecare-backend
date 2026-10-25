@@ -103,9 +103,9 @@ public class AppointmentController {
     @Operation(
             summary = "Get appointment clinical notes",
             description = "Returns the clinical notes stored on the appointment. "
-                    + "Requires APPOINTMENT_READ_CLINICAL_NOTES (Doctor and Pharmacist); "
-                    + "a doctor may only read notes of appointments assigned to them, "
-                    + "a pharmacist may read any appointment's notes. "
+                    + "Requires APPOINTMENT_READ_CLINICAL_NOTES (Doctor only, Table 9 / AC4); "
+                    + "a doctor may only read notes of appointments assigned to them. "
+                    + "Admin, Super Admin and Pharmacist callers are denied with 403. "
                     + "Returns 404 for an unknown appointment.")
     @GetMapping("/{id}/clinical-notes")
     @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ_CLINICAL_NOTES + "')")
@@ -123,10 +123,11 @@ public class AppointmentController {
         return ResponseEntity.ok(new ApiResponse<>(true, "Appointment cancelled successfully", response));
     }
 
-    @Operation(summary = "Get available appointment slots", description = "Return available 30-minute appointment slots for a selected doctor and date")
+    @Operation(summary = "Get available appointment slots",
+            description = "Return available 30-minute appointment slots for a selected doctor "
+                    + "and date. Public (FR043/AC6): reachable without a JWT as part of the "
+                    + "patient self-service booking flow and rate limited per IP.")
     @GetMapping("/available-slots")
-    @PreAuthorize("hasAuthority('" + Permission.APPOINTMENT_READ_ALL + "') or hasAuthority('"
-            + Permission.APPOINTMENT_READ + "')")
     public ResponseEntity<ApiResponse<List<String>>> getAvailableSlots(
             @RequestParam Long doctorId,
             @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date) {

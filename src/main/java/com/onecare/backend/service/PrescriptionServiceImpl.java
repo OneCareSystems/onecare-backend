@@ -22,7 +22,6 @@ import com.onecare.backend.repository.MedicineRepository;
 import com.onecare.backend.repository.PatientRepository;
 import com.onecare.backend.repository.PrescriptionRepository;
 import com.onecare.backend.repository.UserRepository;
-import com.onecare.backend.security.Permission;
 import com.onecare.backend.security.SecurityUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,9 +142,21 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         PrescriptionStatus filter = parseStatus(status);
 
-        List<Prescription> prescriptions = filter == null
-                ? prescriptionRepository.findAll()
-                : prescriptionRepository.findByStatus(filter);
+        // AC1: a doctor's prescriptions are scoped IN THE REPOSITORY QUERY
+        // (doctor_id = self), never by filtering a full fetch in memory.
+        List<Prescription> prescriptions;
+        if (SecurityUtil.isDoctor()) {
+            Long doctorId = SecurityUtil.getCurrentUserId()
+                    .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
+                            "Authentication required"));
+            prescriptions = filter == null
+                    ? prescriptionRepository.findByDoctor_UserId(doctorId)
+                    : prescriptionRepository.findByDoctor_UserIdAndStatus(doctorId, filter);
+        } else {
+            prescriptions = filter == null
+                    ? prescriptionRepository.findAll()
+                    : prescriptionRepository.findByStatus(filter);
+        }
 
         // PrescriptionResponse has no clinicalNotes field — nothing to strip here
         return prescriptions.stream()
@@ -160,9 +171,22 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         LocalDate today = LocalDate.now();
 
-        return prescriptionRepository
-                .findByDateAndStatusNot(today, PrescriptionStatus.CANCELLED)
-                .stream()
+        // AC1: doctor_id = self is part of the query, not an in-memory filter
+        java.util.stream.Stream<Prescription> stream;
+        if (SecurityUtil.isDoctor()) {
+            Long doctorId = SecurityUtil.getCurrentUserId()
+                    .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
+                            "Authentication required"));
+            stream = prescriptionRepository
+                    .findByDoctor_UserIdAndDateAndStatusNot(doctorId, today, PrescriptionStatus.CANCELLED)
+                    .stream();
+        } else {
+            stream = prescriptionRepository
+                    .findByDateAndStatusNot(today, PrescriptionStatus.CANCELLED)
+                    .stream();
+        }
+
+        return stream
                 .filter(this::canView)
                 .map(PrescriptionResponse::from)
                 .toList();

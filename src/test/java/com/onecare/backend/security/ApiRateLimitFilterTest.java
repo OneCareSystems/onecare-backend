@@ -171,6 +171,20 @@ class ApiRateLimitFilterTest {
     }
 
     @Test
+    void shouldRateLimitAvailableSlotsWithPublicBookingTier() throws Exception {
+        ApiRateLimitFilter twoTier = new ApiRateLimitFilter(true, 10, 60, true, 1, 60);
+        String path = "/api/appointments/available-slots";
+        String clientIp = "10.0.0.10";
+
+        twoTier.doFilter(request(path, clientIp), new MockHttpServletResponse(), chain);
+        twoTier.doFilter(request(path, clientIp), response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(429);
+        assertThat(response.getHeader("Retry-After")).isNotBlank();
+        verify(chain, times(1)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void shouldShareSlotsRateLimitAcrossAlternateDoctorIdSpellings() throws Exception {
         ApiRateLimitFilter oneRequestLimit = new ApiRateLimitFilter(true, 10, 60, true, 1, 60);
         String clientIp = "10.0.0.7";
