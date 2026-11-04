@@ -1,32 +1,4 @@
-# ==============================================================================
-# Stage 1: Build Stage (Compiles the source code and packages the JAR)
-# ==============================================================================
-FROM eclipse-temurin:21-jdk AS build
-
-WORKDIR /app
-
-# Copy Maven wrapper and configuration files first to leverage Docker layer caching.
-# This ensures dependencies aren't re-downloaded if pom.xml hasn't changed.
-COPY mvnw .
-COPY .mvn .mvn
-COPY pom.xml .
-
-# Grant execution permissions to the Maven wrapper script
-RUN chmod +x mvnw
-
-# Resolve project dependencies before copying source to preserve Docker layer caching.
-RUN ./mvnw dependency:resolve -B
-
-# Copy the actual application source code
-COPY src ./src
-
-# Build the Spring Boot application, skipping unit tests to speed up container creation
-RUN ./mvnw clean package -DskipTests
-
-
-# ==============================================================================
-# Stage 2: Production Runtime Stage (Lightweight image for running the app)
-# ==============================================================================
+# Use the bootable JAR produced by the Maven build (locally or in CI).
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
 WORKDIR /app
@@ -35,11 +7,11 @@ WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
-# Copy only the compiled production JAR file from the build stage
-COPY --from=build /app/target/*.jar app.jar
+ARG JAR_FILE=target/*.jar
+COPY --chown=spring:spring ${JAR_FILE} app.jar
 
 # Document the port that the Spring Boot application listens on
 EXPOSE 8080
 
-# Execute the application jar using the lightweight JRE Alpine runtime
+# Execute the application jar using the lightweight JRE runtime
 ENTRYPOINT ["java", "-jar", "app.jar"]

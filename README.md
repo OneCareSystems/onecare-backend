@@ -193,15 +193,22 @@ JaCoCo generates local reports at `target/site/jacoco/index.html`. No coverage p
 
 ## Docker
 
-Build from the repository root with a running Docker daemon:
+For CI and fast local image creation, build the bootable JAR first and then build the runtime image:
 
 ```powershell
-docker build -t onecare-backend .
+.\mvnw.cmd -DskipTests package
+docker build -f Dockerfile.prod -t onecare-backend .
 ```
 
-The build stage uses `eclipse-temurin:21-jdk` and the Maven wrapper. Wrapper/POM layers and `dependency:resolve -B` precede source copying for dependency caching. Packaging skips tests; run normal Maven verification separately.
+`Dockerfile.prod` uses `eclipse-temurin:21-jre-alpine` and copies the executable JAR from `target/`. CI supplies the JAR produced by its Maven build; local builds must create it first as shown above. The default `Dockerfile` remains available with the same runtime behavior.
 
-The runtime uses `eclipse-temurin:21-jre-alpine`, copies only the executable JAR, runs as `spring:spring`, exposes 8080 and starts with `java -jar app.jar`. It excludes the build JDK, Maven cache and source tree. `.dockerignore` limits the context to wrapper/configuration and source inputs, with the requested `.env-example` exception; local secrets and generated output are excluded. No extra build inputs are needed for packaging with tests skipped.
+For a local build that compiles the source inside Docker, use the development Dockerfile instead:
+
+```powershell
+docker build -f Dockerfile.development -t onecare-backend:development .
+```
+
+The development image uses the Maven wrapper and skips tests while packaging; run normal Maven verification separately. Both images run on the same lightweight JRE base. `.dockerignore` includes only the build inputs and packaged JAR, and excludes local `application.properties`.
 
 For a local container, prepare a private `docker-local.env` with the configuration above plus `SPRING_PROFILES_ACTIVE=dev` and `SPRING_SQL_INIT_MODE=never`. Use container-reachable database, Redis and chatbot hostnames: on Docker Desktop, host services can be addressed through `host.docker.internal`; `localhost` refers to the container itself. Mount an existing persistent backup directory whose permissions allow the runtime user to write:
 

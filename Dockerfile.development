@@ -1,0 +1,25 @@
+# Build the application from source for local development.
+FROM eclipse-temurin:21-jdk AS build
+
+WORKDIR /app
+
+COPY mvnw pom.xml ./
+COPY .mvn .mvn
+RUN chmod +x mvnw
+
+COPY src ./src
+RUN ./mvnw clean package -DskipTests
+
+# Keep the local image runtime consistent with the production image.
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+WORKDIR /app
+
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring:spring
+
+COPY --from=build --chown=spring:spring /app/target/*.jar app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
