@@ -199,7 +199,7 @@ Build from the repository root with a running Docker daemon:
 docker build -t onecare-backend .
 ```
 
-The build stage uses `eclipse-temurin:21-jdk` and the Maven wrapper. Wrapper/POM layers and `dependency:go-offline -B` precede source copying for dependency caching. Packaging skips tests; run normal Maven verification separately.
+The build stage uses `eclipse-temurin:21-jdk` and the Maven wrapper. Wrapper/POM layers and `dependency:resolve -B` precede source copying for dependency caching. Packaging skips tests; run normal Maven verification separately.
 
 The runtime uses `eclipse-temurin:21-jre-alpine`, copies only the executable JAR, runs as `spring:spring`, exposes 8080 and starts with `java -jar app.jar`. It excludes the build JDK, Maven cache and source tree. `.dockerignore` limits the context to wrapper/configuration and source inputs, with the requested `.env-example` exception; local secrets and generated output are excluded. No extra build inputs are needed for packaging with tests skipped.
 

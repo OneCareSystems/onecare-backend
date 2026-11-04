@@ -14,8 +14,8 @@ COPY pom.xml .
 # Grant execution permissions to the Maven wrapper script
 RUN chmod +x mvnw
 
-# Download all project dependencies offline for faster and cached builds
-RUN ./mvnw dependency:go-offline -B
+# Resolve project dependencies before copying source to preserve Docker layer caching.
+RUN ./mvnw dependency:resolve -B
 
 # Copy the actual application source code
 COPY src ./src
