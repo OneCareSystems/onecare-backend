@@ -1,0 +1,48 @@
+# ==============================================================================
+# Gitleaks Configuration for onecare-backend ( Security Scanning)
+# ==============================================================================
+# This configuration is utilized by the `security-scan` CI stage via:
+#   gitleaks dir . --exit-code 1
+# ==============================================================================
+
+# Inherit all standard, out-of-the-box Gitleaks rules (AWS keys, private keys, 
+# GitHub tokens, JWT patterns, etc.) while appending our custom project rule below.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "plaintext-credential-in-config"
+description = "Credential assigned as a literal in a configuration file; credentials must come from an environment variable or a GitHub Secret."
+
+# ------------------------------------------------------------------------------
+# Rule Logic & Regex Design:
+# Targets keywords (password, secret, token, api_key) followed by assignment 
+# operators (`:` or `=`) and a literal value of 8+ characters starting with a letter.
+# 
+# RE2 constraints (no lookaround) require shape-based filtering:
+#   1. Values beginning with `$` are skipped (e.g., Spring `${...}` and 
+#      GitHub `${{ secrets.* }}` expressions are never flagged).
+#   2. Matches must reach the end of the line (e.g., placeholders like 
+#      `${JWT_SECRET:default}` are not matched from their inner `SECRET:` segment, 
+#      and Java code statements ending in semicolons are ignored).
+#   3. Pure numbers are ignored (e.g., millisecond token expiries).
+#   4. `\r?` safely handles CRLF line endings.
+# ------------------------------------------------------------------------------
+regex = '''(?im)(password|passwd|secret|api[_-]?key|token)[ \t]*[:=][ \t]*["']?[A-Za-z][A-Za-z0-9/+=_@.:~-]{7,}["']?[ \t]*\r?(#.*)?$'''
+keywords = ["password", "secret", "token", "api_key"]
+
+[allowlist]
+description = """
+Exclusion list for known non-sensitive templates and placeholders:
+- `.env-example` contains structural placeholders, not real secrets.
+- `src/test/resources/application.properties` contains deterministic test-only values.
+- Truncated `eyJ...` strings in API documentation are sample display tokens.
+"""
+paths = [
+    '''(^|/)\.env(-example|\.example)?$''',
+    '''(^|/)\.gitleaks\.toml$''',
+    '''(^|/)src/test/resources/application\.properties$''',
+]
+regexes = [
+    '''\*{6}''',
+]

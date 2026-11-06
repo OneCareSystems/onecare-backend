@@ -1,0 +1,339 @@
+package com.onecare.backend.service;
+
+import com.onecare.backend.dto.request.PatientCreateRequest;
+import com.onecare.backend.dto.request.PatientUpdateRequest;
+import com.onecare.backend.dto.response.PatientResponse;
+import com.onecare.backend.entity.Patient;
+import com.onecare.backend.enums.Gender;
+import com.onecare.backend.exception.ResourceNotFoundException;
+import com.onecare.backend.repository.PatientRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class PatientServiceImplTest {
+
+    private static final List<String> PHONE_VARIANTS_0771234567 =
+            List.of("+94771234567", "+94 771 234 567", "0771234567");
+
+    @Mock
+    private PatientRepository patientRepository;
+
+    @InjectMocks
+    private PatientServiceImpl patientService;
+
+    private PatientCreateRequest validRequest() {
+        return new PatientCreateRequest(
+                "Nimal Perera", LocalDate.of(1990, 5, 12),
+                "Colombo", "0771234567", null, null, Gender.MALE);
+    }
+
+    private Patient activePatient(Long id, String full, String phone) {
+        Patient p = new Patient();
+        p.setPatientId(id);
+        p.setFullName(full);
+        p.setContactNo(phone);
+        p.setIsActive(true);
+        return p;
+    }
+
+    /** Simulates the database assigning the generated ID on save. */
+    private void stubSaveAssignsId(long id) {
+        when(patientRepository.save(any(Patient.class))).thenAnswer(invocation -> {
+            Patient p = invocation.getArgument(0);
+            p.setPatientId(id);
+            return p;
+        });
+    }
+
+    // ---------- Creation / ID generation ----------
+
+    @Test
+    void createPatient_returnsSystemGeneratedId_andActiveFlag() {
+        stubSaveAssignsId(101L);
+
+        PatientResponse response = patientService.createPatient(validRequest());
+
+        assertEquals(101L, response.patientId());
+        assertTrue(response.isActive());
+        assertFalse(response.duplicateSuspected());
+    }
+
+    @Test
+    void createPatient_neverSetsPatientIdBeforeSave() {
+        // Records the id the service hands to the repository, before the stub assigns one.
+        AtomicReference<Long> idSeenByRepository = new AtomicReference<>();
+        when(patientRepository.save(any(Patient.class))).thenAnswer(invocation -> {
+            Patient p = invocation.getArgument(0);
+            idSeenByRepository.set(p.getPatientId());
+            p.setPatientId(101L);
+            return p;
+        });
+
+        PatientResponse response = patientService.createPatient(validRequest());
+
+        assertNull(idSeenByRepository.get()); // only the database may assign the id
+        assertEquals(101L, response.patientId());
+        assertEquals("Nimal Perera", response.fullName());
+    }
+
+    // ---------- Duplicate detection ----------
+
+    @Test
+    void createPatient_duplicateMatch_setsFlag_butStillCreates() {
+        when(patientRepository
+            .existsByFullNameIgnoreCaseAndContactNoIn("Nimal Perera", PHONE_VARIANTS_0771234567))
+                .thenReturn(true);
+        stubSaveAssignsId(102L);
+
+        PatientResponse response = patientService.createPatient(validRequest());
+
+        assertTrue(response.duplicateSuspected());
+        assertEquals(102L, response.patientId());
+        verify(patientRepository).save(any(Patient.class)); // registration not blocked
+    }
+
+    @Test
+    void createPatient_omittedBloodGroup_registersSuccessfully() {
+        stubSaveAssignsId(103L);
+        PatientCreateRequest requestWithoutBloodGroup = new PatientCreateRequest(
+                "Kamal Silva", LocalDate.of(1985, 3, 10),
+                "Kandy", "0712345678", "kamal@example.com", null, Gender.MALE);
+
+        PatientResponse response = patientService.createPatient(requestWithoutBloodGroup);
+
+        assertEquals(103L, response.patientId());
+        assertNull(response.bloodGroup());
+        assertEquals("+94712345678", response.contactNo()); // canonical storage format
+    }
+
+    // ---------- Search ----------
+
+    @Test
+    void search_partialName_returnsMatches() {
+        when(patientRepository.search(eq("mal"), anyList(), any(Pageable.class)))
+                .thenReturn(List.of(activePatient(1L, "Nimal Perera", "0771234567")));
+
+        List<PatientResponse> results = patientService.findAllPatients("mal", Pageable.unpaged());
+
+        assertEquals(1, results.size());
+        assertEquals("Nimal Perera", results.get(0).fullName());
+    }
+
+    @Test
+    void search_passesQueryAndPagingToRepository() {
+        Pageable pageable = PageRequest.of(1, 5, Sort.by("fullName"));
+        when(patientRepository.search(eq("0771234567"), anyList(), eq(pageable)))
+                .thenReturn(List.of(activePatient(3L, "Nimal Perera", "0771234567")));
+
+        List<PatientResponse> results = patientService.findAllPatients("0771234567", pageable);
+
+        assertEquals(1, results.size());
+        // one query carrying the phone-format variants, no merge/dedupe needed
+        verify(patientRepository).search(eq("0771234567"), anyList(), eq(pageable));
+    }
+
+    @Test
+    void search_exactPhone_returnsThatPatient() {
+        when(patientRepository.findByContactNoInAndIsActiveTrue(PHONE_VARIANTS_0771234567))
+                .thenReturn(List.of(activePatient(3L, "Nimal Perera", "0771234567")));
+
+        List<PatientResponse> results = patientService.searchPatients("0771234567");
+
+        assertTrue(patientService.findAllPatients("zzzz", Pageable.unpaged()).isEmpty());
+    }
+
+    @Test
+    void search_sharedPhoneNumber_returnsAllFamilyMembers() {
+        Patient father = activePatient(10L, "Sunil Perera", "+94 771 234 567");
+        Patient son = activePatient(11L, "Nimal Perera", "+94 771 234 567");
+        // legacy spaced rows are matched through the canonical/local variants too
+        when(patientRepository.findByContactNoInAndIsActiveTrue(PHONE_VARIANTS_0771234567))
+                .thenReturn(List.of(father, son));
+
+        List<PatientResponse> results = patientService.searchPatients("+94 771 234 567");
+
+        assertEquals(2, results.size());
+        assertEquals(10L, results.get(0).patientId());
+        assertEquals(11L, results.get(1).patientId());
+    }
+
+    @Test
+    void search_sameRecordMatchedTwice_isNotDuplicatedInResults() {
+        Patient p = activePatient(3L, "Nimal Perera", "0771234567");
+        when(patientRepository.findByContactNoInAndIsActiveTrue(PHONE_VARIANTS_0771234567))
+                .thenReturn(List.of(p));
+        when(patientRepository.searchByName("0771234567")).thenReturn(List.of(p));
+
+        assertEquals(1, patientService.searchPatients("0771234567").size());
+    }
+
+    @Test
+    void list_withoutSearch_returnsAllPatients() {
+        when(patientRepository.findAll(Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of(activePatient(1L, "Nimal Perera", "0771234567"))));
+
+        List<PatientResponse> results = patientService.findAllPatients(null, Pageable.unpaged());
+
+        assertEquals(1, results.size());
+        verify(patientRepository, never()).search(any(), any(), any());
+    }
+
+    // ---------- Soft deactivation ----------
+
+    @Test
+    void deactivatePatient_setsInactive_andNeverDeletesRecord() {
+        Patient p = activePatient(5L, "Nimal Perera", "0771234567");
+        when(patientRepository.findById(5L)).thenReturn(Optional.of(p));
+
+        patientService.deactivatePatient(5L);
+
+        assertFalse(p.getIsActive());
+        verify(patientRepository).save(p);
+        verify(patientRepository, never()).delete(any(Patient.class));
+        verify(patientRepository, never()).deleteById(any());
+    }
+
+    // ---------- Not found ----------
+
+    @Test
+    void updatePatient_unknownId_throwsResourceNotFound() {
+        when(patientRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> patientService.updatePatient(999L,
+                        new PatientUpdateRequest("A",  null, null, null, null, null)));
+    }
+
+    // ---------- Public booking find-or-create (DDP-33 / AC3) ----------
+
+    @Test
+    void findOrCreateForPublicBooking_nameAndNormalizedPhoneMatch_reusesExistingPatient() {
+        Patient existing = activePatient(7L, "Nimal Perera", "+94771234567" );
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
+                .thenReturn(Optional.of(existing));
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12), "Male");
+
+        assertEquals(7L, result.getPatientId()); // same record, not a new one
+        verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_localAndInternationalPhoneFormats_resolveToSamePatient() {
+        AtomicReference<Patient> persistedPatient = new AtomicReference<>();
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
+                .thenAnswer(invocation -> Optional.ofNullable(persistedPatient.get()));
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "0771234567"))
+                .thenReturn(Optional.empty());
+        when(patientRepository.save(any(Patient.class))).thenAnswer(invocation -> {
+            Patient patient = invocation.getArgument(0);
+            patient.setPatientId(9L);
+            persistedPatient.set(patient);
+            return patient;
+        });
+
+        Patient localFormatResult = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12), "Male");
+        Patient internationalFormatResult = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "+94771234567", LocalDate.of(1990, 5, 12), "Male");
+
+        assertSame(localFormatResult, internationalFormatResult);
+        assertEquals("+94771234567", internationalFormatResult.getContactNo()); // canonical format
+        verify(patientRepository, times(1)).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_rawFormMatch_reusesExistingPatient() {
+        // Patient stored with the raw (non-normalized) form: the second lookup uses
+        // the raw submitted contact number — same dual-form check as DDP-19.
+        Patient existing = activePatient(8L, "Nimal Perera", "0771234567");
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
+                .thenReturn(Optional.empty());
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "0771234567"))
+                .thenReturn(Optional.of(existing));
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12),"Male");
+
+        assertEquals(8L, result.getPatientId());
+        verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_equivalentLegacyStoredPhoneFormat_reusesExistingPatient() {
+        // Row persisted before the canonical format was introduced (+94 771 234 567):
+        // neither exact lookup hits, so the by-name fallback normalizes both sides.
+        Patient existing = activePatient(12L, "Nimal Perera", "+94 771 234 567");
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
+                .thenReturn(Optional.empty());
+        when(patientRepository.findByFullNameIgnoreCase("Nimal Perera"))
+                .thenReturn(List.of(existing));
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "+94771234567", LocalDate.of(1990, 5, 12), "Male");
+
+        assertEquals(12L, result.getPatientId());
+        verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_nameMatchesButPhoneDiffers_createsNewPatient() {
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
+                .thenReturn(Optional.empty());
+        stubSaveAssignsId(110L);
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12),"Male");
+
+        assertEquals(110L, result.getPatientId());
+        verify(patientRepository).save(any(Patient.class));
+    }
+
+    @Test
+    void findOrCreateForPublicBooking_noMatch_createsMinimalActivePatientWithNormalizedPhone() {
+        when(patientRepository
+                .findFirstByFullNameIgnoreCaseAndContactNo("Nimal Perera", "+94771234567"))
+                .thenReturn(Optional.empty());
+        stubSaveAssignsId(111L);
+
+        Patient result = patientService.findOrCreateForPublicBooking(
+                "Nimal Perera", "0771234567", LocalDate.of(1990, 5, 12),"Male");
+
+        assertEquals(111L, result.getPatientId());
+        assertEquals("Nimal Perera", result.getFullName());
+        assertEquals("+94771234567", result.getContactNo()); // canonical storage format
+        assertEquals(LocalDate.of(1990, 5, 12), result.getDateOfBirth());
+        assertTrue(result.getIsActive());
+    }
+}

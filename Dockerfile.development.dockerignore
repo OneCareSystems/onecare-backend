@@ -1,0 +1,8 @@
+**
+!mvnw
+!pom.xml
+!.mvn/
+!.mvn/**
+!src/
+!src/**
+src/main/resources/application.properties
