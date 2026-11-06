@@ -6,6 +6,7 @@ import com.onecare.backend.entity.AuditLog;
 import com.onecare.backend.entity.User;
 import com.onecare.backend.enums.Role;
 import com.onecare.backend.repository.AuditLogRepository;
+import com.onecare.backend.repository.AppointmentRepository;
 import com.onecare.backend.repository.PasswordResetTokenRepository;
 import com.onecare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,12 +61,16 @@ class AuditLogApiIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private AppointmentRepository appointmentRepository;
+
     private User superAdmin;
     private User admin;
     private User doctor;
 
     @BeforeEach
     void setUp() {
+        appointmentRepository.deleteAll();
         auditLogRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
         userRepository.deleteAll();
